@@ -465,10 +465,12 @@ function widgetDefaults(type) {
   const base = { tintColor: null }; // per-widget background tint override; null = default surface color
   if (type === 'notes') return { ...base, text: '' };
   if (type === 'todo') return { ...base, items: [] };
-  if (type === 'clock') return { ...base, format: '24' };
+  if (type === 'clock') return { ...base, format: '24', timezone: '' };
   if (type === 'search') return { ...base, engine: 'google' };
   if (type === 'countdown') return { ...base, label: 'Countdown', targetDate: '' };
   if (type === 'pomodoro') return { ...base, focusMinutes: 25, breakMinutes: 5, mode: 'focus', running: false, endsAt: null };
+  if (type === 'timer') return { ...base, durationSec: 300, remainingMs: 300000, running: false, startedAt: null, showMs: false };
+  if (type === 'stopwatch') return { ...base, running: false, startedAt: null, accumMs: 0, showMs: false };
   if (type === 'weather') return { ...base, query: '', label: '', lat: null, lon: null };
   if (type === 'rss') return { ...base, feedUrl: '', label: '', items: [], lastFetched: null };
   return base;

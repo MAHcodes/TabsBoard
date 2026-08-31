@@ -12,6 +12,7 @@
   setTimeout(() => document.documentElement.classList.add('theme-ready'), 1200);
 
   let STATE = null;
+  let openDropdownMenus = new Set();
   let OPEN_TABS = [];
   let SELECTED = new Set();
   let selectMode = false;
@@ -49,6 +50,9 @@
      whichever keeps the whole menu on screen. Returns a close() function
      and wires the standard "click outside closes it" behavior. */
   function showDropdown(menu, rect, minWidth) {
+    // Close any other open dropdown so only one menu is visible at a time.
+    openDropdownMenus.forEach(close => { try { close(); } catch (e) {} });
+    openDropdownMenus.clear();
     minWidth = minWidth || 220;
     menu.style.visibility = 'hidden';
     menu.style.top = '0px';
@@ -85,7 +89,8 @@
     menu.style.left = left + 'px';
     menu.style.visibility = 'visible';
 
-    const close = () => menu.remove();
+    const close = () => { menu.remove(); openDropdownMenus.delete(close); };
+    openDropdownMenus.add(close);
     setTimeout(() => document.addEventListener('click', close, { once: true }), 0);
     return close;
   }
@@ -214,6 +219,8 @@
     }
     setInterval(updateClockWidgets, 1000 * 30);
     setInterval(updatePomodoroWidgets, 1000);
+    function tickTimerWidgets() { updateTimerWidgets(); requestAnimationFrame(tickTimerWidgets); }
+    requestAnimationFrame(tickTimerWidgets);
   }
 
   async function reload() { STATE = await DB.getState(); renderAll(); }
@@ -588,6 +595,8 @@
     if (w.type === 'search') return renderSearchWidget(w);
     if (w.type === 'countdown') return renderCountdownWidget(w);
     if (w.type === 'pomodoro') return renderPomodoroWidget(w);
+    if (w.type === 'timer') return renderTimerWidget(w);
+    if (w.type === 'stopwatch') return renderStopwatchWidget(w);
     if (w.type === 'weather') return renderWeatherWidget(w);
     if (w.type === 'rss') return renderRssWidget(w);
     return el('div');
@@ -731,6 +740,24 @@
     });
   }
 
+  function viewMenuItemsHtml(col) {
+    const current = col.viewMode || STATE.meta.settings.viewMode;
+    return `<div class="ws-item-label">View</div><div class="width-row">` +
+      `<button data-view="grid" class="${current === 'grid' ? 'active' : ''}">Tiles</button>` +
+      `<button data-view="list" class="${current === 'list' ? 'active' : ''}">Rows</button>` +
+      `</div>`;
+  }
+  function wireViewMenuItems(menu, col, close) {
+    $$('[data-view]', menu).forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        close();
+        await DB.setCollectionViewMode(col.id, btn.dataset.view);
+        await reload();
+      };
+    });
+  }
+
   function wireWidgetReorderDropZone(card, w) {
     card.addEventListener('dragover', (e) => {
       if (e.dataTransfer.types.includes('application/x-tdb-widget')) {
@@ -845,30 +872,67 @@
     return card;
   }
 
+  const CLOCK_TZ_PRESETS = [
+    'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+    'America/Toronto', 'America/Mexico_City', 'America/Sao_Paulo',
+    'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome',
+    'Europe/Moscow', 'Europe/Istanbul', 'Africa/Cairo', 'Africa/Lagos',
+    'Asia/Dubai', 'Asia/Karachi', 'Asia/Kolkata', 'Asia/Dhaka', 'Asia/Bangkok',
+    'Asia/Singapore', 'Asia/Hong_Kong', 'Asia/Shanghai', 'Asia/Tokyo', 'Asia/Seoul',
+    'Australia/Sydney', 'Australia/Melbourne', 'Pacific/Auckland'
+  ];
+
   function renderClockWidget(w) {
     const titleHtml = `<span class="widget-title">Clock</span>`;
     const { card, header } = widgetShell(w, ICONS.clock, titleHtml);
     header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
     const body = el('div', 'widget-body clock-body');
-    body.innerHTML = `<div class="clock-time" data-clock-time></div><div class="clock-date" data-clock-date></div>`;
+    body.innerHTML = `<div class="clock-time" data-clock-time></div><div class="clock-date" data-clock-date></div><div class="clock-tz" data-clock-tz></div>`;
     card.appendChild(body);
-    updateClockNode(card, w.format || '24');
+    updateClockNode(card, w.format || '24', w.timezone || '');
     return card;
   }
 
-  function updateClockNode(card, format) {
+  function updateClockNode(card, format, timezone) {
     const now = new Date();
     const timeEl = card.querySelector('[data-clock-time]');
     const dateEl = card.querySelector('[data-clock-date]');
+    const tzEl = card.querySelector('[data-clock-tz]');
     if (!timeEl) return;
-    timeEl.textContent = now.toLocaleTimeString([], format === '12' ? { hour: 'numeric', minute: '2-digit' } : { hour: '2-digit', minute: '2-digit', hour12: false });
-    dateEl.textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+    const tzOpts = timezone ? { timeZone: timezone } : {};
+    try {
+      timeEl.textContent = now.toLocaleTimeString([], Object.assign(tzOpts, format === '12' ? { hour: 'numeric', minute: '2-digit' } : { hour: '2-digit', minute: '2-digit', hour12: false }));
+      dateEl.textContent = now.toLocaleDateString([], Object.assign({}, tzOpts, { weekday: 'long', month: 'long', day: 'numeric' }));
+      if (tzEl) tzEl.textContent = timezone || '';
+    } catch {
+      timeEl.textContent = now.toLocaleTimeString([], format === '12' ? { hour: 'numeric', minute: '2-digit' } : { hour: '2-digit', minute: '2-digit', hour12: false });
+      dateEl.textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+      if (tzEl) tzEl.textContent = '';
+    }
   }
   function updateClockWidgets() {
     $$('.widget[data-span] .clock-body').forEach(body => {
       const card = body.closest('.widget');
       const w = STATE.widgets[card.dataset.widgetId];
-      updateClockNode(card, w ? (w.format || '24') : '24');
+      updateClockNode(card, w ? (w.format || '24') : '24', w ? (w.timezone || '') : '');
+    });
+  }
+
+  function openClockTzModal(w) {
+    const body = `
+      <h2>Clock timezone</h2>
+      <p class="hint-text">Pick a timezone, or leave empty to use your local time. Example: America/New_York, Europe/Berlin, Asia/Tokyo, UTC.</p>
+      <div class="field"><label>Timezone</label><input type="text" id="mctz-tz" list="mctz-list" value="${escapeHtml(w.timezone || '')}" placeholder="e.g. Europe/Berlin"><datalist id="mctz-list">${CLOCK_TZ_PRESETS.map(t => `<option value="${t}">`).join('')}</datalist></div>
+      <div class="modal-actions">
+        <button id="mctz-cancel" class="mini-btn">Cancel</button>
+        <button id="mctz-save" class="primary-btn">Save</button>
+      </div>`;
+    openModal(body, () => {
+      $('#mctz-cancel').onclick = closeModal;
+      $('#mctz-save').onclick = async () => {
+        await DB.updateWidget(w.id, { timezone: $('#mctz-tz').value.trim() });
+        await reload(); closeModal();
+      };
     });
   }
 
@@ -1025,6 +1089,146 @@
         const focusMinutes = Math.max(1, parseInt($('#mpo-focus').value, 10) || 25);
         const breakMinutes = Math.max(1, parseInt($('#mpo-break').value, 10) || 5);
         await DB.updateWidget(w.id, { focusMinutes, breakMinutes, running: false, endsAt: null });
+        await reload(); closeModal();
+      };
+    });
+  }
+
+  function formatMs(ms, showMs) {
+    const pad = (n, l) => String(n).padStart(l, '0');
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    let out = h > 0 ? `${h}:${pad(m, 2)}:${pad(s, 2)}` : `${pad(m, 2)}:${pad(s, 2)}`;
+    if (showMs) out += '.' + pad(Math.floor((ms % 1000) / 10), 2);
+    return out;
+  }
+
+  /* ---- Stopwatch: counts up. Persists accumulated time + a start
+     timestamp (not per-second writes) so it stays right across reloads. ---- */
+  function stopwatchMs(w) {
+    const live = w.running && w.startedAt ? (Date.now() - w.startedAt) : 0;
+    return (w.accumMs || 0) + live;
+  }
+  function renderStopwatchWidget(w) {
+    const titleHtml = `<span class="widget-title">Stopwatch</span>`;
+    const { card, header } = widgetShell(w, ICONS.clock, titleHtml);
+    header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
+    const body = el('div', 'widget-body timer-body');
+    body.innerHTML = `
+      <div class="timer-display" data-timer-display></div>
+      <div class="timer-actions">
+        <button class="mini-btn" data-act="toggle">${w.running ? 'Pause' : 'Start'}</button>
+        <button class="mini-btn" data-act="reset">Reset</button>
+      </div>`;
+    body.querySelector('[data-act=toggle]').onclick = async () => {
+      if (w.running) {
+        await DB.updateWidget(w.id, { running: false, accumMs: stopwatchMs(w) });
+      } else {
+        await DB.updateWidget(w.id, { running: true, startedAt: Date.now() });
+      }
+      await reload();
+    };
+    body.querySelector('[data-act=reset]').onclick = async () => {
+      await DB.updateWidget(w.id, { running: false, startedAt: null, accumMs: 0 });
+      await reload();
+    };
+    card.appendChild(body);
+    updateStopwatchNode(card, w);
+    return card;
+  }
+  function updateStopwatchNode(card, w) {
+    const elDisplay = card.querySelector('[data-timer-display]');
+    if (elDisplay) elDisplay.textContent = formatMs(stopwatchMs(w), !!w.showMs);
+  }
+
+  /* ---- Timer: counts down from a set duration. Stores remaining time when
+     paused plus a start timestamp, so it stays correct across reloads and a
+     pause always resumes from the right remaining amount. ---- */
+  function timerRemainingMs(w) {
+    const live = w.running && w.startedAt ? (Date.now() - w.startedAt) : 0;
+    return Math.max(0, (w.remainingMs || 0) - live);
+  }
+  function renderTimerWidget(w) {
+    const titleHtml = `<span class="widget-title">Timer</span>`;
+    const { card, header } = widgetShell(w, ICONS.clock, titleHtml);
+    header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
+    const body = el('div', 'widget-body timer-body');
+    body.innerHTML = `
+      <div class="timer-display" data-timer-display></div>
+      <div class="timer-actions">
+        <button class="mini-btn" data-act="toggle">${w.running ? 'Pause' : 'Start'}</button>
+        <button class="mini-btn" data-act="reset">Reset</button>
+      </div>`;
+    body.querySelector('[data-act=toggle]').onclick = async () => {
+      if (w.running) {
+        await DB.updateWidget(w.id, { running: false, remainingMs: timerRemainingMs(w) });
+      } else {
+        await DB.updateWidget(w.id, { running: true, startedAt: Date.now() });
+      }
+      await reload();
+    };
+    body.querySelector('[data-act=reset]').onclick = async () => {
+      await DB.updateWidget(w.id, { running: false, startedAt: null, remainingMs: (w.durationSec || 0) * 1000 });
+      await reload();
+    };
+    card.appendChild(body);
+    updateTimerNode(card, w);
+    return card;
+  }
+  function updateTimerNode(card, w) {
+    const elDisplay = card.querySelector('[data-timer-display]');
+    if (!elDisplay) return;
+    const ms = timerRemainingMs(w);
+    elDisplay.textContent = formatMs(ms, !!w.showMs);
+    if (w.running && ms <= 0) {
+      // Time's up — stop so it doesn't run negative.
+      DB.updateWidget(w.id, { running: false, startedAt: null, remainingMs: 0 }).then(reload);
+      playChime();
+    }
+  }
+  function updateTimerWidgets() {
+    $$('.widget').forEach(card => {
+      const w = STATE.widgets[card.dataset.widgetId];
+      if (w && w.type === 'timer') updateTimerNode(card, w);
+      else if (w && w.type === 'stopwatch') updateStopwatchNode(card, w);
+    });
+  }
+  function openTimerEditModal(w) {
+    const body = `
+      <h2>Edit Timer</h2>
+      <div class="field"><label>Duration (minutes)</label><div class="search-widget-row timer-duration-row"><input type="number" min="1" max="600" id="mt-duration" class="search-widget-input" value="${Math.max(1, Math.round((w.durationSec || 60) / 60))}"></div></div>
+      <div class="switch-row"><span>Show milliseconds</span><label class="switch"><input type="checkbox" id="mt-ms" ${w.showMs ? 'checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+      <div class="modal-actions">
+        <button id="mt-cancel" class="mini-btn">Cancel</button>
+        <button id="mt-save" class="primary-btn">Save</button>
+      </div>`;
+    openModal(body, () => {
+      $('#mt-cancel').onclick = closeModal;
+      $('#mt-save').onclick = async () => {
+        const durationSec = Math.max(1, parseInt($('#mt-duration').value, 10) || 1) * 60;
+        await DB.updateWidget(w.id, {
+          durationSec,
+          remainingMs: durationSec * 1000,
+          showMs: $('#mt-ms').checked,
+          running: false, startedAt: null
+        });
+        await reload(); closeModal();
+      };
+    });
+  }
+  function openStopwatchEditModal(w) {
+    const body = `
+      <h2>Edit Stopwatch</h2>
+      <div class="switch-row"><span>Show milliseconds</span><label class="switch"><input type="checkbox" id="ms-ms" ${w.showMs ? 'checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+      <div class="modal-actions">
+        <button id="ms-cancel" class="mini-btn">Cancel</button>
+        <button id="ms-save" class="primary-btn">Save</button>
+      </div>`;
+    openModal(body, () => {
+      $('#ms-cancel').onclick = closeModal;
+      $('#ms-save').onclick = async () => {
+        await DB.updateWidget(w.id, { showMs: $('#ms-ms').checked });
         await reload(); closeModal();
       };
     });
@@ -1206,10 +1410,10 @@
   function openGenericWidgetMenu(w, anchorBtn) {
     const rect = anchorBtn.getBoundingClientRect();
     const menu = el('div', 'dropdown-menu');
-    const removeLabel = w.type === 'notes' ? 'Remove Notes widget' : w.type === 'todo' ? 'Remove To-Do widget' : w.type === 'clock' ? 'Remove Clock widget' : w.type === 'search' ? 'Remove Search widget' : w.type === 'countdown' ? 'Remove Countdown widget' : w.type === 'pomodoro' ? 'Remove Pomodoro widget' : w.type === 'weather' ? 'Remove Weather widget' : w.type === 'rss' ? 'Remove RSS widget' : 'Remove widget';
+    const removeLabel = w.type === 'notes' ? 'Remove Notes widget' : w.type === 'todo' ? 'Remove To-Do widget' : w.type === 'clock' ? 'Remove Clock widget' : w.type === 'search' ? 'Remove Search widget' : w.type === 'countdown' ? 'Remove Countdown widget' : w.type === 'pomodoro' ? 'Remove Pomodoro widget' : w.type === 'timer' ? 'Remove Timer widget' : w.type === 'stopwatch' ? 'Remove Stopwatch widget' : w.type === 'weather' ? 'Remove Weather widget' : w.type === 'rss' ? 'Remove RSS widget' : 'Remove widget';
     let extra = '';
     if (w.type === 'clock') {
-      extra = `<div class="ws-item" data-act="fmt"><span class="mi-ic">${ICONS.clock}</span>${(w.format || '24') === '24' ? 'Switch to 12-hour' : 'Switch to 24-hour'}</div><hr>`;
+      extra = `<div class="ws-item" data-act="fmt"><span class="mi-ic">${ICONS.clock}</span>${(w.format || '24') === '24' ? 'Switch to 12-hour' : 'Switch to 24-hour'}</div><div class="ws-item" data-act="edittz"><span class="mi-ic">${ICONS.globe}</span>Change timezone…</div><hr>`;
     } else if (w.type === 'search') {
       const engines = ['google', 'duckduckgo', 'bing'];
       const labels = { google: 'Google', duckduckgo: 'DuckDuckGo', bing: 'Bing' };
@@ -1222,13 +1426,19 @@
       extra = `<div class="ws-item" data-act="editweather"><span class="mi-ic">${ICONS.edit}</span>Change location</div><hr>`;
     } else if (w.type === 'pomodoro') {
       extra = `<div class="ws-item" data-act="editpomodoro"><span class="mi-ic">${ICONS.edit}</span>Edit durations</div><hr>`;
+    } else if (w.type === 'timer') {
+      extra = `<div class="ws-item" data-act="edittimer"><span class="mi-ic">${ICONS.edit}</span>Edit timer</div><hr>`;
+    } else if (w.type === 'stopwatch') {
+      extra = `<div class="ws-item" data-act="editstopwatch"><span class="mi-ic">${ICONS.edit}</span>Options</div><hr>`;
     } else if (w.type === 'rss') {
       extra = `<div class="ws-item" data-act="editrss"><span class="mi-ic">${ICONS.edit}</span>Edit feed</div><div class="ws-item" data-act="refreshrss"><span class="mi-ic">${ICONS.refresh}</span>Refresh now</div><hr>`;
     }
-    menu.innerHTML = `${extra}${widthMenuItemsHtml(w)}<hr>${tintMenuItemHtml()}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash2}</span>${removeLabel}</div>`;
+    menu.innerHTML = `${extra.replace(/<hr>\s*$/, '')}${tintMenuItemHtml()}<hr>${widthMenuItemsHtml(w)}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash2}</span>${removeLabel}</div>`;
     const close = showDropdown(menu, rect, 200);
     const fmtBtn = menu.querySelector('[data-act=fmt]');
     if (fmtBtn) fmtBtn.onclick = async () => { close(); await DB.updateWidget(w.id, { format: (w.format || '24') === '24' ? '12' : '24' }); await reload(); };
+    const editTzBtn = menu.querySelector('[data-act=edittz]');
+    if (editTzBtn) editTzBtn.onclick = () => { close(); openClockTzModal(w); };
     $$('[data-engine]', menu).forEach(item => {
       item.onclick = async () => { close(); await DB.updateWidget(w.id, { engine: item.dataset.engine }); await reload(); };
     });
@@ -1238,6 +1448,10 @@
     if (editWeatherBtn) editWeatherBtn.onclick = () => { close(); openWeatherEditModal(w); };
     const editPomodoroBtn = menu.querySelector('[data-act=editpomodoro]');
     if (editPomodoroBtn) editPomodoroBtn.onclick = () => { close(); openPomodoroEditModal(w); };
+    const editTimerBtn = menu.querySelector('[data-act=edittimer]');
+    if (editTimerBtn) editTimerBtn.onclick = () => { close(); openTimerEditModal(w); };
+    const editStopwatchBtn = menu.querySelector('[data-act=editstopwatch]');
+    if (editStopwatchBtn) editStopwatchBtn.onclick = () => { close(); openStopwatchEditModal(w); };
     const editRssBtn = menu.querySelector('[data-act=editrss]');
     if (editRssBtn) editRssBtn.onclick = () => { close(); openRssEditModal(w); };
     const refreshRssBtn = menu.querySelector('[data-act=refreshrss]');
@@ -1333,10 +1547,11 @@
     const rect = anchorBtn.getBoundingClientRect();
     const menu = el('div', 'dropdown-menu');
     menu.innerHTML = `
+      <div class="ws-item" data-act="tint"><span class="mi-ic">${ICONS.palette}</span>Background color…</div>
+      <hr>
       <div class="ws-item" data-act="rename"><span class="mi-ic">${ICONS.edit}</span>Rename</div>
       <div class="ws-item" data-act="editdetails"><span class="mi-ic">${ICONS.folder}</span>Edit details…</div>
       <div class="ws-item" data-act="pin"><span class="mi-ic">${ICONS.pin}</span>${bm.pinned ? 'Unpin' : 'Pin to top'}</div>
-      <div class="ws-item" data-act="tint"><span class="mi-ic">${ICONS.palette}</span>Background color…</div>
       <hr>
       <div class="ws-item" data-act="copy"><span class="mi-ic">${ICONS.link}</span>Copy link</div>
       <div class="ws-item" data-act="newwin"><span class="mi-ic">${ICONS.externalWindow}</span>Open in new window</div>
@@ -1439,7 +1654,6 @@
     const rect = anchorBtn.getBoundingClientRect();
     const menu = el('div', 'dropdown-menu');
     const w = widgetForCollection(col.id);
-    const effectiveView = col.viewMode || STATE.meta.settings.viewMode;
 
     menu.innerHTML = `
       <div class="ws-item" data-act="edit"><span class="mi-ic">${ICONS.edit}</span>Rename</div>
@@ -1455,18 +1669,14 @@
       <div class="ws-item" data-act="merge"><span class="mi-ic">${ICONS.layers}</span>Merge into…</div>
       <div class="ws-item" data-act="select"><span class="mi-ic">${ICONS.checkSquare}</span>Select bookmarks</div>
       <hr>
-      <div class="ws-item-label">View</div>
-      <div class="ws-item" data-act="viewgrid"><span class="mi-ic">${effectiveView === 'grid' ? ICONS.check : ''}</span>Tiles</div>
-      <div class="ws-item" data-act="viewlist"><span class="mi-ic">${effectiveView === 'list' ? ICONS.check : ''}</span>Rows</div>
+      ${viewMenuItemsHtml(col)}
       ${w ? `<hr>${widthMenuItemsHtml(w)}` : ''}
       <hr>
       <div class="ws-item" data-act="delete" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete collection</div>`;
     const close = showDropdown(menu, rect, 230);
     if (w) wireWidthMenuItems(menu, w, close);
     if (w) wireTintMenuItem(menu, w, close);
-
-    menu.querySelector('[data-act=viewgrid]').onclick = async () => { close(); await DB.setCollectionViewMode(col.id, 'grid'); await reload(); };
-    menu.querySelector('[data-act=viewlist]').onclick = async () => { close(); await DB.setCollectionViewMode(col.id, 'list'); await reload(); };
+    wireViewMenuItems(menu, col, close);
     menu.querySelector('[data-act=edit]').onclick = () => { close(); openRenameCollectionModal(col); };
     menu.querySelector('[data-act=select]').onclick = () => { close(); selectMode = true; renderBoard(); };
     menu.querySelector('[data-act=dup]').onclick = async () => { close(); await DB.duplicateCollection(col.id); await reload(); toast('Collection duplicated'); };
@@ -1889,7 +2099,8 @@
   /* ============ WIDGETS: add ============ */
   const WIDGET_TYPE_LABELS = {
     notes: 'Notes', todo: 'To-Do', clock: 'Clock',
-    search: 'Search box', countdown: 'Countdown', pomodoro: 'Pomodoro', weather: 'Weather', rss: 'RSS Feed'
+    search: 'Search box', countdown: 'Countdown', pomodoro: 'Pomodoro', timer: 'Timer', stopwatch: 'Stopwatch',
+    weather: 'Weather', rss: 'RSS Feed'
   };
   async function addWidget(type) {
     await DB.createWidget(activeWorkspaceId(), type);
@@ -1906,6 +2117,8 @@
       <div class="ws-item" data-act="search"><span class="mi-ic">${ICONS.search}</span>Search box</div>
       <div class="ws-item" data-act="countdown"><span class="mi-ic">${ICONS.clock}</span>Countdown</div>
       <div class="ws-item" data-act="pomodoro"><span class="mi-ic">${ICONS.clock}</span>Pomodoro timer</div>
+      <div class="ws-item" data-act="timer"><span class="mi-ic">${ICONS.clock}</span>Timer</div>
+      <div class="ws-item" data-act="stopwatch"><span class="mi-ic">${ICONS.clock}</span>Stopwatch</div>
       <div class="ws-item" data-act="weather"><span class="mi-ic">${ICONS.globe}</span>Weather</div>
       <div class="ws-item" data-act="rss"><span class="mi-ic">${ICONS.globe}</span>RSS Feed</div>`;
     const close = showDropdown(menu, rect, 200);

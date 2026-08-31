@@ -295,6 +295,7 @@ body.dragging-tab .widget-ghost { display: flex; }
 .clock-body { padding: 20px 14px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
 .clock-time { font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .clock-date { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.clock-tz { font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; opacity: .7; }
 
 
 /* Search box widget */
@@ -302,6 +303,10 @@ body.dragging-tab .widget-ghost { display: flex; }
 .search-widget-row { display: flex; align-items: center; gap: 9px; width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; }
 .search-widget-ic { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 16px; height: 16px; color: var(--text-muted); }
 .search-widget-input { flex: 1; border: none; background: none; outline: none; color: var(--text); font-size: 13.5px; font-family: inherit; }
+.timer-duration-row { padding: 2px 12px; }
+.timer-duration-row .search-widget-input::-webkit-outer-spin-button,
+.timer-duration-row .search-widget-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.timer-duration-row .search-widget-input { -moz-appearance: textfield; appearance: textfield; font-size: 13px; }
 
 /* Countdown widget */
 .countdown-body { padding: 20px 14px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
@@ -313,6 +318,13 @@ body.dragging-tab .widget-ghost { display: flex; }
 .pomodoro-mode { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; color: var(--accent); }
 .pomodoro-time { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .pomodoro-actions { display: flex; gap: 6px; margin-top: 4px; }
+
+/* Timer / Stopwatch widget */
+.timer-body { padding: 16px 14px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.timer-display { font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.timer-actions { display: flex; gap: 6px; }
+
+/* Weather widget */
 
 /* Weather widget */
 .weather-body { padding: 18px 14px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
@@ -390,10 +402,12 @@ body.dragging-tab .widget-ghost { display: flex; }
 .modal-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .field { margin-bottom: 14px; }
 .field label { display: block; font-size: 12px; font-weight: 800; color: var(--text-muted); margin-bottom: 5px; }
-.field input[type=text], .field input[type=url], .field textarea, .field select {
+.field input[type=text], .field input[type=url], .field input[type=number], .field input[type=date], .field textarea, .field select {
   width: 100%; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2);
   color: var(--text); font-size: 13px; font-family: inherit;
 }
+.field input[type=number], .field input[type=date] { box-sizing: border-box; }
+.field input[type=date] { color-scheme: light dark; }
 .field textarea { resize: vertical; min-height: 60px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .color-picker { display: flex; gap: 8px; flex-wrap: wrap; }

@@ -54,7 +54,15 @@
     { id: 'obsidian',     name: 'Obsidian',        type: 'dark',  bg: '#121212', text: '#ececec', accent: '#9b8afb' },
     { id: 'linen',        name: 'Linen',           type: 'light', bg: '#f6f3ec', text: '#2c2a24', accent: '#8a7452' },
     { id: 'deepsea',      name: 'Deep Sea',        type: 'dark',  bg: '#041521', text: '#d6ecf5', accent: '#00b4d8' },
-    { id: 'apricot',      name: 'Apricot',         type: 'light', bg: '#fff3e6', text: '#3d2612', accent: '#ea7c3c' }
+    { id: 'apricot',      name: 'Apricot',         type: 'light', bg: '#fff3e6', text: '#3d2612', accent: '#ea7c3c' },
+    { id: 'vaporwave',    name: 'Vaporwave',       type: 'dark',  bg: '#190938', text: '#f3e6ff', accent: '#ff3ea5' },
+    { id: 'bumblebee',    name: 'Bumblebee',       type: 'dark',  bg: '#141414', text: '#f7f7f2', accent: '#f5c518' },
+    { id: 'arctic',       name: 'Arctic',          type: 'dark',  bg: '#0f1e2b', text: '#e7f0f7', accent: '#fb7185' },
+    { id: 'patina',       name: 'Patina',          type: 'dark',  bg: '#191510', text: '#efe5cf', accent: '#2dd4bf' },
+    { id: 'crystal',      name: 'Crystal',         type: 'light', bg: '#eef3fb', text: '#1b2a4a', accent: '#7c8cf8' },
+    { id: 'horizon',      name: 'Horizon',         type: 'dark',  bg: '#241505', text: '#fff3dd', accent: '#fbbf24' },
+    { id: 'inkwell',      name: 'Inkwell',         type: 'light', bg: '#f2f0ea', text: '#241f18', accent: '#1f2937' },
+    { id: 'peacock',      name: 'Peacock',         type: 'dark',  bg: '#0b1c1f', text: '#e4f6f3', accent: '#8b5cf6' }
   ];
 
   const COLLECTION_COLORS = [
