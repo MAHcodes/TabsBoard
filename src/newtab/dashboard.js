@@ -55,13 +55,30 @@
     menu.style.left = Math.min(rect.left, window.innerWidth - minWidth - 8) + 'px';
     document.body.appendChild(menu);
     const menuRect = menu.getBoundingClientRect();
-    let top = rect.bottom + 4;
-    if (top + menuRect.height > window.innerHeight - 8) {
-      // Not enough room below — try above the anchor instead, else just
-      // clamp to the bottom of the viewport so nothing is cut off.
-      const aboveTop = rect.top - menuRect.height - 4;
-      top = aboveTop >= 8 ? aboveTop : Math.max(8, window.innerHeight - menuRect.height - 8);
+    // Choose whichever side of the anchor has more usable vertical space,
+    // preferring below on a tie. This way a menu anchored near the bottom of
+    // the page flips above and can still use the full space above — instead of
+    // getting a tiny sliver — while a normal menu just fills all the room
+    // below it. Either way the menu is clamped to the viewport so nothing
+    // overflows past the screen edge.
+    const spaceBelow = window.innerHeight - rect.bottom - 12;
+    const spaceAbove = rect.top - 8;
+    let top, avail;
+    if (spaceBelow >= spaceAbove && spaceBelow >= 80) {
+      top = rect.bottom + 4;
+      avail = window.innerHeight - top - 8;
+    } else if (spaceAbove >= 80) {
+      // Anchor right above the widget (its bottom edge just clears the
+      // anchor's top) instead of at the page top, so a dropdown for a
+      // bottom-of-page widget stays visually attached to it. maxHeight still
+      // allows it to grow upward, clamped so it can't go off the top.
+      top = Math.max(8, rect.top - menuRect.height - 4);
+      avail = rect.top - top - 4;
+    } else {
+      top = rect.bottom + 4;
+      avail = Math.max(spaceBelow, spaceAbove, 80);
     }
+    menu.style.maxHeight = Math.max(80, avail) + 'px';
     let left = Math.min(rect.left, window.innerWidth - menuRect.width - 8);
     left = Math.max(8, left);
     menu.style.top = top + 'px';
