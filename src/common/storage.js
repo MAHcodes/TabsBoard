@@ -481,7 +481,7 @@ async function createWidget(workspaceId, type, extra) {
     const id = uid();
     const boardId = activeBoardIdFor(d, workspaceId);
     const order = Object.values(d.widgets).filter(w => w.boardId === boardId).length;
-    d.widgets[id] = { id, workspaceId, boardId, type, span: 1, order, createdAt: now(), ...widgetDefaults(type), ...(extra || {}) };
+    d.widgets[id] = { id, workspaceId, boardId, type, span: 1, rowSpan: 1, order, createdAt: now(), ...widgetDefaults(type), ...(extra || {}) };
     return d.widgets[id];
   });
 }

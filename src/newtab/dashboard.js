@@ -606,6 +606,7 @@
     const card = el('div', 'widget');
     card.dataset.widgetId = w.id;
     card.dataset.span = String(w.span || 1);
+    card.dataset.rowspan = String(w.rowSpan || 1);
     if (w.tintColor && CU) {
       const surface = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#ffffff';
       card.style.background = CU.mix(surface, w.tintColor, 0.16);
@@ -668,9 +669,10 @@
     });
   }
 
-  /* True drag-to-resize: grab the handle on a widget's right edge and drag
-     to change its column span live, snapping to whole columns. The menu's
-     1–4 picker still works too — this is just the direct-manipulation path. */
+  /* True drag-to-resize: grab a handle on a widget's edge (right = width,
+     bottom = height, corner = both) and drag to change its grid span live,
+     snapping to whole columns/rows. The menu's 1–N pickers still work too —
+     this is just the direct-manipulation path. */
   function getBoardMetrics() {
     const boardEl = $('#board');
     const rect = boardEl.getBoundingClientRect();
@@ -683,40 +685,67 @@
   function spanWidthPx(span, metrics) { return metrics.colWidth * span + metrics.gap * (span - 1); }
 
   function wireWidgetResizeHandle(card, w) {
-    const handle = el('div', 'widget-resize-handle');
-    handle.title = 'Drag to resize';
-    card.appendChild(handle);
-    handle.addEventListener('mousedown', (e) => {
+    // right edge — column span
+    const handleR = el('div', 'widget-resize-handle');
+    handleR.title = 'Drag to resize width';
+    // bottom edge — row span
+    const handleB = el('div', 'widget-resize-handle-b');
+    handleB.title = 'Drag to resize height';
+    // bottom-right corner — both at once
+    const handleC = el('div', 'widget-resize-handle-c');
+    handleC.title = 'Drag to resize width & height';
+    card.appendChild(handleR);
+    card.appendChild(handleB);
+    card.appendChild(handleC);
+
+    function rowSpanPx(rows, rowH, gap) { return rowH * rows + gap * (rows - 1); }
+
+    function startResize(e, axes) {
       e.preventDefault();
       e.stopPropagation();
       const metrics = getBoardMetrics();
       const startSpan = w.span || 1;
+      const startRow = w.rowSpan || 1;
       const startX = e.clientX;
+      const startY = e.clientY;
       const startWidthPx = spanWidthPx(startSpan, metrics);
+      // Baseline single-row height: the card's own height split across its rows.
+      const startRowPx = card.getBoundingClientRect().height / startRow;
       card.classList.add('resizing');
       let liveSpan = startSpan;
+      let liveRow = startRow;
       const onMove = (ev) => {
-        const deltaX = ev.clientX - startX;
-        const candidateWidth = startWidthPx + deltaX;
-        let span = Math.round((candidateWidth + metrics.gap) / (metrics.colWidth + metrics.gap));
-        span = Math.max(1, Math.min(4, metrics.cols, span));
-        if (span !== liveSpan) {
-          liveSpan = span;
-          card.dataset.span = String(span);
+        if (axes.x) {
+          const deltaX = ev.clientX - startX;
+          const candidateWidth = startWidthPx + deltaX;
+          let span = Math.round((candidateWidth + metrics.gap) / (metrics.colWidth + metrics.gap));
+          span = Math.max(1, Math.min(4, metrics.cols, span));
+          if (span !== liveSpan) { liveSpan = span; card.dataset.span = String(span); }
+        }
+        if (axes.y) {
+          const deltaY = ev.clientY - startY;
+          const cardHeight = rowSpanPx(startRow, startRowPx, metrics.gap) + deltaY;
+          let row = Math.round((cardHeight + metrics.gap) / (startRowPx + metrics.gap));
+          row = Math.max(1, Math.min(4, row));
+          if (row !== liveRow) { liveRow = row; card.dataset.rowspan = String(row); }
         }
       };
       const onUp = async () => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         card.classList.remove('resizing');
-        if (liveSpan !== startSpan) {
-          await DB.updateWidget(w.id, { span: liveSpan });
-          await reload();
-        }
+        const patch = {};
+        if (liveSpan !== startSpan) patch.span = liveSpan;
+        if (liveRow !== startRow) patch.rowSpan = liveRow;
+        if (Object.keys(patch).length) { await DB.updateWidget(w.id, patch); await reload(); }
       };
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
-    });
+    }
+
+    handleR.addEventListener('mousedown', (e) => startResize(e, { x: true, y: false }));
+    handleB.addEventListener('mousedown', (e) => startResize(e, { x: false, y: true }));
+    handleC.addEventListener('mousedown', (e) => startResize(e, { x: true, y: true }));
   }
 
   /* Shared "Width" menu section (moved off the header into the ⋯ menu so
@@ -735,6 +764,26 @@
         e.stopPropagation();
         close();
         await DB.updateWidget(w.id, { span: parseInt(btn.dataset.width, 10) });
+        await reload();
+      };
+    });
+  }
+
+  /* Shared "Height" menu section — same idea as the width picker but for
+     row span (how many grid rows a widget occupies vertically). */
+  function heightMenuItemsHtml(w) {
+    const current = w.rowSpan || 1;
+    const buttons = [1, 2, 3, 4].map(n =>
+      `<button data-height="${n}" class="${n === current ? 'active' : ''}">${n}</button>`
+    ).join('');
+    return `<div class="ws-item-label">Height</div><div class="width-row">${buttons}</div>`;
+  }
+  function wireHeightMenuItems(menu, w, close) {
+    $$('[data-height]', menu).forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        close();
+        await DB.updateWidget(w.id, { rowSpan: parseInt(btn.dataset.height, 10) });
         await reload();
       };
     });
@@ -1433,7 +1482,7 @@
     } else if (w.type === 'rss') {
       extra = `<div class="ws-item" data-act="editrss"><span class="mi-ic">${ICONS.edit}</span>Edit feed</div><div class="ws-item" data-act="refreshrss"><span class="mi-ic">${ICONS.refresh}</span>Refresh now</div><hr>`;
     }
-    menu.innerHTML = `${extra.replace(/<hr>\s*$/, '')}${tintMenuItemHtml()}<hr>${widthMenuItemsHtml(w)}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash2}</span>${removeLabel}</div>`;
+    menu.innerHTML = `${extra.replace(/<hr>\s*$/, '')}${tintMenuItemHtml()}<hr>${widthMenuItemsHtml(w)}${heightMenuItemsHtml(w)}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash2}</span>${removeLabel}</div>`;
     const close = showDropdown(menu, rect, 200);
     const fmtBtn = menu.querySelector('[data-act=fmt]');
     if (fmtBtn) fmtBtn.onclick = async () => { close(); await DB.updateWidget(w.id, { format: (w.format || '24') === '24' ? '12' : '24' }); await reload(); };
@@ -1457,6 +1506,7 @@
     const refreshRssBtn = menu.querySelector('[data-act=refreshrss]');
     if (refreshRssBtn) refreshRssBtn.onclick = async () => { close(); await refreshRssWidget(w); };
     wireWidthMenuItems(menu, w, close);
+    wireHeightMenuItems(menu, w, close);
     wireTintMenuItem(menu, w, close);
     menu.querySelector('[data-act=remove]').onclick = async () => { close(); await DB.deleteWidget(w.id); await reload(); };
   }
@@ -1670,11 +1720,12 @@
       <div class="ws-item" data-act="select"><span class="mi-ic">${ICONS.checkSquare}</span>Select bookmarks</div>
       <hr>
       ${viewMenuItemsHtml(col)}
-      ${w ? `<hr>${widthMenuItemsHtml(w)}` : ''}
+      ${w ? `<hr>${widthMenuItemsHtml(w)}${heightMenuItemsHtml(w)}` : ''}
       <hr>
       <div class="ws-item" data-act="delete" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete collection</div>`;
     const close = showDropdown(menu, rect, 230);
     if (w) wireWidthMenuItems(menu, w, close);
+    if (w) wireHeightMenuItems(menu, w, close);
     if (w) wireTintMenuItem(menu, w, close);
     wireViewMenuItems(menu, col, close);
     menu.querySelector('[data-act=edit]').onclick = () => { close(); openRenameCollectionModal(col); };
