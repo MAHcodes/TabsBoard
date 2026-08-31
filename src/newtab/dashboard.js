@@ -277,6 +277,7 @@
     r.setProperty('--accent', palette.accent);
     r.setProperty('--accent-soft', palette.accentSoft);
     r.setProperty('--board-cols', String((s.dashboard && s.dashboard.columns) || 4));
+    r.setProperty('--board-row-min', '200px');
     const opacity = (s.tabsList && s.tabsList.dimInactive) ? (((s.tabsList.inactiveOpacity ?? 55)) / 100) : 1;
     const grayscale = (s.tabsList && s.tabsList.dimInactive && s.tabsList.inactiveGrayscale) ? 'grayscale(85%)' : 'none';
     r.setProperty('--inactive-tab-opacity', String(opacity));
@@ -513,7 +514,12 @@
     const board = $('#board');
     board.innerHTML = '';
     const q = filterQueryFor.collections.trim().toLowerCase();
-    const widgets = widgetsForActiveWS();
+    // Place widgets by their explicit grid cell so user-open gaps are honored.
+    const widgets = widgetsForActiveWS()
+      .slice()
+      .map(w => ({ w, col: (w.col || 1), row: (w.row || Infinity) }))
+      .sort((a, b) => (a.row - b.row) || (a.col - b.col))
+      .map(x => x.w);
 
     widgets.forEach(w => {
       if (q && w.type === 'collection') {
@@ -529,7 +535,96 @@
     if (!widgets.length && !q) {
       // ghost tile alone is enough of an empty state — no extra copy needed
     }
+    wireBoardDropZone(board);
     updateBulkBar();
+  }
+
+  /* Drop a dragged widget onto empty board space to move it to that cell.
+     Only lands when the target cell (and the widget's footprint) is actually
+     free — otherwise the move is ignored, so widgets never overlap. This is
+     what lets a board keep true empty "items" between widgets. While dragging
+     a translucent placement marker tracks the cell under the cursor (green
+     when it will land, hidden when the spot is taken). */
+  function wireBoardDropZone(board) {
+    const marker = el('div', 'widget-drop-marker');
+    marker.style.display = 'none';
+    board.appendChild(marker);
+
+    const onDragOver = (e) => {
+      if (!e.dataTransfer.types.includes('application/x-tdb-widget')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      // Hovering an existing widget means "swap" — the card itself highlights
+      // via its own .drag-over state, so hide the empty-cell marker.
+      if (e.target.closest && e.target.closest('.widget')) { marker.style.display = 'none'; return; }
+      const id = e.dataTransfer.getData('application/x-tdb-widget');
+      const w = id && STATE.widgets[id];
+      const target = w ? findDropTarget(board, e, w) : null;
+      if (target) {
+        marker.style.display = 'block';
+        marker.style.gridColumn = `${target.col} / ${target.col + target.span}`;
+        marker.style.gridRow = `${target.row} / ${target.row + target.rowSpan}`;
+        marker.classList.toggle('invalid', target.invalid);
+      } else {
+        marker.style.display = 'none';
+      }
+    };
+    const onDragLeave = (e) => {
+      if (!board.contains(e.relatedTarget)) marker.style.display = 'none';
+    };
+    const onDrop = async (e) => {
+      marker.style.display = 'none';
+      const id = e.dataTransfer.getData('application/x-tdb-widget');
+      if (!id) return;
+      const w = STATE.widgets[id];
+      if (!w) return;
+      e.preventDefault();
+      const target = findDropTarget(board, e, w);
+      if (!target || target.invalid) return;
+      await DB.moveWidgetTo(id, target.row, target.col);
+      await reload();
+    };
+    board.addEventListener('dragover', onDragOver);
+    board.addEventListener('dragleave', onDragLeave);
+    board.addEventListener('drop', onDrop);
+  }
+
+  /* Resolve where a dragged widget would land: map the pointer to a board
+     cell, clamp spans, and detect overlap. Returns null when the pointer is
+     off-board or the footprint can't fit, otherwise { row, col, span, rowSpan,
+     invalid } where `invalid` means the spot is occupied (drop blocked but we
+     can still show a red marker near it). */
+  function findDropTarget(board, e, w) {
+    const span = Math.max(1, w.span || 1);
+    const rowSpan = Math.max(1, w.rowSpan || 1);
+    const cell = cellForPoint(board, e.clientX, e.clientY, span, rowSpan);
+    if (!cell) return null;
+    const r0 = cell.row, c0 = cell.col;
+    const invalid = Object.values(STATE.widgets || {}).some(o => {
+      if (o.id === w.id || o.boardId !== w.boardId || !o.row || !o.col) return false;
+      const oc = o.col, or = o.row, oSpan = o.span || 1, oRow = o.rowSpan || 1;
+      return r0 < or + oRow && r0 + rowSpan > or && c0 < oc + oSpan && c0 + span > oc;
+    });
+    return { row: r0, col: c0, span, rowSpan, invalid };
+  }
+
+  /* Map a page point to a board grid cell (1-based), using the same column
+     math as resize and an estimated row height. Returns null when outside the
+     board or when the widget wouldn't fit there (too close to the right edge). */
+  function cellForPoint(board, px, py, span, rowSpan) {
+    const rect = board.getBoundingClientRect();
+    if (py < rect.top || py > rect.bottom) return null;
+    const style = getComputedStyle(board);
+    const gap = parseFloat(style.columnGap || style.gap) || 18;
+    const cols = (STATE.meta.settings.dashboard && STATE.meta.settings.dashboard.columns) || 4;
+    const colWidth = (rect.width - gap * (cols - 1)) / cols;
+    const rowMin = parseFloat(document.documentElement.style.getPropertyValue('--board-row-min')) || 200;
+    const relX = px - rect.left;
+    const relY = py - rect.top;
+    const col = Math.floor((relX + gap / 2) / (colWidth + gap)) + 1;
+    const row = Math.floor((relY + gap / 2) / (rowMin + gap)) + 1;
+    if (col + (span || 1) - 1 > cols) return null;
+    return { row: Math.max(1, row), col: Math.max(1, col) };
   }
 
   function renderBoardSwitcher() {
@@ -611,6 +706,14 @@
       const surface = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#ffffff';
       card.style.background = CU.mix(surface, w.tintColor, 0.16);
     }
+    // Explicit grid placement (row/col are 1-based top-left cells). This is
+    // what lets the board leave empty cells between widgets.
+    const col = Math.max(1, w.col || 1);
+    const row = Math.max(1, w.row || 1);
+    const span = Math.max(1, w.span || 1);
+    const rowSpan = Math.max(1, w.rowSpan || 1);
+    card.style.gridColumn = `${col} / ${col + span}`;
+    card.style.gridRow = `${row} / ${row + rowSpan}`;
     const header = el('div', 'widget-header');
     header.draggable = true;
     header.innerHTML = `
@@ -700,6 +803,30 @@
 
     function rowSpanPx(rows, rowH, gap) { return rowH * rows + gap * (rows - 1); }
 
+    // Does a proposed size (from this widget's fixed top-left cell) overlap
+    // any other widget currently on the board? Used so resize never smashes
+    // into a neighbor — it simply won't accept a size that collides.
+    function wouldOverlap(span, rowSpan) {
+      const r0 = w.row || 1, c0 = w.col || 1;
+      const others = Object.values(STATE.widgets || {}).filter(x => x.boardId === w.boardId && x.id !== w.id && x.row && x.col);
+      for (const o of others) {
+        const oc = o.col, or = o.row;
+        const oSpan = o.span || 1, oRow = o.rowSpan || 1;
+        const overlapX = c0 < oc + oSpan && c0 + span > oc;
+        const overlapY = r0 < or + oRow && r0 + rowSpan > or;
+        if (overlapX && overlapY) return true;
+      }
+      return false;
+    }
+
+    function applyLiveSize() {
+      card.dataset.span = String(liveSpan);
+      card.dataset.rowspan = String(liveRow);
+      const col = w.col || 1, row = w.row || 1;
+      card.style.gridColumn = `${col} / ${col + liveSpan}`;
+      card.style.gridRow = `${row} / ${row + liveRow}`;
+    }
+
     function startResize(e, axes) {
       e.preventDefault();
       e.stopPropagation();
@@ -714,26 +841,41 @@
       card.classList.add('resizing');
       let liveSpan = startSpan;
       let liveRow = startRow;
+      // Track the last non-overlapping size so mouseup can roll back safely.
+      let safeSpan = startSpan, safeRow = startRow;
       const onMove = (ev) => {
         if (axes.x) {
           const deltaX = ev.clientX - startX;
           const candidateWidth = startWidthPx + deltaX;
           let span = Math.round((candidateWidth + metrics.gap) / (metrics.colWidth + metrics.gap));
           span = Math.max(1, Math.min(4, metrics.cols, span));
-          if (span !== liveSpan) { liveSpan = span; card.dataset.span = String(span); }
+          if (span !== liveSpan) { liveSpan = span; }
         }
         if (axes.y) {
           const deltaY = ev.clientY - startY;
           const cardHeight = rowSpanPx(startRow, startRowPx, metrics.gap) + deltaY;
           let row = Math.round((cardHeight + metrics.gap) / (startRowPx + metrics.gap));
           row = Math.max(1, Math.min(4, row));
-          if (row !== liveRow) { liveRow = row; card.dataset.rowspan = String(row); }
+          if (row !== liveRow) { liveRow = row; }
+        }
+        card.dataset.span = String(liveSpan);
+        card.dataset.rowspan = String(liveRow);
+        applyLiveSize();
+        // If this size would overlap a neighbor, snap the card back to the
+        // last known-good size (live feedback without corrupting the board).
+        if (wouldOverlap(liveSpan, liveRow)) {
+          liveSpan = safeSpan; liveRow = safeRow;
+          applyLiveSize();
+        } else {
+          safeSpan = liveSpan; safeRow = liveRow;
         }
       };
       const onUp = async () => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         card.classList.remove('resizing');
+        liveSpan = safeSpan; liveRow = safeRow;
+        applyLiveSize();
         const patch = {};
         if (liveSpan !== startSpan) patch.span = liveSpan;
         if (liveRow !== startRow) patch.rowSpan = liveRow;
@@ -819,14 +961,9 @@
       const draggedId = e.dataTransfer.getData('application/x-tdb-widget');
       if (!draggedId || draggedId === w.id) return;
       e.preventDefault();
+      e.stopPropagation();
       card.classList.remove('drag-over');
-      const ordered = widgetsForActiveWS().map(x => x.id);
-      const from = ordered.indexOf(draggedId);
-      const to = ordered.indexOf(w.id);
-      if (from < 0 || to < 0) return;
-      ordered.splice(from, 1);
-      ordered.splice(to, 0, draggedId);
-      await DB.reorderWidgets(ordered);
+      await DB.swapWidgetPositions(draggedId, w.id);
       await reload();
     });
   }

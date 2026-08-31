@@ -5,7 +5,7 @@
  */
 
 const STORAGE_KEY = 'tdb_data';
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 const DEFAULT_COLLECTION_COLORS = (typeof self !== 'undefined' && self.Themes) ? self.Themes.COLLECTION_COLORS : [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -28,6 +28,135 @@ function activeBoardIdFor(d, workspaceId) {
   if (ws && ws.activeBoardId && d.boards[ws.activeBoardId]) return ws.activeBoardId;
   const fallback = Object.values(d.boards).filter(b => b.workspaceId === workspaceId).sort((a, b) => a.order - b.order)[0];
   return fallback ? fallback.id : null;
+}
+
+/* ---------- Board grid layout ----------
+
+   Widgets live on a CSS grid in explicit cells so empty spaces can be left
+   open ("empty grid items"). Each widget carries its top-left cell as
+   `row`/`col` (1-based) plus `span` (column width) and `rowSpan` (height).
+   Rather than decode CSS layout, we keep placement logic in one place here.
+
+   `occupiedCellsOfBoard` returns a Set of "r,c" strings for everything
+   currently placed on a board. `firstEmptyCell` finds the top-left-most
+   cell where a widget of the given size fits without overlapping. Box packing
+   fills toward the top-left, matching how a normal grid reads. */
+function occupiedCellsOfBoard(d, boardId) {
+  const occ = new Set();
+  for (const w of Object.values(d.widgets || {})) {
+    if (w.boardId !== boardId || !w.row || !w.col) continue;
+    const span = Math.max(1, w.span || 1);
+    const rowSpan = Math.max(1, w.rowSpan || 1);
+    for (let r = 0; r < rowSpan; r++) for (let c = 0; c < span; c++) occ.add((w.row + r) + ',' + (w.col + c));
+  }
+  return occ;
+}
+
+function boardColumnCount(d) {
+  return (d.meta && d.meta.settings && d.meta.settings.dashboard && d.meta.settings.dashboard.columns) || 4;
+}
+
+function firstEmptyCell(d, boardId, span, rowSpan) {
+  span = Math.max(1, span || 1);
+  rowSpan = Math.max(1, rowSpan || 1);
+  const cols = boardColumnCount(d);
+  const occ = occupiedCellsOfBoard(d, boardId);
+  for (let r = 1; ; r++) {
+    for (let c = 1; c <= cols; c++) {
+      let fits = true;
+      for (let dr = 0; dr < rowSpan && fits; dr++) for (let dc = 0; dc < span; dc++) {
+        if (c + dc > cols || occ.has((r + dr) + ',' + (c + dc))) { fits = false; break; }
+      }
+      if (fits) return { row: r, col: c };
+    }
+  }
+}
+
+/* Assign a top-left cell to a widget that is already in `d.widgets[wid]`,
+   choosing the first empty cell on its board. Used by every creation path so
+   new widgets respect (and never clobber) gaps left open by the user. Only
+   touches the given widget — existing placements are preserved. */
+function assignWidgetPosition(d, wid) {
+  const w = d.widgets[wid];
+  if (!w) return;
+  const spot = firstEmptyCell(d, w.boardId, w.span, w.rowSpan);
+  w.row = spot.row;
+  w.col = spot.col;
+}
+
+/* Swap two widgets on the board by exchanging their top-left cells. Used for
+   drag-to-reorder so arrangement (including open gaps) stays in the user's
+   control. */
+async function swapWidgetPositions(idA, idB) {
+  return setState((d) => {
+    const a = d.widgets[idA], b = d.widgets[idB];
+    if (!a || !b) return;
+    if (a.boardId !== b.boardId) return;
+    const r = a.row, c = a.col;
+    a.row = b.row; a.col = b.col;
+    b.row = r; b.col = c;
+  });
+}
+
+/* Directly move a widget to a specific top-left cell, used by drag-into-empty
+   space and "place here" affordances. Clamps to the column count so a widget
+   never hangs off the right edge. */
+async function moveWidgetTo(id, row, col) {
+  return setState((d) => {
+    const w = d.widgets[id];
+    if (!w) return;
+    const cols = boardColumnCount(d);
+    const span = Math.max(1, w.span || 1);
+    const rowSpan = Math.max(1, w.rowSpan || 1);
+    const maxCol = Math.max(1, cols - span + 1);
+    const r = Math.max(1, Math.round(row || 1));
+    const c = Math.max(1, Math.min(maxCol, Math.round(col || 1)));
+    // Refuse if the destination would overlap another widget — the board
+    // never stacks things.
+    for (const o of Object.values(d.widgets || {})) {
+      if (o.id === id || o.boardId !== w.boardId || !o.row || !o.col) continue;
+      const oc = o.col, or = o.row, oSpan = o.span || 1, oRow = o.rowSpan || 1;
+      if (r < or + oRow && r + rowSpan > or && c < oc + oSpan && c + span > oc) return;
+    }
+    w.row = r;
+    w.col = c;
+  });
+}
+
+/* Repack every board's widgets into explicit row/col coordinates. This is the
+   migration path — it approximates the old auto-flow look (top-left, in
+   `order`, honoring spans) so nothing visually changes on upgrade. It is only
+   ever run for data that lacks coordinates; existing placements are left
+   alone so user-made gaps survive. */
+function repackBoardWidgets(d) {
+  const occPerBoard = {};
+  // Seed each board's occupied set from any widgets that already carry
+  // coordinates, so packing never lands a widget on top of an existing one.
+  const boards = new Set(Object.values(d.widgets || {}).map(w => w.boardId).filter(Boolean));
+  for (const bid of boards) occPerBoard[bid] = occupiedCellsOfBoard(d, bid);
+  for (const wid of Object.keys(d.widgets || {})) {
+    const w = d.widgets[wid];
+    if (!w || w.row || w.col) continue;
+    const bid = w.boardId;
+    if (!occPerBoard[bid]) occPerBoard[bid] = new Set();
+    const occ = occPerBoard[bid];
+    const span = Math.max(1, w.span || 1);
+    const rowSpan = Math.max(1, w.rowSpan || 1);
+    const cols = boardColumnCount(d);
+    let spot = null;
+    for (let r = 1; !spot; r++) {
+      for (let c = 1; c <= cols; c++) {
+        let fits = true;
+        for (let dr = 0; dr < rowSpan && fits; dr++) for (let dc = 0; dc < span; dc++) {
+          if (c + dc > cols || occ.has((r + dr) + ',' + (c + dc))) { fits = false; break; }
+        }
+        if (fits) { spot = { r, c }; break; }
+      }
+    }
+    w.row = spot.r;
+    w.col = spot.c;
+    for (let dr = 0; dr < rowSpan; dr++) for (let dc = 0; dc < span; dc++) occ.add((spot.r + dr) + ',' + (spot.c + dc));
+  }
 }
 
 function defaultState() {
@@ -70,7 +199,7 @@ function defaultState() {
       [colId]: { id: colId, workspaceId: wsId, name: 'Reading List', color: '#6366f1', order: 0, pinned: false, description: '', sortMode: 'manual', viewMode: null, createdAt: now() }
     },
     widgets: {
-      [widgetId]: { id: widgetId, workspaceId: wsId, boardId, type: 'collection', collectionId: colId, span: 1, tintColor: null, order: 0, createdAt: now() }
+      [widgetId]: { id: widgetId, workspaceId: wsId, boardId, type: 'collection', collectionId: colId, span: 1, rowSpan: 1, col: 1, row: 1, tintColor: null, order: 0, createdAt: now() }
     },
     bookmarks: {},
     sessions: {},
@@ -195,6 +324,13 @@ function migrate(data) {
     }
     data.version = 8;
   }
+  if (data.version < 9) {
+    // v9: widgets move to explicit grid placement, so empty cells can be
+    // left open. Backfill every board's widgets with row/col coordinates by
+    // packing them top-left in `order` — the same look as the old flow.
+    repackBoardWidgets(data);
+    data.version = 9;
+  }
   return data;
 }
 
@@ -303,7 +439,8 @@ async function createCollection(workspaceId, name, color) {
     const wid = uid();
     const boardId = activeBoardIdFor(d, workspaceId);
     const widgetOrder = Object.values(d.widgets).filter(w => w.boardId === boardId).length;
-    d.widgets[wid] = { id: wid, workspaceId, boardId, type: 'collection', collectionId: id, span: 1, tintColor: null, order: widgetOrder, createdAt: now() };
+    d.widgets[wid] = { id: wid, workspaceId, boardId, type: 'collection', collectionId: id, span: 1, rowSpan: 1, tintColor: null, order: widgetOrder, createdAt: now() };
+    assignWidgetPosition(d, wid);
     return d.collections[id];
   });
 }
@@ -337,7 +474,8 @@ async function duplicateCollection(id) {
     const wid = uid();
     const boardId = (srcWidget && srcWidget.boardId) || activeBoardIdFor(d, src.workspaceId);
     const widgetOrder = Object.values(d.widgets).filter(w => w.boardId === boardId).length;
-    d.widgets[wid] = { id: wid, workspaceId: src.workspaceId, boardId, type: 'collection', collectionId: newId, span: srcWidget ? srcWidget.span : 1, tintColor: srcWidget ? (srcWidget.tintColor || null) : null, order: widgetOrder, createdAt: now() };
+    d.widgets[wid] = { id: wid, workspaceId: src.workspaceId, boardId, type: 'collection', collectionId: newId, span: srcWidget ? srcWidget.span : 1, rowSpan: srcWidget ? (srcWidget.rowSpan || 1) : 1, tintColor: srcWidget ? (srcWidget.tintColor || null) : null, order: widgetOrder, createdAt: now() };
+    assignWidgetPosition(d, wid);
     return d.collections[newId];
   });
 }
@@ -482,6 +620,7 @@ async function createWidget(workspaceId, type, extra) {
     const boardId = activeBoardIdFor(d, workspaceId);
     const order = Object.values(d.widgets).filter(w => w.boardId === boardId).length;
     d.widgets[id] = { id, workspaceId, boardId, type, span: 1, rowSpan: 1, order, createdAt: now(), ...widgetDefaults(type), ...(extra || {}) };
+    assignWidgetPosition(d, id);
     return d.widgets[id];
   });
 }
@@ -557,7 +696,8 @@ async function restoreTrashItem(trashId) {
       const wid = uid();
       const boardId = activeBoardIdFor(d, item.data.collection.workspaceId);
       const widgetOrder = Object.values(d.widgets).filter(w => w.boardId === boardId).length;
-      d.widgets[wid] = { id: wid, workspaceId: item.data.collection.workspaceId, boardId, type: 'collection', collectionId: item.data.collection.id, span: 1, tintColor: null, order: widgetOrder, createdAt: now() };
+      d.widgets[wid] = { id: wid, workspaceId: item.data.collection.workspaceId, boardId, type: 'collection', collectionId: item.data.collection.id, span: 1, rowSpan: 1, tintColor: null, order: widgetOrder, createdAt: now() };
+      assignWidgetPosition(d, wid);
     }
     delete d.trash[trashId];
   });
@@ -630,7 +770,8 @@ async function convertSessionToCollection(id, name) {
     const wid = uid();
     const boardId = activeBoardIdFor(d, src.workspaceId);
     const widgetOrder = Object.values(d.widgets).filter(w => w.boardId === boardId).length;
-    d.widgets[wid] = { id: wid, workspaceId: src.workspaceId, boardId, type: 'collection', collectionId: colId, span: 1, tintColor: null, order: widgetOrder, createdAt: now() };
+    d.widgets[wid] = { id: wid, workspaceId: src.workspaceId, boardId, type: 'collection', collectionId: colId, span: 1, rowSpan: 1, tintColor: null, order: widgetOrder, createdAt: now() };
+    assignWidgetPosition(d, wid);
     return d.collections[colId];
   });
 }
@@ -727,6 +868,8 @@ const TabsDB = {
   updateSettings, saveCustomTheme, deleteCustomTheme,
   createWidget, updateWidget, deleteWidget, reorderWidgets,
   createBoard, renameBoard, deleteBoard, setActiveBoard,
+  swapWidgetPositions, moveWidgetTo,
+  occupiedCellsOfBoard, firstEmptyCell, assignWidgetPosition, repackBoardWidgets,
   exportJSON, importJSON, bookmarksHTMLExport
 };
 

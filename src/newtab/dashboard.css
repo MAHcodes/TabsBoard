@@ -238,6 +238,11 @@ svg { width: 100%; height: 100%; }
 .widget.pinned { border-color: var(--accent); }
 .widget.drag-over { outline: 2px dashed var(--accent); outline-offset: -2px; }
 .widget.resizing { outline: 2px solid var(--accent); outline-offset: -2px; user-select: none; }
+.widget-drop-marker {
+  position: relative; z-index: 20; pointer-events: none; border-radius: var(--radius);
+  border: 2px dashed var(--accent); background: var(--accent-soft); opacity: .85;
+}
+.widget-drop-marker.invalid { border-color: #ef4444; background: #ef444420; }
 .widget-resize-handle {
   position: absolute; top: 0; right: -6px; width: 12px; height: 100%; cursor: ew-resize; z-index: 5;
   display: flex; align-items: center; justify-content: center; touch-action: none;
