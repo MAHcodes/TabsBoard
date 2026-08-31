@@ -755,7 +755,7 @@
     const body = el('div', 'widget-body');
     const listWrap = el('div', 'bookmarks-list' + (viewMode === 'grid' && bms.length ? ' view-grid' : '') + (!bms.length ? ' is-empty' : ''));
     if (!bms.length) listWrap.appendChild(el('div', 'empty-collection-hint', 'Drop tabs here, or add a bookmark'));
-    bms.forEach(bm => listWrap.appendChild(renderBookmark(bm, viewMode)));
+    bms.forEach(bm => listWrap.appendChild(renderBookmark(bm, viewMode, w.tintColor)));
     body.appendChild(listWrap);
     card.appendChild(body);
 
@@ -1258,14 +1258,15 @@
   /* ============ BOOKMARKS ============ */
   function openBookmarkUrl(bm) { sendMsg('OPEN_URL', { url: bm.url }); }
 
-  function renderBookmark(bm, viewMode) {
+  function renderBookmark(bm, viewMode, colBg) {
     const isTile = viewMode === 'grid';
     const item = el('div', (isTile ? 'bookmark-tile' : 'bookmark-item') + (SELECTED.has(bm.id) ? ' selected' : ''));
     item.draggable = true;
     item.dataset.bookmarkId = bm.id;
-    if (bm.tintColor && CU) {
+    const tintSrc = isTile ? colBg : bm.tintColor;
+    if (tintSrc && CU) {
       const base = getComputedStyle(document.documentElement).getPropertyValue(isTile ? '--surface-2' : '--surface').trim() || '#ffffff';
-      item.style.background = CU.mix(base, bm.tintColor, 0.18);
+      item.style.background = CU.mix(base, tintSrc, isTile ? 0.26 : 0.18);
     }
     const fav = bm.favicon || faviconFor(bm.url);
     const tagsHtml = (bm.tags || []).slice(0, 2).map(t => `<span class="bm-tag">${escapeHtml(t)}</span>`).join('');
@@ -1424,7 +1425,8 @@
     const effectiveView = col.viewMode || STATE.meta.settings.viewMode;
 
     menu.innerHTML = `
-      <div class="ws-item" data-act="edit"><span class="mi-ic">${ICONS.edit}</span>Rename / recolor</div>
+      <div class="ws-item" data-act="edit"><span class="mi-ic">${ICONS.edit}</span>Rename</div>
+      ${w ? tintMenuItemHtml() : ''}
       <hr>
       <div class="ws-item" data-act="openall"><span class="mi-ic">${ICONS.openAll}</span>Open all bookmarks</div>
       <div class="ws-item" data-act="openallwin"><span class="mi-ic">${ICONS.externalWindow}</span>Open all in new window</div>
@@ -1444,10 +1446,11 @@
       <div class="ws-item" data-act="delete" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete collection</div>`;
     const close = showDropdown(menu, rect, 230);
     if (w) wireWidthMenuItems(menu, w, close);
+    if (w) wireTintMenuItem(menu, w, close);
 
     menu.querySelector('[data-act=viewgrid]').onclick = async () => { close(); await DB.setCollectionViewMode(col.id, 'grid'); await reload(); };
     menu.querySelector('[data-act=viewlist]').onclick = async () => { close(); await DB.setCollectionViewMode(col.id, 'list'); await reload(); };
-    menu.querySelector('[data-act=edit]').onclick = () => { close(); openCollectionModal(col); };
+    menu.querySelector('[data-act=edit]').onclick = () => { close(); openRenameCollectionModal(col); };
     menu.querySelector('[data-act=select]').onclick = () => { close(); selectMode = true; renderBoard(); };
     menu.querySelector('[data-act=dup]').onclick = async () => { close(); await DB.duplicateCollection(col.id); await reload(); toast('Collection duplicated'); };
     menu.querySelector('[data-act=openall]').onclick = () => { close(); openAllInCollection(col, false); };
@@ -1544,6 +1547,27 @@
             if (w) await DB.updateWidget(w.id, { tintColor });
           }
         }
+        await reload(); closeModal();
+        sendMsg('REBUILD_MENUS');
+      };
+    });
+  }
+
+  function openRenameCollectionModal(col) {
+    const body = `
+      <h2>Rename collection</h2>
+      <div class="field"><label>Name</label><input type="text" id="mc-name" value="${escapeHtml(col.name)}"></div>
+      <div class="modal-actions">
+        <button id="mc-cancel" class="mini-btn">Cancel</button>
+        <button id="mc-save" class="primary-btn">Save</button>
+      </div>`;
+    openModal(body, () => {
+      $('#mc-cancel').onclick = closeModal;
+      $('#mc-name').focus();
+      $('#mc-name').select();
+      $('#mc-save').onclick = async () => {
+        const name = $('#mc-name').value.trim() || 'Untitled';
+        await DB.updateCollection(col.id, { name });
         await reload(); closeModal();
         sendMsg('REBUILD_MENUS');
       };
