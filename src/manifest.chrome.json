@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "TabsBoard",
+  "version": "1.0.0",
+  "description": "A rich, customizable new-tab dashboard for organizing bookmarks into collections and workspaces, with tab sessions and quick-add.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": ["storage", "tabs", "contextMenus", "sessions"],
+  "host_permissions": ["https://geocoding-api.open-meteo.com/*", "https://api.open-meteo.com/*"],
+  "optional_host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background/background.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "chrome_url_overrides": {
+    "newtab": "newtab/index.html"
+  },
+  "commands": {
+    "open-dashboard": {
+      "suggested_key": { "default": "Alt+Shift+D" },
+      "description": "Open TabsBoard"
+    },
+    "quick-add-tab": {
+      "suggested_key": { "default": "Ctrl+Shift+A", "mac": "Command+Shift+A" },
+      "description": "Quick-add current tab to first collection"
+    },
+    "toggle-sidebar": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Toggle the dashboard's sidebar"
+    }
+  }
+}

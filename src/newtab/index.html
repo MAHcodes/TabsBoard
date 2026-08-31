@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>TabsBoard</title>
+<link rel="stylesheet" href="dashboard.css" />
+</head>
+<body>
+
+<div id="toast-region" class="toast-region" aria-live="polite"></div>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <button id="sidebar-toggle-btn" class="icon-btn" title="Toggle sidebar"></button>
+    <button id="workspace-btn" class="workspace-btn" title="Switch workspace">
+      <span id="workspace-name">Personal</span>
+      <span class="chev-ic"></span>
+    </button>
+    <div id="workspace-menu" class="dropdown-menu hidden"></div>
+  </div>
+
+  <nav class="top-nav">
+    <button class="top-nav-btn active" id="nav-collections-btn" data-nav="collections">
+      <span class="nav-ic"></span> Collections
+    </button>
+    <button class="top-nav-btn" id="nav-sessions-btn" data-nav="sessions">
+      <span class="nav-ic"></span> Sessions
+    </button>
+  </nav>
+
+  <div class="topbar-center">
+    <button id="search-trigger" class="search-trigger">
+      <span class="search-ic"></span>
+      <span>Jump to a bookmark, tab, or command…</span>
+      <kbd>⌘K</kbd>
+    </button>
+  </div>
+
+  <div class="topbar-right">
+    <button id="shortcuts-btn" class="icon-btn" title="Keyboard shortcuts"></button>
+    <button id="trash-btn" class="icon-btn" title="Trash">
+      <span id="trash-badge" class="badge hidden">0</span>
+    </button>
+    <button id="settings-btn" class="icon-btn" title="Settings"></button>
+  </div>
+</header>
+
+<div class="app-body">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-heading">
+      <span id="sidebar-list-heading">Open Tabs</span>
+      <button id="recently-closed-toggle-btn" class="icon-btn small" title="Show recently closed"></button>
+      <button id="refresh-tabs-btn" class="icon-btn small" title="Refresh"></button>
+    </div>
+    <div id="open-tabs-list" class="open-tabs-list"></div>
+  </aside>
+
+  <main class="main" id="main">
+
+    <!-- Collections view -->
+    <div id="view-collections">
+      <div class="main-toolbar">
+        <button id="board-switcher-btn" class="mini-btn board-switcher-btn">
+          <span id="board-switcher-name">Board 1</span><span class="chev-ic"></span>
+        </button>
+        <button id="new-collection-btn" class="primary-btn"><span class="btn-ic"></span> New Collection</button>
+        <button id="add-widget-btn" class="mini-btn"><span class="btn-ic-sm"></span> Add Widget</button>
+        <input id="collection-filter-input" class="filter-input" type="text" placeholder="Filter collections…">
+        <div id="bulk-bar" class="bulk-bar hidden">
+          <span id="bulk-count">0 selected</span>
+          <button id="bulk-move-btn" class="mini-btn">Move to…</button>
+          <button id="bulk-delete-btn" class="mini-btn danger">Delete</button>
+          <button id="bulk-clear-btn" class="mini-btn">Cancel</button>
+        </div>
+      </div>
+      <div id="board" class="board"></div>
+    </div>
+
+    <!-- Sessions view -->
+    <div id="view-sessions" class="hidden">
+      <div class="main-toolbar">
+        <button id="save-window-session-btn" class="primary-btn"><span class="btn-ic"></span> Save current window</button>
+        <button id="save-all-session-btn" class="mini-btn">Save all windows</button>
+        <input id="session-filter-input" class="filter-input" type="text" placeholder="Filter sessions…">
+        <span id="sessions-summary" class="sessions-summary"></span>
+      </div>
+      <div id="sessions-grid" class="sessions-grid"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Command palette -->
+<div id="palette-overlay" class="overlay hidden">
+  <div class="palette">
+    <input id="palette-input" type="text" placeholder="Type a bookmark title, a URL, an open tab, or a command…" autocomplete="off" />
+    <div id="palette-results" class="palette-results"></div>
+  </div>
+</div>
+
+<!-- Generic modal (bookmark edit, collection edit, workspace edit) -->
+<div id="modal-overlay" class="overlay hidden">
+  <div class="modal" id="modal-box"></div>
+</div>
+
+<!-- Settings panel -->
+<div id="settings-overlay" class="overlay hidden">
+  <div class="modal settings-modal">
+    <div class="modal-header-row">
+      <h2>Settings</h2>
+      <button id="settings-close-x" class="icon-btn small"></button>
+    </div>
+    <div class="settings-layout">
+      <div class="settings-tabs" id="settings-tabs">
+        <button class="settings-tab active" data-tab="appearance">Appearance</button>
+        <button class="settings-tab" data-tab="themes">Themes</button>
+        <button class="settings-tab" data-tab="layout">Layout</button>
+        <button class="settings-tab" data-tab="behavior">Behavior</button>
+        <button class="settings-tab" data-tab="data">Data &amp; Import/Export</button>
+      </div>
+      <div class="settings-panels">
+
+        <div class="settings-panel active" id="panel-appearance">
+          <div class="settings-row">
+            <label>Density</label>
+            <div class="segmented" id="density-toggle">
+              <button data-val="comfortable">Comfortable</button>
+              <button data-val="compact">Compact</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label>Interface</label>
+            <div class="switch-row"><span>Enable animations &amp; transitions</span><label class="switch"><input type="checkbox" id="setting-animations"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+          </div>
+        </div>
+
+        <div class="settings-panel" id="panel-themes">
+          <div class="settings-row">
+            <label>Auto</label>
+            <div id="theme-grid-auto" class="theme-grid"></div>
+          </div>
+          <div class="settings-row">
+            <label>Light themes</label>
+            <div id="theme-grid-light" class="theme-grid"></div>
+          </div>
+          <div class="settings-row">
+            <label>Dark themes</label>
+            <div id="theme-grid-dark" class="theme-grid"></div>
+          </div>
+          <div class="settings-row">
+            <label>Custom theme</label>
+            <div id="custom-theme-builder" class="custom-theme-builder">
+              <div class="ctb-field"><span>Background</span><input type="color" id="ctb-bg" value="#141420"></div>
+              <div class="ctb-field"><span>Text</span><input type="color" id="ctb-text" value="#f0f0f5"></div>
+              <div class="ctb-field"><span>Accent</span><input type="color" id="ctb-accent" value="#6366f1"></div>
+              <div class="ctb-field"><span>Name</span><input type="text" id="ctb-name" placeholder="My Theme"></div>
+              <button id="ctb-save-btn" class="mini-btn">Save custom theme</button>
+            </div>
+            <div id="custom-theme-list" class="custom-theme-list"></div>
+          </div>
+        </div>
+
+        <div class="settings-panel" id="panel-layout">
+          <div class="settings-row">
+            <label>Board width</label>
+            <div class="segmented" id="boardcols-toggle">
+              <button data-val="3">3 cols</button>
+              <button data-val="4">4 cols</button>
+              <button data-val="5">5 cols</button>
+              <button data-val="6">6 cols</button>
+            </div>
+            <div class="hint-text">Each widget can span 1–4 of these columns — set it from the widget's ⋯ menu.</div>
+          </div>
+          <div class="settings-row">
+            <label>Bookmarks inside a collection</label>
+            <div class="segmented" id="viewmode-toggle">
+              <button data-val="grid">Tiles</button>
+              <button data-val="list">Rows</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label>Sidebar</label>
+            <div class="switch-row"><span>Start collapsed</span><label class="switch"><input type="checkbox" id="setting-sidebar-collapsed"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+            <div class="switch-row"><span>Compact (icons only, no titles)</span><label class="switch"><input type="checkbox" id="setting-sidebar-compact"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+          </div>
+        </div>
+
+        <div class="settings-panel" id="panel-behavior">
+          <div class="settings-row">
+            <label>Deleting items</label>
+            <div class="switch-row"><span>Confirm before permanently deleting from trash</span><label class="switch"><input type="checkbox" id="setting-confirm-delete"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+          </div>
+          <div class="settings-row">
+            <label>Favicon source</label>
+            <div class="segmented" id="favicon-toggle">
+              <button data-val="google">Google</button>
+              <button data-val="duckduckgo">DuckDuckGo</button>
+              <button data-val="none">None</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label>Open Tabs list</label>
+            <div class="switch-row"><span>Group pinned tabs at the top</span><label class="switch"><input type="checkbox" id="setting-group-pinned"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+            <div class="switch-row"><span>Dim tabs that are unloaded (discarded from memory)</span><label class="switch"><input type="checkbox" id="setting-dim-inactive"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+            <div class="switch-row"><span>Desaturate (grayscale) unloaded tabs</span><label class="switch"><input type="checkbox" id="setting-inactive-grayscale"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+            <div class="segmented" id="inactiveopacity-toggle">
+              <button data-val="35">Faint</button>
+              <button data-val="55">Dim</button>
+              <button data-val="75">Subtle</button>
+              <button data-val="100">Off</button>
+            </div>
+            <div class="hint-text">A tab counts as "unloaded" once Chrome (or you, from a tab's ⋯ menu → Unload this tab) frees its memory — refocusing it reloads it automatically.</div>
+          </div>
+        </div>
+
+        <div class="settings-panel" id="panel-data">
+          <div class="settings-row">
+            <label>Export</label>
+            <div class="btn-row">
+              <button id="export-json-btn" class="mini-btn">Export full JSON backup</button>
+              <button id="export-html-btn" class="mini-btn">Export as Bookmarks HTML</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label>Import</label>
+            <div class="btn-row">
+              <label class="mini-btn file-btn">Import JSON backup<input id="import-json-input" type="file" accept="application/json" hidden></label>
+            </div>
+            <div class="hint-text">Imported data is merged in as a new workspace — nothing existing is overwritten.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Keyboard shortcuts popup -->
+<div id="shortcuts-overlay" class="overlay hidden">
+  <div class="modal shortcuts-modal">
+    <div class="modal-header-row">
+      <h2>Keyboard Shortcuts</h2>
+      <button id="shortcuts-close-x" class="icon-btn small"></button>
+    </div>
+    <ul class="shortcut-list-big">
+      <li><span>Command palette</span><kbd>⌘/Ctrl K</kbd></li>
+      <li><span>Quick-add current tab</span><kbd>⌘/Ctrl Shift A</kbd></li>
+      <li><span>New collection</span><kbd>N</kbd></li>
+      <li><span>Toggle sidebar</span><kbd>[</kbd></li>
+      <li><span>Toggle sidebar (global, remappable)</span><kbd>Alt+Shift+S</kbd></li>
+      <li><span>Toggle grid / list view</span><kbd>V</kbd></li>
+      <li><span>Close dialogs / clear selection</span><kbd>Esc</kbd></li>
+    </ul>
+    <div class="hint-text">Global shortcuts (open dashboard, quick-add) can be remapped at <code>chrome://extensions/shortcuts</code> (or the Firefox add-on shortcuts page).</div>
+  </div>
+</div>
+
+<!-- Trash panel -->
+<div id="trash-overlay" class="overlay hidden">
+  <div class="modal trash-modal">
+    <div class="modal-header-row">
+      <h2>Trash</h2>
+      <button id="empty-trash-btn" class="mini-btn danger">Empty trash</button>
+    </div>
+    <div id="trash-list" class="trash-list"></div>
+    <button id="trash-close-btn" class="primary-btn">Done</button>
+  </div>
+</div>
+
+<script src="../common/color-utils.js"></script>
+<script src="../common/themes.js"></script>
+<script src="../common/icons.js"></script>
+<script src="../common/storage.js"></script>
+<script src="dashboard.js"></script>
+</body>
+</html>
