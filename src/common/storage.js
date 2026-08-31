@@ -84,14 +84,40 @@ function assignWidgetPosition(d, wid) {
   w.col = spot.col;
 }
 
+/* Does the rectangle (row,col,span,rowSpan) overlap any widget on `boardId`
+   besides the one with id `ignoreId`? Used to keep swaps and placements from
+   ever stacking widgets, even when the widgets involved have different
+   sizes. */
+function rectOverlapsWidget(d, boardId, row, col, span, rowSpan, ignoreIds) {
+  span = Math.max(1, span || 1);
+  rowSpan = Math.max(1, rowSpan || 1);
+  for (const o of Object.values(d.widgets || {})) {
+    if (o.boardId !== boardId || !o.row || !o.col) continue;
+    if (ignoreIds && ignoreIds.has(o.id)) continue;
+    const oc = o.col, or = o.row, oSpan = o.span || 1, oRow = o.rowSpan || 1;
+    if (row < or + oRow && row + rowSpan > or && col < oc + oSpan && col + span > oc) return true;
+  }
+  return false;
+}
+
 /* Swap two widgets on the board by exchanging their top-left cells. Used for
    drag-to-reorder so arrangement (including open gaps) stays in the user's
-   control. */
+   control. If the two widgets have different sizes, a plain cell swap could
+   make one overlap a *third* widget — in that case the swap is refused so the
+   board never stacks things. */
 async function swapWidgetPositions(idA, idB) {
   return setState((d) => {
     const a = d.widgets[idA], b = d.widgets[idB];
     if (!a || !b) return;
     if (a.boardId !== b.boardId) return;
+    const aSpan = Math.max(1, a.span || 1), aRow = Math.max(1, a.rowSpan || 1);
+    const bSpan = Math.max(1, b.span || 1), bRow = Math.max(1, b.rowSpan || 1);
+    const self = new Set([idA, idB]);
+    // A lands where B was, B lands where A was. Both must fit without running
+    // into a third widget, otherwise the swap is unsafe and we bail.
+    const aFits = !rectOverlapsWidget(d, a.boardId, b.row, b.col, aSpan, aRow, self);
+    const bFits = !rectOverlapsWidget(d, a.boardId, a.row, a.col, bSpan, bRow, self);
+    if (!aFits || !bFits) return;
     const r = a.row, c = a.col;
     a.row = b.row; a.col = b.col;
     b.row = r; b.col = c;

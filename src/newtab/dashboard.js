@@ -803,21 +803,12 @@
 
     function rowSpanPx(rows, rowH, gap) { return rowH * rows + gap * (rows - 1); }
 
-    // Does a proposed size (from this widget's fixed top-left cell) overlap
-    // any other widget currently on the board? Used so resize never smashes
-    // into a neighbor — it simply won't accept a size that collides.
-    function wouldOverlap(span, rowSpan) {
-      const r0 = w.row || 1, c0 = w.col || 1;
-      const others = Object.values(STATE.widgets || {}).filter(x => x.boardId === w.boardId && x.id !== w.id && x.row && x.col);
-      for (const o of others) {
-        const oc = o.col, or = o.row;
-        const oSpan = o.span || 1, oRow = o.rowSpan || 1;
-        const overlapX = c0 < oc + oSpan && c0 + span > oc;
-        const overlapY = r0 < or + oRow && r0 + rowSpan > or;
-        if (overlapX && overlapY) return true;
-      }
-      return false;
-    }
+    // liveSpan/liveRow live at this scope (not inside startResize) so that
+    // applyLiveSize — a sibling function — can read and update them. Declaring
+    // them inside startResize made applyLiveSize throw "liveSpan is not
+    // defined", which silently killed resizing on every card.
+    let liveSpan = 1;
+    let liveRow = 1;
 
     function applyLiveSize() {
       card.dataset.span = String(liveSpan);
@@ -839,42 +830,56 @@
       // Baseline single-row height: the card's own height split across its rows.
       const startRowPx = card.getBoundingClientRect().height / startRow;
       card.classList.add('resizing');
-      let liveSpan = startSpan;
-      let liveRow = startRow;
-      // Track the last non-overlapping size so mouseup can roll back safely.
-      let safeSpan = startSpan, safeRow = startRow;
+      liveSpan = startSpan;
+      liveRow = startRow;
+
+      const anchorCol = Math.max(1, w.col || 1);
+      const anchorRow = Math.max(1, w.row || 1);
+      // Does the widget (anchored at its fixed top-left cell) overlap a
+      // neighbor at the given size? Sizes that would smash into another widget
+      // are clamped so growth simply stops at the obstacle — no overlap, and
+      // the widget still resizes wherever there's room.
+      function wouldOverlap(span, rowSpan) {
+        span = Math.max(1, span || 1); rowSpan = Math.max(1, rowSpan || 1);
+        for (const o of Object.values(STATE.widgets || {})) {
+          if (o.id === w.id || o.boardId !== w.boardId || !o.row || !o.col) continue;
+          const oc = o.col, or = o.row, oSpan = o.span || 1, oRow = o.rowSpan || 1;
+          if (anchorRow < or + oRow && anchorRow + rowSpan > or &&
+              anchorCol < oc + oSpan && anchorCol + span > oc) return true;
+        }
+        return false;
+      }
+
       const onMove = (ev) => {
         if (axes.x) {
           const deltaX = ev.clientX - startX;
           const candidateWidth = startWidthPx + deltaX;
           let span = Math.round((candidateWidth + metrics.gap) / (metrics.colWidth + metrics.gap));
           span = Math.max(1, Math.min(4, metrics.cols, span));
-          if (span !== liveSpan) { liveSpan = span; }
+          // Clamp so the wider footprint never overlaps a neighbor (with the
+          // current row height kept fixed during a width resize).
+          let maxSpan = metrics.cols;
+          while (maxSpan > 1 && wouldOverlap(maxSpan, liveRow)) maxSpan--;
+          span = Math.min(span, maxSpan);
+          if (span !== liveSpan) { liveSpan = span; applyLiveSize(); }
         }
         if (axes.y) {
           const deltaY = ev.clientY - startY;
           const cardHeight = rowSpanPx(startRow, startRowPx, metrics.gap) + deltaY;
           let row = Math.round((cardHeight + metrics.gap) / (startRowPx + metrics.gap));
           row = Math.max(1, Math.min(4, row));
-          if (row !== liveRow) { liveRow = row; }
-        }
-        card.dataset.span = String(liveSpan);
-        card.dataset.rowspan = String(liveRow);
-        applyLiveSize();
-        // If this size would overlap a neighbor, snap the card back to the
-        // last known-good size (live feedback without corrupting the board).
-        if (wouldOverlap(liveSpan, liveRow)) {
-          liveSpan = safeSpan; liveRow = safeRow;
-          applyLiveSize();
-        } else {
-          safeSpan = liveSpan; safeRow = liveRow;
+          let maxRow = 4;
+          while (maxRow > 1 && wouldOverlap(liveSpan, maxRow)) maxRow--;
+          row = Math.min(row, maxRow);
+          if (row !== liveRow) { liveRow = row; applyLiveSize(); }
         }
       };
       const onUp = async () => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         card.classList.remove('resizing');
-        liveSpan = safeSpan; liveRow = safeRow;
+        liveSpan = liveSpan !== undefined ? liveSpan : startSpan;
+        liveRow = liveRow !== undefined ? liveRow : startRow;
         applyLiveSize();
         const patch = {};
         if (liveSpan !== startSpan) patch.span = liveSpan;
