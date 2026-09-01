@@ -352,6 +352,8 @@ body.dragging-tab .widget-ghost { display: flex; }
 .pomodoro-body { padding: 16px 14px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
 .pomodoro-mode { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; color: var(--accent); }
 .pomodoro-time { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.pomodoro-task { width: 100%; max-width: 180px; margin-top: 2px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); font-size: 11.5px; text-align: center; }
+.pomodoro-task::placeholder { color: var(--text-muted); }
 .pomodoro-actions { display: flex; gap: 6px; margin-top: 4px; }
 
 /* Timer / Stopwatch widget */

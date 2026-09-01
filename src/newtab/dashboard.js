@@ -862,7 +862,13 @@
     const { card, header } = widgetShell(w, ICONS.layers, titleHtml);
     card.classList.toggle('pinned', !!col.pinned);
     header.querySelector('[data-act=add]').onclick = (e) => { e.stopPropagation(); openBookmarkModal(null, col.id); };
-    header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openCollectionMenu(col, e.currentTarget); };
+    header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openCollectionMenu(col, e.currentTarget.getBoundingClientRect()); };
+    card.addEventListener('contextmenu', (e) => {
+      if (e.target.closest('.widget-menu-btn') || e.target.closest('.widget-add-btn')) return; // those already do their own thing
+      e.preventDefault();
+      e.stopPropagation();
+      openCollectionMenu(col, { left: e.clientX, top: e.clientY, bottom: e.clientY, height: 0, width: 0 });
+    });
 
     const body = el('div', 'widget-body');
     const listWrap = el('div', 'bookmarks-list' + (viewMode === 'grid' && bms.length ? ' view-grid' : '') + (!bms.length ? ' is-empty' : ''));
@@ -1088,11 +1094,20 @@
     body.innerHTML = `
       <div class="pomodoro-mode">${w.mode === 'break' ? 'Break' : 'Focus'}</div>
       <div class="pomodoro-time" data-pomodoro-time></div>
+      <input class="pomodoro-task" data-pomodoro-task placeholder="What are you focusing on?" value="${escapeHtml(w.task || '')}">
       <div class="pomodoro-actions">
         <button class="mini-btn" data-act="toggle">${w.running ? 'Pause' : 'Start'}</button>
         <button class="mini-btn" data-act="reset">Reset</button>
         <button class="mini-btn" data-act="skip">Skip</button>
       </div>`;
+    let taskTimer;
+    const taskInput = body.querySelector('[data-pomodoro-task]');
+    taskInput.addEventListener('input', () => {
+      clearTimeout(taskTimer);
+      taskTimer = setTimeout(async () => { await DB.updateWidget(w.id, { task: taskInput.value }); }, 400);
+    });
+    taskInput.addEventListener('click', (e) => e.stopPropagation());
+    taskInput.addEventListener('mousedown', (e) => e.stopPropagation());
     body.querySelector('[data-act=toggle]').onclick = async () => {
       if (w.running) {
         await DB.updateWidget(w.id, { running: false, endsAt: null });
@@ -1124,6 +1139,7 @@
       // Time's up — flip mode and stop, so it doesn't silently run negative.
       DB.updateWidget(w.id, { mode: w.mode === 'focus' ? 'break' : 'focus', running: false, endsAt: null }).then(reload);
       playChime();
+      notifyPomodoro(w);
     }
   }
   function updatePomodoroWidgets() {
@@ -1140,6 +1156,27 @@
       o.frequency.value = 660; g.gain.value = 0.08;
       o.start(); setTimeout(() => { o.stop(); ctx.close(); }, 300);
     } catch { /* audio not available — silently skip */ }
+  }
+
+  // Browser notification when a pomodoro cycle finishes. Requests permission
+  // lazily (only on first completion) so we never nag the user up front.
+  function notifyPomodoro(w) {
+    try {
+      if (!('Notification' in window)) return;
+      const isBreak = w.mode === 'focus'; // the mode that just finished
+      const title = isBreak ? 'Pomodoro complete' : 'Break over';
+      const task = (typeof w.task === 'string' && w.task.trim()) ? `\n"${w.task.trim()}"` : '';
+      const body = isBreak
+        ? `Time for a ${w.breakMinutes || 5} min break.${task}`
+        : `Back to focus${task ? ` — ${task}` : ''}!`;
+      const permission = Notification && typeof Notification.requestPermission === 'function'
+        ? () => Notification.requestPermission()
+        : () => Promise.resolve(Notification.permission);
+      permission().then((p) => {
+        if (p !== 'granted') return;
+        new Notification(title, { body, silent: false, icon: chrome.runtime.getURL('icons/icon128.png') });
+      });
+    } catch { /* notifications unavailable — silently skip */ }
   }
 
   function openPomodoroEditModal(w) {
@@ -1743,12 +1780,12 @@
     return Object.values(STATE.widgets || {}).find(w => w.type === 'collection' && w.collectionId === colId);
   }
 
-  function openCollectionMenu(col, anchorBtn) {
-    const rect = anchorBtn.getBoundingClientRect();
+  function openCollectionMenu(col, rect) {
     const menu = el('div', 'dropdown-menu');
     const w = widgetForCollection(col.id);
 
     menu.innerHTML = `
+      <div class="ws-item" data-act="add"><span class="mi-ic">${ICONS.plus}</span>New bookmark here</div>
       <div class="ws-item" data-act="edit"><span class="mi-ic">${ICONS.edit}</span>Rename</div>
       ${w ? tintMenuItemHtml() : ''}
       <hr>
@@ -1772,6 +1809,7 @@
     if (w) wireHeightMenuItems(menu, w, close);
     if (w) wireTintMenuItem(menu, w, close);
     wireViewMenuItems(menu, col, close);
+    menu.querySelector('[data-act=add]').onclick = () => { close(); openBookmarkModal(null, col.id); };
     menu.querySelector('[data-act=edit]').onclick = () => { close(); openRenameCollectionModal(col); };
     menu.querySelector('[data-act=select]').onclick = () => { close(); selectMode = true; renderBoard(); };
     menu.querySelector('[data-act=dup]').onclick = async () => { close(); await DB.duplicateCollection(col.id); await reload(); toast('Collection duplicated'); };
@@ -2158,12 +2196,20 @@
   function closePalette() { $('#palette-overlay').classList.add('hidden'); }
 
   function paletteCommands() {
-    return [
+    const cmds = [
       { kind: 'action', label: 'New Collection', run: () => openCollectionModal() },
       { kind: 'action', label: 'Add Notes widget', run: () => addWidget('notes') },
       { kind: 'action', label: 'Add To-Do widget', run: () => addWidget('todo') },
       { kind: 'action', label: 'Add Clock widget', run: () => addWidget('clock') },
+      { kind: 'action', label: 'Add Search widget', run: () => addWidget('search') },
+      { kind: 'action', label: 'Add Countdown widget', run: () => addWidget('countdown') },
+      { kind: 'action', label: 'Add Pomodoro widget', run: () => addWidget('pomodoro') },
+      { kind: 'action', label: 'Add Timer widget', run: () => addWidget('timer') },
+      { kind: 'action', label: 'Add Stopwatch widget', run: () => addWidget('stopwatch') },
+      { kind: 'action', label: 'Add Weather widget', run: () => addWidget('weather') },
+      { kind: 'action', label: 'Add RSS feeds widget', run: () => addWidget('rss') },
       { kind: 'action', label: 'New Workspace', run: () => openWorkspaceModal() },
+      { kind: 'action', label: 'New Board', run: () => newBoardFromPalette() },
       { kind: 'action', label: 'Save current tabs as session', run: saveWindowSession },
       { kind: 'action', label: 'Open Settings', run: openSettings },
       { kind: 'action', label: 'Open Trash', run: () => openTrashPanel() },
@@ -2173,7 +2219,37 @@
       { kind: 'action', label: 'Go to Collections', run: () => switchNav('collections') },
       { kind: 'action', label: 'Go to Sessions', run: () => switchNav('sessions') }
     ];
+    // One command per workspace for quick jumping.
+    Object.values(STATE.workspaces)
+      .sort((a, b) => a.order - b.order)
+      .forEach(ws => {
+        cmds.push({ kind: 'action', label: `Go to workspace · ${ws.name}`, run: () => jumpToWorkspace(ws.id) });
+      });
+    // One command per board in the active workspace for quick switching.
+    boardsForActiveWS().forEach(board => {
+      cmds.push({ kind: 'action', label: `Go to board · ${board.name}`, run: () => jumpToBoard(board.id) });
+    });
+    return cmds;
   }
+
+  async function newBoardFromPalette() {
+    const name = prompt('New board name', `Board ${boardsForActiveWS().length + 1}`);
+    if (!name) return;
+    const created = await DB.createBoard(activeWorkspaceId(), name);
+    await DB.setActiveBoard(activeWorkspaceId(), created.id);
+    await reload();
+  }
+  async function jumpToWorkspace(wsId) {
+    await DB.setActiveWorkspace(wsId);
+    await reload();
+  }
+  async function jumpToBoard(boardId) {
+    if (boardsForActiveWS().some(b => b.id === boardId)) {
+      await DB.setActiveBoard(activeWorkspaceId(), boardId);
+      await reload();
+    }
+  }
+
 
   function renderPaletteResults(query) {
     const results = $('#palette-results');

@@ -9,7 +9,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "tabs", "contextMenus", "sessions", "https://geocoding-api.open-meteo.com/*", "https://api.open-meteo.com/*"],
+  "permissions": ["storage", "tabs", "contextMenus", "sessions", "notifications", "https://geocoding-api.open-meteo.com/*", "https://api.open-meteo.com/*"],
   "optional_permissions": ["<all_urls>"],
   "background": {
     "page": "background/background.html",
