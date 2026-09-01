@@ -1659,21 +1659,36 @@
     ghost.innerHTML = `<span class="ghost-ic">${ICONS.plus}</span><span>New collection</span>`;
     ghost.addEventListener('click', () => openCollectionModal());
     ghost.addEventListener('dragover', (e) => {
-      if (e.dataTransfer.types.includes('application/x-tdb-tab')) { e.preventDefault(); ghost.classList.add('drag-over'); }
+      const ok = e.dataTransfer.types.includes('application/x-tdb-tab') ||
+                 e.dataTransfer.types.includes('application/x-tdb-bookmark');
+      if (ok) { e.preventDefault(); ghost.classList.add('drag-over'); }
     });
     ghost.addEventListener('dragleave', () => ghost.classList.remove('drag-over'));
     ghost.addEventListener('drop', async (e) => {
       const tabData = e.dataTransfer.getData('application/x-tdb-tab');
-      if (!tabData) return;
       e.preventDefault();
       ghost.classList.remove('drag-over');
-      const tab = JSON.parse(tabData);
-      const name = hostnameOf(tab.url) || 'New Collection';
-      const col = await DB.createCollection(activeWorkspaceId(), name);
-      await DB.createBookmark(col.id, activeWorkspaceId(), { title: tab.title, url: tab.url, favicon: tab.favIconUrl });
-      toast(`Created "${col.name}"`);
-      await reload();
-      sendMsg('REBUILD_MENUS');
+      if (tabData) {
+        const tab = JSON.parse(tabData);
+        const name = hostnameOf(tab.url) || 'New Collection';
+        const col = await DB.createCollection(activeWorkspaceId(), name);
+        await DB.createBookmark(col.id, activeWorkspaceId(), { title: tab.title, url: tab.url, favicon: tab.favIconUrl });
+        toast(`Created "${col.name}"`);
+        await reload();
+        sendMsg('REBUILD_MENUS');
+        return;
+      }
+      const bookmarkId = e.dataTransfer.getData('application/x-tdb-bookmark');
+      if (bookmarkId) {
+        const bm = STATE.bookmarks[bookmarkId];
+        if (!bm) return;
+        const name = hostnameOf(bm.url) || 'New Collection';
+        const col = await DB.createCollection(activeWorkspaceId(), name);
+        await DB.moveBookmarks([bookmarkId], col.id);
+        toast(`Created "${col.name}"`);
+        await reload();
+        sendMsg('REBUILD_MENUS');
+      }
     });
     return ghost;
   }
