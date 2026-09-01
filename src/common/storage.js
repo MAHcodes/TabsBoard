@@ -5,7 +5,7 @@
  */
 
 const STORAGE_KEY = 'tdb_data';
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 const DEFAULT_COLLECTION_COLORS = (typeof self !== 'undefined' && self.Themes) ? self.Themes.COLLECTION_COLORS : [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -204,6 +204,7 @@ function defaultState() {
         confirmDelete: true,
         faviconSource: 'google',   // google | duckduckgo | none
         animations: true,
+        openBookmarksInNewTab: false, // false = open bookmarks in the current tab, true = open in a new tab
         dashboard: {
           columns: 4               // board width in columns (3–6); each widget spans 1–N of these
         },
@@ -356,6 +357,14 @@ function migrate(data) {
     // packing them top-left in `order` — the same look as the old flow.
     repackBoardWidgets(data);
     data.version = 9;
+  }
+  if (data.version < 10) {
+    // v10: "open bookmarks in the current tab" becomes the default. Existing
+    // users keep whatever opening-in-tabs behavior was baked into their
+    // builds (they had no choice — it always opened a new tab), so give them
+    // a new tab unless they've opted into it moving forward.
+    if (data.meta.settings.openBookmarksInNewTab === undefined) data.meta.settings.openBookmarksInNewTab = false;
+    data.version = 10;
   }
   return data;
 }

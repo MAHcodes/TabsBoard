@@ -1025,7 +1025,7 @@
     const submit = () => {
       const q = input.value.trim();
       if (!q) return;
-      sendMsg('OPEN_URL', { url: (SEARCH_ENGINE_URLS[engine] || SEARCH_ENGINE_URLS.google) + encodeURIComponent(q) });
+      sendMsg('OPEN_URL', { url: (SEARCH_ENGINE_URLS[engine] || SEARCH_ENGINE_URLS.google) + encodeURIComponent(q), forceNewTab: true });
       input.value = '';
     };
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
@@ -1388,7 +1388,7 @@
       w.items.slice(0, 8).forEach(item => {
         const row = el('div', 'rss-item');
         row.innerHTML = `<span class="rss-dot"></span><span class="rss-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</span>`;
-        row.addEventListener('click', () => sendMsg('OPEN_URL', { url: item.link }));
+        row.addEventListener('click', () => sendMsg('OPEN_URL', { url: item.link, forceNewTab: true }));
         list.appendChild(row);
       });
       body.appendChild(list);
@@ -2294,6 +2294,7 @@
     $('#setting-sidebar-compact').onchange = async (e) => { await DB.updateSettings({ sidebarCompact: e.target.checked }); await reload(); };
 
     $('#setting-confirm-delete').onchange = async (e) => { await DB.updateSettings({ confirmDelete: e.target.checked }); await reload(); };
+    $('#setting-open-in-new-tab').onchange = async (e) => { await DB.updateSettings({ openBookmarksInNewTab: e.target.checked }); await reload(); };
     $$('#favicon-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ faviconSource: b.dataset.val }); await reload(); syncSettingsUI(); });
     $('#setting-group-pinned').onchange = async (e) => { await DB.updateSettings({ tabsList: { groupPinned: e.target.checked } }); await reload(); };
     $('#setting-dim-inactive').onchange = async (e) => { await DB.updateSettings({ tabsList: { dimInactive: e.target.checked } }); await reload(); };
@@ -2390,6 +2391,7 @@
     $('#setting-sidebar-compact').checked = !!s.sidebarCompact;
 
     $('#setting-confirm-delete').checked = s.confirmDelete !== false;
+    $('#setting-open-in-new-tab').checked = !!s.openBookmarksInNewTab;
     $$('#favicon-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.faviconSource));
     const tl = s.tabsList || {};
     $('#setting-group-pinned').checked = tl.groupPinned !== false;

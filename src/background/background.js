@@ -116,6 +116,24 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 });
 
+/* OPEN_URL handler shared with the dashboard. By default bookmarks open in
+   the dashboard tab itself (navigating the new-tab page to the URL), so you
+   don't accumulate a new tab every time. When settings.openBookmarksInNewTab
+   is on, they open in a fresh tab instead. The dashboard's own tab is the
+   sender here, so sender.tab is exactly the page the click came from. */
+async function openUrlFromDashboard(msg, sender, done) {
+  // Non-bookmark actions (search, RSS item clicks, "open all") force a new
+  // tab so they never navigate the dashboard away.
+  if (msg.forceNewTab) { chrome.tabs.create({ url: msg.url, active: msg.active !== false }, done); return; }
+  const state = await DB.getState();
+  const openInNew = !!(state.meta.settings && state.meta.settings.openBookmarksInNewTab);
+  if (!openInNew && sender && sender.tab && sender.tab.id) {
+    chrome.tabs.update(sender.tab.id, { url: msg.url }, done);
+  } else {
+    chrome.tabs.create({ url: msg.url, active: msg.active !== false }, done);
+  }
+}
+
 // Message hub used by dashboard/popup for tab-related operations
 // that require the background's persistent access to chrome.tabs.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -175,8 +193,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         break;
       }
       case 'OPEN_URL': {
-        chrome.tabs.create({ url: msg.url, active: msg.active !== false }, () => sendResponse({ ok: true }));
-        break;
+        openUrlFromDashboard(msg, sender, () => sendResponse({ ok: true }));
+        return true; // async
       }
       case 'OPEN_URLS': {
         // A single chrome.windows.create({url:[...]}) call opens every URL
