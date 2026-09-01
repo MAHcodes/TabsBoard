@@ -3,6 +3,9 @@
   "name": "TabsBoard",
   "version": "1.0.0",
   "description": "A rich, customizable new-tab dashboard for organizing bookmarks into collections and workspaces, with tab sessions and quick-add.",
+  "data_collection_permissions": {
+    "description": "This add-on stores all your data locally in your browser using the storage API. It does not collect, transmit, or sell any personal data to third parties."
+  },
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
