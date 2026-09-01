@@ -210,7 +210,7 @@ svg { width: 100%; height: 100%; }
 }
 .mini-btn:hover { background: var(--border); }
 .mini-btn.danger { color: #ef4444; }
-.file-btn { display: inline-flex; align-items: center; }
+.mini-btn.file-btn { display: inline-flex; align-items: center; color: var(--text); cursor: pointer; }
 
 .bulk-bar { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border-radius: 10px; padding: 7px 11px; font-size: 12px; }
 
