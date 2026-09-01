@@ -232,7 +232,7 @@ svg { width: 100%; height: 100%; }
 .tab-row .tab-icons button.tab-close:hover { background: #ef444422; color: #ef4444; }
 
 /* ---------- Dashboard board & widgets ---------- */
-.board { display: grid; grid-template-columns: repeat(var(--board-cols, 4), minmax(0, 1fr)); gap: var(--gap); align-items: stretch; grid-auto-rows: minmax(var(--board-row-min, 200px), auto); }
+.board { display: grid; grid-template-columns: repeat(var(--board-cols, 4), minmax(0, 1fr)); gap: var(--gap); align-items: stretch; grid-auto-rows: minmax(var(--board-row-min, 200px), auto); grid-auto-flow: row dense; }
 @media (max-width: 1100px) { .board { grid-template-columns: repeat(min(var(--board-cols, 4), 2), minmax(0, 1fr)); } }
 @media (max-width: 680px) { .board { grid-template-columns: minmax(0, 1fr); } }
 
