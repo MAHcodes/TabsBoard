@@ -1606,8 +1606,12 @@
       e.dataTransfer.setData('application/x-tdb-bookmark', bm.id);
       e.stopPropagation();
       item.classList.add('dragging');
+      document.body.classList.add('dragging-tab');
     });
-    item.addEventListener('dragend', () => item.classList.remove('dragging'));
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      document.body.classList.remove('dragging-tab');
+    });
 
     item.addEventListener('click', async (e) => {
       const menuBtn = e.target.closest('[data-act=menu]');
