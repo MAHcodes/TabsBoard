@@ -241,7 +241,6 @@
     renderSidebar();
     if (currentNav === 'collections') renderBoard();
     else renderSessionsPage();
-    renderTrashBadge();
   }
 
   /* ============ STATIC ICON INJECTION (buttons whose icon never changes) ============ */
@@ -2281,11 +2280,6 @@
   }
 
   /* ============ TRASH ============ */
-  function renderTrashBadge() {
-    const count = Object.keys(STATE.trash).length;
-    $('#trash-badge').classList.toggle('hidden', count === 0);
-    $('#trash-badge').textContent = count;
-  }
   function openTrashPanel() {
     const list = $('#trash-list');
     list.innerHTML = '';
