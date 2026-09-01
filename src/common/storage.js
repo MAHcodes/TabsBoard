@@ -837,13 +837,21 @@ async function importJSON(jsonString, mode = 'merge') {
       Object.assign(d, incoming);
       return;
     }
-    // merge mode: add incoming workspaces/collections/bookmarks/sessions with fresh ids
-    // to avoid collisions, but keep structure intact.
+    // merge mode: add incoming workspaces/boards/collections/bookmarks/sessions
+    // with fresh ids to avoid collisions, but keep structure intact.
     const idMap = {};
+    // Workspaces (board ids are remapped below, so keep activeBoardId valid).
     for (const ws of Object.values(incoming.workspaces || {})) {
       const nid = uid();
       idMap[ws.id] = nid;
-      d.workspaces[nid] = { ...ws, id: nid, name: ws.name + ' (imported)' };
+      const activeBoardId = idMap[ws.activeBoardId] || ws.activeBoardId;
+      d.workspaces[nid] = { ...ws, id: nid, name: ws.name, activeBoardId };
+    }
+    // Boards — each workspace needs its board(s) for widgets to render on.
+    for (const b of Object.values(incoming.boards || {})) {
+      const nid = uid();
+      idMap[b.id] = nid;
+      d.boards[nid] = { ...b, id: nid, workspaceId: idMap[b.workspaceId] || b.workspaceId };
     }
     for (const col of Object.values(incoming.collections || {})) {
       const nid = uid();
@@ -861,6 +869,47 @@ async function importJSON(jsonString, mode = 'merge') {
     for (const s of Object.values(incoming.sessions || {})) {
       const nid = uid();
       d.sessions[nid] = { ...s, id: nid, workspaceId: idMap[s.workspaceId] || s.workspaceId };
+    }
+    // Widgets — remap and re-place so imported layouts render exactly as saved.
+    const importedWidgetIds = new Set();
+    for (const w of Object.values(incoming.widgets || {})) {
+      const nid = uid();
+      idMap['w:' + w.id] = nid;
+      importedWidgetIds.add(nid);
+      const place = Object.assign({}, w, {
+        id: nid,
+        workspaceId: idMap[w.workspaceId] || w.workspaceId,
+        boardId: idMap[w.boardId] || w.boardId,
+        collectionId: w.collectionId != null ? (idMap[w.collectionId] || w.collectionId) : w.collectionId
+      });
+      delete place.row; delete place.col;
+      d.widgets[nid] = place;
+      assignWidgetPosition(d, nid);
+    }
+    // Any collection that has no widget (e.g. older imports without widgets)
+    // gets a brand-new collection widget so it shows up on its workspace's
+    // first board.
+    const collectionsSeen = new Set(
+      Object.values(d.widgets || {})
+        .filter(x => x.type === 'collection' && x.collectionId)
+        .map(x => x.collectionId)
+    );
+    const incomingColIds = Object.values(incoming.collections || {}).map(c => c.id).map(id => idMap[id] || id);
+    for (const cid of incomingColIds) {
+      if (!collectionsSeen.has(cid) && d.collections[cid]) {
+        const col = d.collections[cid];
+        const board = Object.values(d.boards || {})
+          .filter(b => b.workspaceId === col.workspaceId)
+          .sort((a, b) => a.order - b.order)[0];
+        if (!board) continue;
+        const nid = uid();
+        d.widgets[nid] = {
+          id: nid, workspaceId: col.workspaceId, boardId: board.id,
+          type: 'collection', collectionId: cid,
+          span: 1, rowSpan: 1, tintColor: null, order: 0, createdAt: now()
+        };
+        assignWidgetPosition(d, nid);
+      }
     }
   });
 }
