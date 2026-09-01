@@ -1754,7 +1754,7 @@
       <hr>
       <div class="ws-item" data-act="sort"><span class="mi-ic">${ICONS.sort}</span>Sort: ${sortModeLabel(col.sortMode)}</div>
       <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.duplicate}</span>Duplicate collection</div>
-      <div class="ws-item" data-act="movews"><span class="mi-ic">${ICONS.externalWindow}</span>Move to new workspace…</div>
+      <div class="ws-item" data-act="movews"><span class="mi-ic">${ICONS.externalWindow}</span>Move to workspace…</div>
       <div class="ws-item" data-act="merge"><span class="mi-ic">${ICONS.layers}</span>Merge into…</div>
       <div class="ws-item" data-act="select"><span class="mi-ic">${ICONS.checkSquare}</span>Select bookmarks</div>
       <hr>
@@ -1770,7 +1770,7 @@
     menu.querySelector('[data-act=edit]').onclick = () => { close(); openRenameCollectionModal(col); };
     menu.querySelector('[data-act=select]').onclick = () => { close(); selectMode = true; renderBoard(); };
     menu.querySelector('[data-act=dup]').onclick = async () => { close(); await DB.duplicateCollection(col.id); await reload(); toast('Collection duplicated'); };
-    menu.querySelector('[data-act=movews]').onclick = async () => { close(); const name = prompt('New workspace name', col.name); if (name) { await DB.moveCollectionToNewWorkspace(col.id, name); await reload(); toast(`Moved to "${name}"`); } };
+    menu.querySelector('[data-act=movews]').onclick = () => { close(); openMoveCollectionPicker(col); };
     menu.querySelector('[data-act=openall]').onclick = () => { close(); openAllInCollection(col, false); };
     menu.querySelector('[data-act=openallwin]').onclick = () => { close(); openAllInCollection(col, true); };
     menu.querySelector('[data-act=copylinks]').onclick = () => {
@@ -1800,6 +1800,53 @@
       await reload();
       sendMsg('REBUILD_MENUS');
     };
+  }
+
+  function openMoveCollectionPicker(sourceCol) {
+    const currentWsId = activeWorkspaceId();
+    const wsList = Object.values(STATE.workspaces).sort((a, b) => a.order - b.order);
+    const opts = wsList.map(ws => {
+      const self = ws.id === currentWsId;
+      return `<option value="${ws.id}"${self ? ' disabled' : ''}>${escapeHtml(ws.name)}${self ? ' (current)' : ''}</option>`;
+    }).join('');
+    const body = `
+      <h2>Move "${escapeHtml(sourceCol.name)}"</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">
+        The collection and its bookmarks move to the workspace's board, and the dashboard switches to it.
+      </p>
+      <div class="field"><label>Move to</label>
+        <select id="movews-target"><option value="__new__">＋ New workspace…</option>${opts}</select>
+      </div>
+      <div class="field" id="movews-name-field" style="display:none"><label>New workspace name</label><input type="text" id="movews-name" value="${escapeHtml(sourceCol.name)}"></div>
+      <div class="modal-actions">
+        <button id="movews-cancel" class="mini-btn">Cancel</button>
+        <button id="movews-confirm" class="primary-btn">Move</button>
+      </div>`;
+    openModal(body, () => {
+      const sel = $('#movews-target');
+      const nameField = $('#movews-name-field');
+      const nameInput = $('#movews-name');
+      const toggleName = () => { nameField.style.display = sel.value === '__new__' ? 'block' : 'none'; };
+      sel.addEventListener('change', toggleName);
+      toggleName();
+      $('#movews-cancel').onclick = closeModal;
+      $('#movews-confirm').onclick = async () => {
+        const targetWsId = sel.value;
+        let wsName;
+        if (targetWsId === '__new__') {
+          wsName = (nameInput.value || '').trim();
+          if (!wsName) return;
+          const created = await DB.createWorkspace(wsName);
+          await DB.moveCollectionToWorkspace(sourceCol.id, created.id);
+        } else {
+          await DB.moveCollectionToWorkspace(sourceCol.id, targetWsId);
+        }
+        closeModal();
+        toast(`Moved "${sourceCol.name}"`);
+        await reload();
+        sendMsg('REBUILD_MENUS');
+      };
+    });
   }
 
   function openMergeCollectionPicker(sourceCol) {

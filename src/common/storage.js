@@ -418,11 +418,17 @@ async function createWorkspace(name) {
    The collection widget moves onto the new workspace's board. */
 async function moveCollectionToNewWorkspace(colId, name) {
   const created = await createWorkspace(name);
+  await moveCollectionToWorkspace(colId, created.id);
+}
+
+/* Move a collection (with its bookmarks and widget) onto an existing
+   workspace's active board, then make that workspace active so the user
+   lands on it. */
+async function moveCollectionToWorkspace(colId, wsId) {
   return setState((d) => {
     const col = d.collections[colId];
-    if (!col) return;
-    const ws = d.workspaces[created.id];
-    if (!ws) return;
+    const ws = d.workspaces[wsId];
+    if (!col || !ws) return;
     col.workspaceId = ws.id;
     for (const bm of Object.values(d.bookmarks || {})) {
       if (bm.collectionId === colId) bm.workspaceId = ws.id;
@@ -959,7 +965,7 @@ function escapeHtml(s) {
 const TabsDB = {
   uid, DEFAULT_COLLECTION_COLORS,
   init, getState, setState,
-  createWorkspace, updateWorkspace, deleteWorkspace, setActiveWorkspace, moveCollectionToNewWorkspace,
+  createWorkspace, updateWorkspace, deleteWorkspace, setActiveWorkspace, moveCollectionToNewWorkspace, moveCollectionToWorkspace,
   createCollection, updateCollection, reorderCollections, softDeleteCollection,
   toggleCollectionPin, duplicateCollection, setCollectionSortMode, setCollectionViewMode,
   createBookmark, updateBookmark, moveBookmarks, reorderBookmarks, softDeleteBookmarks, toggleBookmarkPin, duplicateBookmark,
