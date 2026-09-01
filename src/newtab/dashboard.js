@@ -1094,20 +1094,11 @@
     body.innerHTML = `
       <div class="pomodoro-mode">${w.mode === 'break' ? 'Break' : 'Focus'}</div>
       <div class="pomodoro-time" data-pomodoro-time></div>
-      <input class="pomodoro-task" data-pomodoro-task placeholder="What are you focusing on?" value="${escapeHtml(w.task || '')}">
       <div class="pomodoro-actions">
         <button class="mini-btn" data-act="toggle">${w.running ? 'Pause' : 'Start'}</button>
         <button class="mini-btn" data-act="reset">Reset</button>
         <button class="mini-btn" data-act="skip">Skip</button>
       </div>`;
-    let taskTimer;
-    const taskInput = body.querySelector('[data-pomodoro-task]');
-    taskInput.addEventListener('input', () => {
-      clearTimeout(taskTimer);
-      taskTimer = setTimeout(async () => { await DB.updateWidget(w.id, { task: taskInput.value }); }, 400);
-    });
-    taskInput.addEventListener('click', (e) => e.stopPropagation());
-    taskInput.addEventListener('mousedown', (e) => e.stopPropagation());
     body.querySelector('[data-act=toggle]').onclick = async () => {
       if (w.running) {
         await DB.updateWidget(w.id, { running: false, endsAt: null });
@@ -1165,10 +1156,9 @@
       if (!('Notification' in window)) return;
       const isBreak = w.mode === 'focus'; // the mode that just finished
       const title = isBreak ? 'Pomodoro complete' : 'Break over';
-      const task = (typeof w.task === 'string' && w.task.trim()) ? `\n"${w.task.trim()}"` : '';
       const body = isBreak
-        ? `Time for a ${w.breakMinutes || 5} min break.${task}`
-        : `Back to focus${task ? ` — ${task}` : ''}!`;
+        ? `Time for a ${w.breakMinutes || 5} min break.`
+        : 'Back to focus!';
       const permission = Notification && typeof Notification.requestPermission === 'function'
         ? () => Notification.requestPermission()
         : () => Promise.resolve(Notification.permission);
