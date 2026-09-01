@@ -1617,7 +1617,7 @@
       const menuBtn = e.target.closest('[data-act=menu]');
       if (menuBtn) {
         e.preventDefault(); e.stopPropagation();
-        openBookmarkMenu(bm, menuBtn, item.querySelector('.bm-title'));
+        openBookmarkMenu(bm, menuBtn.getBoundingClientRect(), item.querySelector('.bm-title'));
         return;
       }
       if (e.target.classList.contains('bm-select') || selectMode || e.shiftKey || e.metaKey || e.ctrlKey) {
@@ -1628,11 +1628,16 @@
       openBookmarkUrl(bm);
     });
 
+    item.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openBookmarkMenu(bm, { left: e.clientX, top: e.clientY, bottom: e.clientY, height: 0, width: 0 }, item.querySelector('.bm-title'));
+    });
+
     return item;
   }
 
-  function openBookmarkMenu(bm, anchorBtn, titleEl) {
-    const rect = anchorBtn.getBoundingClientRect();
+  function openBookmarkMenu(bm, rect, titleEl) {
     const menu = el('div', 'dropdown-menu');
     menu.innerHTML = `
       <div class="ws-item" data-act="tint"><span class="mi-ic">${ICONS.palette}</span>Background color…</div>
