@@ -413,6 +413,31 @@ async function createWorkspace(name) {
   });
 }
 
+/* Move a collection (with its bookmarks and widget) into a brand-new
+   workspace, then make that workspace active so the user lands on it.
+   The collection widget moves onto the new workspace's board. */
+async function moveCollectionToNewWorkspace(colId, name) {
+  const created = await createWorkspace(name);
+  return setState((d) => {
+    const col = d.collections[colId];
+    if (!col) return;
+    const ws = d.workspaces[created.id];
+    if (!ws) return;
+    col.workspaceId = ws.id;
+    for (const bm of Object.values(d.bookmarks || {})) {
+      if (bm.collectionId === colId) bm.workspaceId = ws.id;
+    }
+    const widget = Object.values(d.widgets || {}).find(w => w.type === 'collection' && w.collectionId === colId);
+    if (widget) {
+      widget.workspaceId = ws.id;
+      widget.boardId = ws.activeBoardId;
+      delete widget.row; delete widget.col;
+      assignWidgetPosition(d, widget.id);
+    }
+    d.meta.activeWorkspaceId = ws.id;
+  });
+}
+
 async function updateWorkspace(id, patch) {
   return setState((d) => {
     if (d.workspaces[id]) Object.assign(d.workspaces[id], patch);
@@ -934,7 +959,7 @@ function escapeHtml(s) {
 const TabsDB = {
   uid, DEFAULT_COLLECTION_COLORS,
   init, getState, setState,
-  createWorkspace, updateWorkspace, deleteWorkspace, setActiveWorkspace,
+  createWorkspace, updateWorkspace, deleteWorkspace, setActiveWorkspace, moveCollectionToNewWorkspace,
   createCollection, updateCollection, reorderCollections, softDeleteCollection,
   toggleCollectionPin, duplicateCollection, setCollectionSortMode, setCollectionViewMode,
   createBookmark, updateBookmark, moveBookmarks, reorderBookmarks, softDeleteBookmarks, toggleBookmarkPin, duplicateBookmark,

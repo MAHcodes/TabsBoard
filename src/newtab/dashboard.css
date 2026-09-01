@@ -232,13 +232,13 @@ svg { width: 100%; height: 100%; }
 .tab-row .tab-icons button.tab-close:hover { background: #ef444422; color: #ef4444; }
 
 /* ---------- Dashboard board & widgets ---------- */
-.board { display: grid; grid-template-columns: repeat(var(--board-cols, 4), 1fr); gap: var(--gap); align-items: stretch; grid-auto-rows: minmax(var(--board-row-min, 200px), auto); }
-@media (max-width: 1100px) { .board { grid-template-columns: repeat(min(var(--board-cols, 4), 2), 1fr); } }
-@media (max-width: 680px) { .board { grid-template-columns: 1fr; } }
+.board { display: grid; grid-template-columns: repeat(var(--board-cols, 4), minmax(0, 1fr)); gap: var(--gap); align-items: stretch; grid-auto-rows: minmax(var(--board-row-min, 200px), auto); }
+@media (max-width: 1100px) { .board { grid-template-columns: repeat(min(var(--board-cols, 4), 2), minmax(0, 1fr)); } }
+@media (max-width: 680px) { .board { grid-template-columns: minmax(0, 1fr); } }
 
 .widget {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
-  display: flex; flex-direction: column; min-height: 100px; grid-column: span 1; grid-row: span 1; position: relative;
+  display: flex; flex-direction: column; min-height: 100px; grid-column: span 1; grid-row: span 1; position: relative; min-width: 0;
 }
 .widget[data-span="2"] { grid-column: span 2; }
 .widget[data-span="3"] { grid-column: span 3; }

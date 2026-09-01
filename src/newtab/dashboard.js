@@ -1872,6 +1872,7 @@
       <hr>
       <div class="ws-item" data-act="sort"><span class="mi-ic">${ICONS.sort}</span>Sort: ${sortModeLabel(col.sortMode)}</div>
       <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.duplicate}</span>Duplicate collection</div>
+      <div class="ws-item" data-act="movews"><span class="mi-ic">${ICONS.externalWindow}</span>Move to new workspace…</div>
       <div class="ws-item" data-act="merge"><span class="mi-ic">${ICONS.layers}</span>Merge into…</div>
       <div class="ws-item" data-act="select"><span class="mi-ic">${ICONS.checkSquare}</span>Select bookmarks</div>
       <hr>
@@ -1887,6 +1888,7 @@
     menu.querySelector('[data-act=edit]').onclick = () => { close(); openRenameCollectionModal(col); };
     menu.querySelector('[data-act=select]').onclick = () => { close(); selectMode = true; renderBoard(); };
     menu.querySelector('[data-act=dup]').onclick = async () => { close(); await DB.duplicateCollection(col.id); await reload(); toast('Collection duplicated'); };
+    menu.querySelector('[data-act=movews]').onclick = async () => { close(); const name = prompt('New workspace name', col.name); if (name) { await DB.moveCollectionToNewWorkspace(col.id, name); await reload(); toast(`Moved to "${name}"`); } };
     menu.querySelector('[data-act=openall]').onclick = () => { close(); openAllInCollection(col, false); };
     menu.querySelector('[data-act=openallwin]').onclick = () => { close(); openAllInCollection(col, true); };
     menu.querySelector('[data-act=copylinks]').onclick = () => {
