@@ -125,6 +125,13 @@ rm dist/firefox/manifest.firefox.json dist/firefox/manifest.chrome.json
 cp src/manifest.firefox.json dist/firefox/manifest.json
 ```
 
+To package the Firefox build as a versioned XPI (bump the version in
+`src/manifest.firefox.json` first):
+
+```bash
+cd dist/firefox && rm -f ../../TabsBoard-1.0.2-fx.xpi && zip -r -X ../../TabsBoard-1.0.2-fx.xpi . -x '.*' > /dev/null
+```
+
 ## Notes on the "drag a tab in" feature
 
 Browsers don't expose the real tab strip to web pages, so no extension can
