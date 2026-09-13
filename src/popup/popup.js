@@ -12,15 +12,18 @@
 
   function applyTheme(state) {
     const s = state.meta.settings;
-    const palette = Themes.resolveTheme(s.themeId, s.customThemes);
+    const palette = Themes.resolveTheme(s.themeId);
     const r = document.documentElement.style;
-    r.setProperty('--bg', palette.bg);
-    r.setProperty('--surface', palette.surface);
-    r.setProperty('--surface-2', palette.surface2);
-    r.setProperty('--border', palette.border);
-    r.setProperty('--text', palette.text);
-    r.setProperty('--text-muted', palette.textMuted);
-    r.setProperty('--accent', palette.accent);
+    r.setProperty('--bg-color', palette.bg);
+    r.setProperty('--main-color', palette.main);
+    r.setProperty('--caret-color', palette.caret);
+    r.setProperty('--sub-color', palette.sub);
+    r.setProperty('--sub-alt-color', palette.subAlt);
+    r.setProperty('--text-color', palette.text);
+    r.setProperty('--error-color', palette.error);
+    r.setProperty('--error-extra-color', palette.errorExtra);
+    r.setProperty('--colorful-error-color', palette.colorfulError);
+    r.setProperty('--colorful-error-extra-color', palette.colorfulErrorExtra);
   }
 
   async function boot() {

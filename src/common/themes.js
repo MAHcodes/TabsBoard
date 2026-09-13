@@ -1,69 +1,203 @@
 /* TabsBoard — theme presets
- * Each preset only specifies 4 base colors (bg, surface-ish text, accent, type);
- * deriveTheme() expands that into the full CSS-variable palette so every
- * surface, border, and muted-text tone updates together, not just the accent.
+ * Every preset uses ONLY the raw monkeytype color values, copied verbatim:
+ * bg, main, caret, sub, subAlt, text, error, errorExtra, colorfulError,
+ * colorfulErrorExtra. resolveTheme() returns exactly those colors — one of
+ * the theme's own values for each slot, nothing blended, brightened, or
+ * derived. The app exposes them under monkeytype's own variable names
+ * (--bg-color, --main-color, --caret-color, --sub-color, --sub-alt-color,
+ * --text-color, --error-color, ...).
  */
 (function (root) {
-  const CU = root.ColorUtils || (typeof require !== 'undefined' ? require('./color-utils.js') : null);
-
   const PRESET_THEMES = [
-    { id: 'light',        name: 'Light',           type: 'light', bg: '#f4f5f9', text: '#1c1e26', accent: '#6366f1' },
-    { id: 'dark',         name: 'Dark',            type: 'dark',  bg: '#14151c', text: '#eef0f6', accent: '#6366f1' },
-    { id: 'midnight',     name: 'Midnight',        type: 'dark',  bg: '#0b1120', text: '#e2e8f0', accent: '#3b82f6' },
-    { id: 'nord',         name: 'Nord',            type: 'dark',  bg: '#2e3440', text: '#eceff4', accent: '#88c0d0' },
-    { id: 'dracula',      name: 'Dracula',         type: 'dark',  bg: '#282a36', text: '#f8f8f2', accent: '#ff79c6' },
-    { id: 'forest',       name: 'Forest',          type: 'dark',  bg: '#101d15', text: '#e6f4ea', accent: '#34d399' },
-    { id: 'grape',        name: 'Grape',           type: 'dark',  bg: '#1e1229', text: '#f3e8ff', accent: '#a855f7' },
-    { id: 'slate',        name: 'Slate',           type: 'dark',  bg: '#1a1d23', text: '#e5e7eb', accent: '#94a3b8' },
-    { id: 'solarized-d',  name: 'Solarized Dark',  type: 'dark',  bg: '#00303e', text: '#eee8d5', accent: '#b58900' },
-    { id: 'ember',        name: 'Ember',           type: 'dark',  bg: '#1f1410', text: '#fde8d8', accent: '#f97316' },
-    { id: 'ocean',        name: 'Ocean',           type: 'light', bg: '#eef6f8', text: '#0f2b30', accent: '#0891b2' },
-    { id: 'sunset',       name: 'Sunset',          type: 'light', bg: '#fdf1ea', text: '#3a1f14', accent: '#f97316' },
-    { id: 'rose',         name: 'Rose',            type: 'light', bg: '#fdf0f5', text: '#3a0e22', accent: '#e11d84' },
-    { id: 'mint',         name: 'Mint',            type: 'light', bg: '#effaf3', text: '#0d2b1a', accent: '#10b981' },
-    { id: 'solarized-l',  name: 'Solarized Light', type: 'light', bg: '#fdf6e3', text: '#073642', accent: '#268bd2' },
-    { id: 'coffee',       name: 'Coffee',          type: 'light', bg: '#f7f0e8', text: '#2e1e12', accent: '#92400e' },
-    { id: 'lavender',     name: 'Lavender',        type: 'light', bg: '#f3f1fb', text: '#241b40', accent: '#8b5cf6' },
-    { id: 'sky',          name: 'Sky',             type: 'light', bg: '#eef5ff', text: '#0c2340', accent: '#2563eb' },
-    { id: 'amoled',       name: 'AMOLED',          type: 'dark',  bg: '#000000', text: '#f2f2f5', accent: '#818cf8' },
-    { id: 'charcoal',     name: 'Charcoal',        type: 'dark',  bg: '#1b1c1e', text: '#e9e9ec', accent: '#a3a3a3' },
-    { id: 'cyberpunk',    name: 'Cyberpunk',       type: 'dark',  bg: '#0d0221', text: '#f1e8ff', accent: '#ff2fb0' },
-    { id: 'terminal',     name: 'Terminal',        type: 'dark',  bg: '#031400', text: '#c8ffcf', accent: '#39ff6a' },
-    { id: 'blush',        name: 'Blush',           type: 'light', bg: '#fdf2f4', text: '#3a1520', accent: '#fb7185' },
-    { id: 'latte',        name: 'Latte',           type: 'light', bg: '#f6ede3', text: '#3b2a1e', accent: '#b45309' },
-    { id: 'seafoam',      name: 'Seafoam',         type: 'light', bg: '#eaf7f4', text: '#0c2b25', accent: '#0d9488' },
-    { id: 'ice',          name: 'Ice',             type: 'light', bg: '#eef9ff', text: '#0b2733', accent: '#0ea5e9' },
-    { id: 'sandstone',    name: 'Sandstone',       type: 'light', bg: '#f5f0e6', text: '#2b2415', accent: '#a16207' },
-    { id: 'peach',        name: 'Peach',           type: 'light', bg: '#fff2ea', text: '#3a1e10', accent: '#fb923c' },
-    { id: 'birch',        name: 'Birch',           type: 'light', bg: '#f7f7f2', text: '#22241d', accent: '#65a30d' },
-    { id: 'plum',         name: 'Plum',            type: 'dark',  bg: '#1e1024', text: '#f4e9fb', accent: '#c026d3' },
-    { id: 'steel',        name: 'Steel',           type: 'dark',  bg: '#12181f', text: '#e3ecf5', accent: '#38bdf8' },
-    { id: 'crimson',      name: 'Crimson',         type: 'dark',  bg: '#1c0f10', text: '#fbe4e6', accent: '#e11d48' },
-    { id: 'olive',        name: 'Olive',           type: 'dark',  bg: '#171b0f', text: '#eef2e2', accent: '#a3e635' },
-    { id: 'paper',        name: 'Paper',           type: 'light', bg: '#faf9f6', text: '#242220', accent: '#57534e' },
-    { id: 'blueprint',    name: 'Blueprint',       type: 'dark',  bg: '#0a1e33', text: '#dbeafe', accent: '#60a5fa' },
-    { id: 'clay',         name: 'Clay',            type: 'light', bg: '#f2e9e4', text: '#3d2b25', accent: '#c2410c' },
-    { id: 'lagoon',       name: 'Lagoon',          type: 'dark',  bg: '#0c2a2e', text: '#d9f7f4', accent: '#2dd4bf' },
-    { id: 'orchid',       name: 'Orchid',          type: 'light', bg: '#faf0fb', text: '#341539', accent: '#c026d3' },
-    { id: 'espresso',     name: 'Espresso',        type: 'dark',  bg: '#1a120b', text: '#f0e2d3', accent: '#d97706' },
-    { id: 'glacier',      name: 'Glacier',         type: 'light', bg: '#eef4f7', text: '#132530', accent: '#0284c7' },
-    { id: 'mocha',        name: 'Mocha',           type: 'dark',  bg: '#1e1712', text: '#f2e6d8', accent: '#c08552' },
-    { id: 'meadow',       name: 'Meadow',          type: 'light', bg: '#f1f7ea', text: '#1f2e14', accent: '#4d7c0f' },
-    { id: 'nightowl',     name: 'Night Owl',       type: 'dark',  bg: '#0d1b2a', text: '#e0e9f2', accent: '#48cae4' },
-    { id: 'rosewater',    name: 'Rosewater',       type: 'light', bg: '#fbf0ef', text: '#3a2224', accent: '#e07a8b' },
-    { id: 'obsidian',     name: 'Obsidian',        type: 'dark',  bg: '#121212', text: '#ececec', accent: '#9b8afb' },
-    { id: 'linen',        name: 'Linen',           type: 'light', bg: '#f6f3ec', text: '#2c2a24', accent: '#8a7452' },
-    { id: 'deepsea',      name: 'Deep Sea',        type: 'dark',  bg: '#041521', text: '#d6ecf5', accent: '#00b4d8' },
-    { id: 'apricot',      name: 'Apricot',         type: 'light', bg: '#fff3e6', text: '#3d2612', accent: '#ea7c3c' },
-    { id: 'vaporwave',    name: 'Vaporwave',       type: 'dark',  bg: '#190938', text: '#f3e6ff', accent: '#ff3ea5' },
-    { id: 'bumblebee',    name: 'Bumblebee',       type: 'dark',  bg: '#141414', text: '#f7f7f2', accent: '#f5c518' },
-    { id: 'arctic',       name: 'Arctic',          type: 'dark',  bg: '#0f1e2b', text: '#e7f0f7', accent: '#fb7185' },
-    { id: 'patina',       name: 'Patina',          type: 'dark',  bg: '#191510', text: '#efe5cf', accent: '#2dd4bf' },
-    { id: 'crystal',      name: 'Crystal',         type: 'light', bg: '#eef3fb', text: '#1b2a4a', accent: '#7c8cf8' },
-    { id: 'horizon',      name: 'Horizon',         type: 'dark',  bg: '#241505', text: '#fff3dd', accent: '#fbbf24' },
-    { id: 'inkwell',      name: 'Inkwell',         type: 'light', bg: '#f2f0ea', text: '#241f18', accent: '#1f2937' },
-    { id: 'peacock',      name: 'Peacock',         type: 'dark',  bg: '#0b1c1f', text: '#e4f6f3', accent: '#8b5cf6' }
+    { id: "8008", name: "8008", type: "dark", bg: "#333a45", main: "#f44c7f", caret: "#f44c7f", sub: "#939eae", subAlt: "#2e343d", text: "#e9ecf0", error: "#da3333", errorExtra: "#791717", colorfulError: "#c5da33", colorfulErrorExtra: "#849224" },
+    { id: "9009", name: "9009", type: "light", bg: "#eeebe2", main: "#080909", caret: "#7fa480", sub: "#99947f", subAlt: "#d3cfc1", text: "#080909", error: "#c87e74", errorExtra: "#a56961", colorfulError: "#c87e74", colorfulErrorExtra: "#a56961" },
+    { id: "80s_after_dark", name: "80's After Dark", type: "dark", bg: "#1b1d36", main: "#fca6d1", caret: "#99d6ea", sub: "#99d6ea", subAlt: "#17182c", text: "#e1e7ec", error: "#fffb85", errorExtra: "#fffb85", colorfulError: "#fffb85", colorfulErrorExtra: "#fffb85" },
+    { id: "aether", name: "Aether", type: "dark", bg: "#101820", main: "#eedaea", caret: "#eedaea", sub: "#cf6bdd", subAlt: "#292136", text: "#eedaea", error: "#ff5253", errorExtra: "#e3002b", colorfulError: "#ff5253", colorfulErrorExtra: "#e3002b" },
+    { id: "alduin", name: "Alduin", type: "dark", bg: "#1c1c1c", main: "#dfd7af", caret: "#e3e3e3", sub: "#444444", subAlt: "#242424", text: "#f5f3ed", error: "#af5f5f", errorExtra: "#4d2113", colorfulError: "#af5f5f", colorfulErrorExtra: "#4d2113" },
+    { id: "alpine", name: "Alpine", type: "dark", bg: "#6c687f", main: "#ffffff", caret: "#585568", sub: "#9994b8", subAlt: "#77738c", text: "#ffffff", error: "#e32b2b", errorExtra: "#a62626", colorfulError: "#e32b2b", colorfulErrorExtra: "#a62626" },
+    { id: "anti_hero", name: "Anti Hero", type: "dark", bg: "#00002e", main: "#ffadad", caret: "#ffffff", sub: "#ff3d8b", subAlt: "#060548", text: "#f1deef", error: "#8fecff", errorExtra: "#558cab", colorfulError: "#8fecff", colorfulErrorExtra: "#558cab" },
+    { id: "arch", name: "Arch", type: "dark", bg: "#0c0d11", main: "#7ebab5", caret: "#7ebab5", sub: "#454864", subAlt: "#171a25", text: "#f6f5f5", error: "#ff4754", errorExtra: "#b02a33", colorfulError: "#ff4754", colorfulErrorExtra: "#b02a33" },
+    { id: "aurora", name: "Aurora", type: "dark", bg: "#011926", main: "#00e980", caret: "#00e980", sub: "#245c69", subAlt: "#000c13", text: "#ffffff", error: "#b94da1", errorExtra: "#9b3a76", colorfulError: "#b94da1", colorfulErrorExtra: "#9b3a76" },
+    { id: "beach", name: "Beach", type: "light", bg: "#ffeead", main: "#96ceb4", caret: "#ffcc5c", sub: "#ffcc5c", subAlt: "#f7dc8f", text: "#5b7869", error: "#ff6f69", errorExtra: "#ff6f69", colorfulError: "#ff6f69", colorfulErrorExtra: "#ff6f69" },
+    { id: "bento", name: "Bento", type: "dark", bg: "#2d394d", main: "#ff7a90", caret: "#ff7a90", sub: "#4a768d", subAlt: "#263041", text: "#fffaf8", error: "#ee2a3a", errorExtra: "#f04040", colorfulError: "#fc2032", colorfulErrorExtra: "#f04040" },
+    { id: "bingsu", name: "Bingsu", type: "dark", bg: "#b8a7aa", main: "#83616e", caret: "#ebe6ea", sub: "#48373d", subAlt: "#ab989e", text: "#ebe6ea", error: "#921341", errorExtra: "#640b2c", colorfulError: "#921341", colorfulErrorExtra: "#640b2c" },
+    { id: "bliss", name: "Bliss", type: "dark", bg: "#262727", main: "#f0d3c9", caret: "#f0d3c9", sub: "#665957", subAlt: "#343231", text: "#ffffff", error: "#bd4141", errorExtra: "#883434", colorfulError: "#bd4141", colorfulErrorExtra: "#883434" },
+    { id: "blue_dolphin", name: "Blue Dolphin", type: "dark", bg: "#003950", main: "#ffcefb", caret: "#00bcd4", sub: "#00e4ff", subAlt: "#014961", text: "#82eaff", error: "#ffbde6", errorExtra: "#ff8188", colorfulError: "#d1a5fd", colorfulErrorExtra: "#ff8188" },
+    { id: "blueberry_dark", name: "Blueberry Dark", type: "dark", bg: "#212b42", main: "#add7ff", caret: "#962f7e", sub: "#5c7da5", subAlt: "#1b2334", text: "#91b4d5", error: "#df4576", errorExtra: "#d996ac", colorfulError: "#df4576", colorfulErrorExtra: "#d996ac" },
+    { id: "blueberry_light", name: "Blueberry Light", type: "light", bg: "#dae0f5", main: "#506477", caret: "#df4576", sub: "#92a4be", subAlt: "#c1c7df", text: "#678198", error: "#df4576", errorExtra: "#d996ac", colorfulError: "#df4576", colorfulErrorExtra: "#d996ac" },
+    { id: "botanical", name: "Botanical", type: "dark", bg: "#7b9c98", main: "#eaf1f3", caret: "#abc6c4", sub: "#495755", subAlt: "#72908d", text: "#eaf1f3", error: "#f6c9b4", errorExtra: "#f59a71", colorfulError: "#f6c9b4", colorfulErrorExtra: "#f59a71" },
+    { id: "bouquet", name: "Bouquet", type: "dark", bg: "#173f35", main: "#eaa09c", caret: "#eaa09c", sub: "#408e7b", subAlt: "#1f4e43", text: "#e9e0d2", error: "#d44729", errorExtra: "#8f2f19", colorfulError: "#d44729", colorfulErrorExtra: "#8f2f19" },
+    { id: "breeze", name: "Breeze", type: "light", bg: "#e8d5c4", main: "#7d67a9", caret: "#7d67a9", sub: "#3a98b9", subAlt: "#f6e6da", text: "#1b4c5e", error: "#7d67a9", errorExtra: "#9f3e6d", colorfulError: "#f9f871", colorfulErrorExtra: "#67dfa1" },
+    { id: "bushido", name: "Bushido", type: "dark", bg: "#242933", main: "#ec4c56", caret: "#ec4c56", sub: "#596172", subAlt: "#1c222d", text: "#f6f0e9", error: "#ec4c56", errorExtra: "#9b333a", colorfulError: "#ecdc4c", colorfulErrorExtra: "#bdb03d" },
+    { id: "cafe", name: "Cafe", type: "dark", bg: "#ceb18d", main: "#14120f", caret: "#14120f", sub: "#d4d2d1", subAlt: "#bba180", text: "#14120f", error: "#c82931", errorExtra: "#ac1823", colorfulError: "#c82931", colorfulErrorExtra: "#ac1823" },
+    { id: "camping", name: "Camping", type: "light", bg: "#faf1e4", main: "#618c56", caret: "#618c56", sub: "#c2b8aa", subAlt: "#e7dccb", text: "#3c403b", error: "#ad4f4e", errorExtra: "#7e3a39", colorfulError: "#ad4f4e", colorfulErrorExtra: "#7e3a39" },
+    { id: "carbon", name: "Carbon", type: "dark", bg: "#313131", main: "#f66e0d", caret: "#f66e0d", sub: "#616161", subAlt: "#2b2b2b", text: "#f5e6c8", error: "#e72d2d", errorExtra: "#7e2a33", colorfulError: "#e72d2d", colorfulErrorExtra: "#7e2a33" },
+    { id: "catppuccin", name: "Catppuccin", type: "dark", bg: "#1e1e2e", main: "#cba6f7", caret: "#f2cdcd", sub: "#7f849c", subAlt: "#181825", text: "#cdd6f4", error: "#f38ba8", errorExtra: "#eba0ac", colorfulError: "#f38ba8", colorfulErrorExtra: "#eba0ac" },
+    { id: "chaos_theory", name: "Chaos Theory", type: "dark", bg: "#141221", main: "#fd77d7", caret: "#dde5ed", sub: "#676e8a", subAlt: "#1e1d2f", text: "#dde5ed", error: "#fd77d7", errorExtra: "#b03c47", colorfulError: "#ff5869", colorfulErrorExtra: "#b03c47" },
+    { id: "cheesecake", name: "Cheesecake", type: "light", bg: "#fdf0d5", main: "#8e2949", caret: "#892948", sub: "#d91c81", subAlt: "#f3e2bf", text: "#3a3335", error: "#5cf074", errorExtra: "#5cf074", colorfulError: "#5cf074", colorfulErrorExtra: "#5cf074" },
+    { id: "cherry_blossom", name: "Cherry Blossom", type: "dark", bg: "#323437", main: "#d65ccc", caret: "#ffffff", sub: "#787d82", subAlt: "#2d2f31", text: "#d1d0c5", error: "#ca4754", errorExtra: "#d32738", colorfulError: "#ec182d", colorfulErrorExtra: "#6e0c16" },
+    { id: "comfy", name: "Comfy", type: "dark", bg: "#4a5b6e", main: "#f8cdc6", caret: "#9ec1cc", sub: "#9ec1cc", subAlt: "#425366", text: "#f5efee", error: "#c9465e", errorExtra: "#c9465e", colorfulError: "#c9465e", colorfulErrorExtra: "#c9465e" },
+    { id: "copper", name: "Copper", type: "dark", bg: "#442f29", main: "#b46a55", caret: "#c25c42", sub: "#7ebab5", subAlt: "#50362e", text: "#e7e0de", error: "#a32424", errorExtra: "#ec0909", colorfulError: "#a32424", colorfulErrorExtra: "#ec0909" },
+    { id: "creamsicle", name: "Creamsicle", type: "dark", bg: "#ff9869", main: "#fcfcf8", caret: "#fcfcf8", sub: "#ff661f", subAlt: "#fe8954", text: "#fcfcf8", error: "#6a0dad", errorExtra: "#6a0dad", colorfulError: "#6a0dad", colorfulErrorExtra: "#6a0dad" },
+    { id: "cy_red", name: "Cy Red", type: "dark", bg: "#6e2626", main: "#e55050", caret: "#541d1d", sub: "#ff6060", subAlt: "#3f1616", text: "#ffaaaa", error: "#919fd9", errorExtra: "#4d5d9e", colorfulError: "#919fd9", colorfulErrorExtra: "#4d5d9e" },
+    { id: "cyberspace", name: "Cyberspace", type: "dark", bg: "#181c18", main: "#00ce7c", caret: "#00ce7c", sub: "#9578d3", subAlt: "#131613", text: "#c2fbe1", error: "#ff5f5f", errorExtra: "#d22a2a", colorfulError: "#ff5f5f", colorfulErrorExtra: "#d22a2a" },
+    { id: "dark", name: "Dark", type: "dark", bg: "#111111", main: "#eeeeee", caret: "#eeeeee", sub: "#444444", subAlt: "#191919", text: "#eeeeee", error: "#da3333", errorExtra: "#791717", colorfulError: "#da3333", colorfulErrorExtra: "#791717" },
+    { id: "dark_magic_girl", name: "Dark Magic Girl", type: "dark", bg: "#091f2c", main: "#f5b1cc", caret: "#a288d9", sub: "#93e8d3", subAlt: "#071823", text: "#a288d9", error: "#e45c96", errorExtra: "#e45c96", colorfulError: "#00b398", colorfulErrorExtra: "#e45c96" },
+    { id: "dark_note", name: "Dark Note", type: "dark", bg: "#1f1f1f", main: "#f2c17b", caret: "#e3dce0", sub: "#768f95", subAlt: "#141414", text: "#d2dff4", error: "#ff0000", errorExtra: "#588498", colorfulError: "#ff0000", colorfulErrorExtra: "#588498" },
+    { id: "darling", name: "Darling", type: "light", bg: "#fec8cd", main: "#ffffff", caret: "#ffffff", sub: "#a30000", subAlt: "#f2babd", text: "#ffffff", error: "#2e7dde", errorExtra: "#2e7dde", colorfulError: "#2e7dde", colorfulErrorExtra: "#2e7dde" },
+    { id: "deku", name: "Deku", type: "dark", bg: "#058b8c", main: "#b63530", caret: "#b63530", sub: "#255458", subAlt: "#0e7d7e", text: "#f7f2ea", error: "#b63530", errorExtra: "#530e0e", colorfulError: "#ddca1f", colorfulErrorExtra: "#8f8610" },
+    { id: "desert_oasis", name: "Desert Oasis", type: "light", bg: "#fff2d5", main: "#d19d01", caret: "#3a87fe", sub: "#0061fe", subAlt: "#eddebc", text: "#332800", error: "#76bb40", errorExtra: "#4e7a27", colorfulError: "#76bb40", colorfulErrorExtra: "#4e7a27" },
+    { id: "dev", name: "Dev", type: "dark", bg: "#1b2028", main: "#23a9d5", caret: "#4b5975", sub: "#4b5975", subAlt: "#151a21", text: "#ccccb5", error: "#b81b2c", errorExtra: "#84131f", colorfulError: "#b81b2c", colorfulErrorExtra: "#84131f" },
+    { id: "diner", name: "Diner", type: "dark", bg: "#537997", main: "#c3af5b", caret: "#ad5145", sub: "#445c7f", subAlt: "#4d6f8b", text: "#dfdbc8", error: "#ad5145", errorExtra: "#7e2a33", colorfulError: "#ad5145", colorfulErrorExtra: "#7e2a33" },
+    { id: "dino", name: "Dino", type: "light", bg: "#ffffff", main: "#40d672", caret: "#40d672", sub: "#d5d5d5", subAlt: "#cafad8", text: "#1d221f", error: "#ff5f5f", errorExtra: "#d22a2a", colorfulError: "#ff5f5f", colorfulErrorExtra: "#d22a2a" },
+    { id: "discord", name: "Discord", type: "dark", bg: "#313338", main: "#5a65ea", caret: "#5a65ea", sub: "#565861", subAlt: "#2b2d31", text: "#dcdee3", error: "#df4f4b", errorExtra: "#df4f4b", colorfulError: "#df4f4b", colorfulErrorExtra: "#df4f4b" },
+    { id: "dmg", name: "DMG", type: "light", bg: "#dadbdc", main: "#ae185e", caret: "#384693", sub: "#3846b1", subAlt: "#bec1d2", text: "#414141", error: "#ae185e", errorExtra: "#93335c", colorfulError: "#80a053", colorfulErrorExtra: "#306230" },
+    { id: "dollar", name: "Dollar", type: "light", bg: "#e4e4d4", main: "#6b886b", caret: "#424643", sub: "#8a9b69", subAlt: "#cbd0bf", text: "#555a56", error: "#d60000", errorExtra: "#f68484", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "dots", name: "Dots", type: "dark", bg: "#121520", main: "#ffffff", caret: "#ffffff", sub: "#676e8a", subAlt: "#1b1e2c", text: "#ffffff", error: "#da3333", errorExtra: "#791717", colorfulError: "#da3333", colorfulErrorExtra: "#791717" },
+    { id: "dracula", name: "Dracula", type: "dark", bg: "#282a36", main: "#bd93f9", caret: "#bd93f9", sub: "#6272a4", subAlt: "#20222c", text: "#f8f8f2", error: "#ff5555", errorExtra: "#f1fa8c", colorfulError: "#ff5555", colorfulErrorExtra: "#f1fa8c" },
+    { id: "drowning", name: "Drowning", type: "dark", bg: "#191826", main: "#4a6fb5", caret: "#4f85e8", sub: "#50688c", subAlt: "#1e1f2f", text: "#9393a7", error: "#be555f", errorExtra: "#7e2a33", colorfulError: "#be555f", colorfulErrorExtra: "#7e2a33" },
+    { id: "dualshot", name: "Dualshot", type: "dark", bg: "#737373", main: "#212222", caret: "#212222", sub: "#aaaaaa", subAlt: "#646464", text: "#212222", error: "#c82931", errorExtra: "#ac1823", colorfulError: "#c82931", colorfulErrorExtra: "#ac1823" },
+    { id: "earthsong", name: "Earthsong", type: "dark", bg: "#292521", main: "#509452", caret: "#1298ba", sub: "#f5ae2d", subAlt: "#1d1b18", text: "#e6c7a8", error: "#7e2a33", errorExtra: "#ff645a", colorfulError: "#7e2a33", colorfulErrorExtra: "#ff645a" },
+    { id: "everblush", name: "Everblush", type: "dark", bg: "#141b1e", main: "#8ccf7e", caret: "#6cbfbf", sub: "#838887", subAlt: "#232a2d", text: "#dadada", error: "#e57474", errorExtra: "#ef7e7e", colorfulError: "#e57474", colorfulErrorExtra: "#ef7e7e" },
+    { id: "evil_eye", name: "Evil Eye", type: "dark", bg: "#0084c2", main: "#f7f2ea", caret: "#f7f2ea", sub: "#01589f", subAlt: "#0c79be", text: "#171718", error: "#ca4754", errorExtra: "#7e2a33", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "ez_mode", name: "Ez Mode", type: "dark", bg: "#0068c6", main: "#fa62d5", caret: "#4ddb47", sub: "#138bf7", subAlt: "#005bac", text: "#ffffff", error: "#4ddb47", errorExtra: "#42ba3b", colorfulError: "#4ddb47", colorfulErrorExtra: "#42ba3b" },
+    { id: "fire", name: "Fire", type: "dark", bg: "#0f0000", main: "#b31313", caret: "#b31313", sub: "#683434", subAlt: "#200a0a", text: "#ffffff", error: "#2f3cb6", errorExtra: "#434a8f", colorfulError: "#2f3cb6", colorfulErrorExtra: "#434a8f" },
+    { id: "fledgling", name: "Fledgling", type: "dark", bg: "#3b363f", main: "#fc6e83", caret: "#474747", sub: "#8e5568", subAlt: "#332e38", text: "#e6d5d3", error: "#f52443", errorExtra: "#bd001c", colorfulError: "#ff0a2f", colorfulErrorExtra: "#000000" },
+    { id: "fleuriste", name: "Fleuriste", type: "dark", bg: "#c6b294", main: "#405a52", caret: "#8a785b", sub: "#64374d", subAlt: "#b4a389", text: "#091914", error: "#990000", errorExtra: "#8a1414", colorfulError: "#a63a3a", colorfulErrorExtra: "#bd4c4c" },
+    { id: "floret", name: "Floret", type: "dark", bg: "#00272c", main: "#ffdd6d", caret: "#c3bd40", sub: "#779097", subAlt: "#173033", text: "#e5e5e5", error: "#8a4000", errorExtra: "#00708d", colorfulError: "#8a4000", colorfulErrorExtra: "#628b96" },
+    { id: "froyo", name: "Froyo", type: "light", bg: "#e1dacb", main: "#7b7d7d", caret: "#7b7d7d", sub: "#b29c5e", subAlt: "#d3cdc1", text: "#7b7d7d", error: "#f28578", errorExtra: "#d56558", colorfulError: "#f28578", colorfulErrorExtra: "#d56558" },
+    { id: "frozen_llama", name: "Frozen Llama", type: "light", bg: "#9bf2ea", main: "#6d44a6", caret: "#ffffff", sub: "#b690fd", subAlt: "#7fe7dd", text: "#ffffff", error: "#e42629", errorExtra: "#e42629", colorfulError: "#e42629", colorfulErrorExtra: "#e42629" },
+    { id: "fruit_chew", name: "Fruit Chew", type: "light", bg: "#d6d3d6", main: "#5c1e5f", caret: "#b92221", sub: "#b49cb5", subAlt: "#cabfca", text: "#282528", error: "#bd2621", errorExtra: "#a62626", colorfulError: "#bd2621", colorfulErrorExtra: "#a62626" },
+    { id: "fundamentals", name: "Fundamentals", type: "dark", bg: "#727474", main: "#7fa482", caret: "#196378", sub: "#cac4be", subAlt: "#666868", text: "#131313", error: "#5e477c", errorExtra: "#413157", colorfulError: "#5e477c", colorfulErrorExtra: "#413157" },
+    { id: "future_funk", name: "Future Funk", type: "dark", bg: "#2e1a47", main: "#f7f2ea", caret: "#f7f2ea", sub: "#c18fff", subAlt: "#27173c", text: "#f7f2ea", error: "#f04e98", errorExtra: "#bd1c66", colorfulError: "#f04e98", colorfulErrorExtra: "#bd1c66" },
+    { id: "github", name: "Github", type: "dark", bg: "#212830", main: "#41ce5c", caret: "#41ce5c", sub: "#788386", subAlt: "#141b23", text: "#ccdae6", error: "#c23e3a", errorExtra: "#c23e3a", colorfulError: "#c23e3a", colorfulErrorExtra: "#c23e3a" },
+    { id: "godspeed", name: "Godspeed", type: "light", bg: "#eae4cf", main: "#9abbcd", caret: "#f4d476", sub: "#ada998", subAlt: "#ded9c9", text: "#646669", error: "#ca4754", errorExtra: "#7e2a33", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "graen", name: "Graen", type: "dark", bg: "#303c36", main: "#a59682", caret: "#601420", sub: "#181d1a", subAlt: "#36453c", text: "#a59682", error: "#601420", errorExtra: "#5f0715", colorfulError: "#601420", colorfulErrorExtra: "#5f0715" },
+    { id: "grand_prix", name: "Grand Prix", type: "dark", bg: "#36475c", main: "#c0d036", caret: "#c0d036", sub: "#5c6c80", subAlt: "#42536b", text: "#c1c7d7", error: "#fc5727", errorExtra: "#fc5727", colorfulError: "#fc5727", colorfulErrorExtra: "#fc5727" },
+    { id: "grape", name: "Grape", type: "dark", bg: "#2c003e", main: "#ff8f00", caret: "#ff8f00", sub: "#6e225e", subAlt: "#1f002d", text: "#ffffff", error: "#ff4081", errorExtra: "#bf2054", colorfulError: "#ff4081", colorfulErrorExtra: "#bf2054" },
+    { id: "gruvbox_dark", name: "Gruvbox Dark", type: "dark", bg: "#282828", main: "#d79921", caret: "#fabd2f", sub: "#665c54", subAlt: "#212121", text: "#ebdbb2", error: "#fb4934", errorExtra: "#cc241d", colorfulError: "#cc241d", colorfulErrorExtra: "#9d0006" },
+    { id: "gruvbox_light", name: "Gruvbox Light", type: "light", bg: "#fbf1c7", main: "#689d6a", caret: "#689d6a", sub: "#a89984", subAlt: "#daceae", text: "#3c3836", error: "#cc241d", errorExtra: "#9d0006", colorfulError: "#cc241d", colorfulErrorExtra: "#9d0006" },
+    { id: "hammerhead", name: "Hammerhead", type: "dark", bg: "#030613", main: "#4fcdb9", caret: "#4fcdb9", sub: "#213c53", subAlt: "#0a1928", text: "#e2f1f5", error: "#e32b2b", errorExtra: "#a62626", colorfulError: "#e32b2b", colorfulErrorExtra: "#a62626" },
+    { id: "hanok", name: "Hanok", type: "light", bg: "#d8d2c3", main: "#513a2a", caret: "#513a2a", sub: "#8b6f5c", subAlt: "#cdc0af", text: "#393b3b", error: "#ca4754", errorExtra: "#7e2a33", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "hedge", name: "Hedge", type: "dark", bg: "#415e31", main: "#6a994e", caret: "#f2efbb", sub: "#ede5b4", subAlt: "#38502a", text: "#f7f1d6", error: "#ca3d3f", errorExtra: "#782832", colorfulError: "#e76f51", colorfulErrorExtra: "#f4a261" },
+    { id: "honey", name: "Honey", type: "dark", bg: "#f2aa00", main: "#fff546", caret: "#795200", sub: "#a66b00", subAlt: "#e19e00", text: "#f3eecb", error: "#df3333", errorExtra: "#6d1f1f", colorfulError: "#df3333", colorfulErrorExtra: "#6d1f1f" },
+    { id: "horizon", name: "Horizon", type: "dark", bg: "#1c1e26", main: "#c4a88a", caret: "#bbbbbb", sub: "#db886f", subAlt: "#17181f", text: "#bbbbbb", error: "#d55170", errorExtra: "#ff3d3d", colorfulError: "#d55170", colorfulErrorExtra: "#d55170" },
+    { id: "husqy", name: "Husqy", type: "dark", bg: "#000000", main: "#c58aff", caret: "#c58aff", sub: "#972fff", subAlt: "#1e001e", text: "#ebd7ff", error: "#da3333", errorExtra: "#791717", colorfulError: "#da3333", colorfulErrorExtra: "#791717" },
+    { id: "iceberg_dark", name: "Iceberg Dark", type: "dark", bg: "#161821", main: "#84a0c6", caret: "#d2d4de", sub: "#595e76", subAlt: "#232531", text: "#c6c8d1", error: "#e27878", errorExtra: "#e2a478", colorfulError: "#e27878", colorfulErrorExtra: "#e2a478" },
+    { id: "iceberg_light", name: "Iceberg Light", type: "light", bg: "#e8e9ec", main: "#2d539e", caret: "#262a3f", sub: "#adb1c4", subAlt: "#ccceda", text: "#33374c", error: "#cc517a", errorExtra: "#cc3768", colorfulError: "#cc517a", colorfulErrorExtra: "#cc3768" },
+    { id: "incognito", name: "Incognito", type: "dark", bg: "#0e0e0e", main: "#ff9900", caret: "#ff9900", sub: "#555555", subAlt: "#151515", text: "#c6c6c6", error: "#e44545", errorExtra: "#e44545", colorfulError: "#b13535", colorfulErrorExtra: "#b13535" },
+    { id: "ishtar", name: "Ishtar", type: "dark", bg: "#202020", main: "#91170c", caret: "#c58940", sub: "#847869", subAlt: "#272727", text: "#fae1c3", error: "#bb1e10", errorExtra: "#791717", colorfulError: "#c5da33", colorfulErrorExtra: "#849224" },
+    { id: "iv_clover", name: "IV Clover", type: "dark", bg: "#a0a0a0", main: "#573e40", caret: "#8d8d8d", sub: "#353535", subAlt: "#bebebe", text: "#3b2d3b", error: "#937173", errorExtra: "#987678", colorfulError: "#ad8d60", colorfulErrorExtra: "#b7976a" },
+    { id: "iv_spade", name: "IV Spade", type: "dark", bg: "#0c0c0c", main: "#b7976a", caret: "#bebebe", sub: "#404040", subAlt: "#121212", text: "#d3c2c3", error: "#9d7b7d", errorExtra: "#a78587", colorfulError: "#b7976a", colorfulErrorExtra: "#c1a174" },
+    { id: "joker", name: "Joker", type: "dark", bg: "#1a0e25", main: "#99de1e", caret: "#99de1e", sub: "#7554a3", subAlt: "#14081f", text: "#e9e2f5", error: "#e32b2b", errorExtra: "#a62626", colorfulError: "#e32b2b", colorfulErrorExtra: "#a62626" },
+    { id: "laser", name: "Laser", type: "dark", bg: "#221b44", main: "#009eaf", caret: "#009eaf", sub: "#b82356", subAlt: "#1e173b", text: "#dbe7e8", error: "#a8d400", errorExtra: "#668000", colorfulError: "#a8d400", colorfulErrorExtra: "#668000" },
+    { id: "lavender", name: "Lavender", type: "dark", bg: "#ada6c2", main: "#e4e3e9", caret: "#e4e3e9", sub: "#e4e3e9", subAlt: "#a19bb9", text: "#2f2a41", error: "#ca4754", errorExtra: "#7e2a33", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "leather", name: "Leather", type: "dark", bg: "#a86948", main: "#ffe4bc", caret: "#ef6d49", sub: "#81482b", subAlt: "#9a5f3f", text: "#ffe4bc", error: "#ca4754", errorExtra: "#7e2a33", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "lil_dragon", name: "Lil Dragon", type: "light", bg: "#ebe1ef", main: "#8a5bd6", caret: "#212b43", sub: "#a28db8", subAlt: "#dac7e2", text: "#212b43", error: "#f794ca", errorExtra: "#f279c2", colorfulError: "#f794ca", colorfulErrorExtra: "#f279c2" },
+    { id: "lilac_mist", name: "Lilac Mist", type: "light", bg: "#fffbfe", main: "#b94189", caret: "#e099d6", sub: "#e094c2", subAlt: "#ecdcee", text: "#5c2954", error: "#ff6f69", errorExtra: "#ff6f69", colorfulError: "#bc7fc0", colorfulErrorExtra: "#bc41b1" },
+    { id: "lime", name: "Lime", type: "dark", bg: "#7c878e", main: "#93c247", caret: "#93c247", sub: "#4b5257", subAlt: "#737d82", text: "#bfcfdc", error: "#ea4221", errorExtra: "#7e2a33", colorfulError: "#ea4221", colorfulErrorExtra: "#7e2a33" },
+    { id: "luna", name: "Luna", type: "dark", bg: "#221c35", main: "#f67599", caret: "#f67599", sub: "#5a3a7e", subAlt: "#2f2346", text: "#ffe3eb", error: "#efc050", errorExtra: "#c5972c", colorfulError: "#efc050", colorfulErrorExtra: "#c5972c" },
+    { id: "macroblank", name: "Macroblank", type: "light", bg: "#b2d2c8", main: "#c13117", caret: "#766f71", sub: "#717977", subAlt: "#c6ddd3", text: "#490909", error: "#c13117", errorExtra: "#fff5f5", colorfulError: "#fff5f5", colorfulErrorExtra: "#ffe9c2" },
+    { id: "magic_girl", name: "Magic Girl", type: "light", bg: "#ffffff", main: "#f5b1cc", caret: "#e45c96", sub: "#93e8d3", subAlt: "#f2f2f2", text: "#00ac8c", error: "#ffe495", errorExtra: "#e45c96", colorfulError: "#ffe485", colorfulErrorExtra: "#e45c96" },
+    { id: "mashu", name: "Mashu", type: "dark", bg: "#2b2b2c", main: "#76689a", caret: "#76689a", sub: "#d8a0a6", subAlt: "#27242c", text: "#f1e2e4", error: "#d44729", errorExtra: "#8f2f19", colorfulError: "#d44729", colorfulErrorExtra: "#8f2f19" },
+    { id: "matcha_moccha", name: "Matcha Moccha", type: "dark", bg: "#523525", main: "#7ec160", caret: "#7ec160", sub: "#9e6749", subAlt: "#422b1e", text: "#ecddcc", error: "#fb4934", errorExtra: "#cc241d", colorfulError: "#fb4934", colorfulErrorExtra: "#cc241d" },
+    { id: "material", name: "Material", type: "dark", bg: "#263238", main: "#80cbc4", caret: "#80cbc4", sub: "#4c6772", subAlt: "#2e3c43", text: "#e6edf3", error: "#fb4934", errorExtra: "#cc241d", colorfulError: "#fb4934", colorfulErrorExtra: "#cc241d" },
+    { id: "matrix", name: "Matrix", type: "dark", bg: "#000000", main: "#15ff00", caret: "#15ff00", sub: "#006500", subAlt: "#032000", text: "#d1ffcd", error: "#da3333", errorExtra: "#791717", colorfulError: "#da3333", colorfulErrorExtra: "#791717" },
+    { id: "menthol", name: "Menthol", type: "dark", bg: "#00c18c", main: "#ffffff", caret: "#99fdd8", sub: "#186544", subAlt: "#17ae7d", text: "#ffffff", error: "#e03c3c", errorExtra: "#b12525", colorfulError: "#e03c3c", colorfulErrorExtra: "#b12525" },
+    { id: "metaverse", name: "Metaverse", type: "dark", bg: "#232323", main: "#d82934", caret: "#d82934", sub: "#5e5e5e", subAlt: "#1d1d1d", text: "#e8e8e8", error: "#da3333", errorExtra: "#791717", colorfulError: "#d7da33", colorfulErrorExtra: "#737917" },
+    { id: "metropolis", name: "Metropolis", type: "dark", bg: "#0f1f2c", main: "#56c3b7", caret: "#56c3b7", sub: "#326984", subAlt: "#0b1822", text: "#e4edf1", error: "#d44729", errorExtra: "#8f2f19", colorfulError: "#d44729", colorfulErrorExtra: "#8f2f19" },
+    { id: "mexican", name: "Mexican", type: "light", bg: "#f8ad34", main: "#b12189", caret: "#eeeeee", sub: "#333333", subAlt: "#f9b951", text: "#eeeeee", error: "#da3333", errorExtra: "#791717", colorfulError: "#da3333", colorfulErrorExtra: "#791717" },
+    { id: "miami", name: "Miami", type: "dark", bg: "#f35588", main: "#05dfd7", caret: "#a3f7bf", sub: "#94294c", subAlt: "#db4979", text: "#f0e9ec", error: "#fff591", errorExtra: "#b9b269", colorfulError: "#fff591", colorfulErrorExtra: "#b9b269" },
+    { id: "miami_nights", name: "Miami Nights", type: "dark", bg: "#18181a", main: "#e4609b", caret: "#e4609b", sub: "#47bac0", subAlt: "#0f0f10", text: "#ffffff", error: "#fff591", errorExtra: "#b6af68", colorfulError: "#fff591", colorfulErrorExtra: "#b6af68" },
+    { id: "midnight", name: "Midnight", type: "dark", bg: "#0b0e13", main: "#60759f", caret: "#60759f", sub: "#394760", subAlt: "#141a24", text: "#9fadc6", error: "#c27070", errorExtra: "#c28b70", colorfulError: "#c27070", colorfulErrorExtra: "#c28b70" },
+    { id: "milkshake", name: "Milkshake", type: "light", bg: "#ffffff", main: "#212b43", caret: "#212b43", sub: "#62cfe6", subAlt: "#ddeff3", text: "#212b43", error: "#f19dac", errorExtra: "#e58c9d", colorfulError: "#f19dac", colorfulErrorExtra: "#e58c9d" },
+    { id: "mint", name: "Mint", type: "dark", bg: "#05385b", main: "#5cdb95", caret: "#5cdb95", sub: "#20688a", subAlt: "#07324e", text: "#edf5e1", error: "#f35588", errorExtra: "#a3385a", colorfulError: "#f35588", colorfulErrorExtra: "#a3385a" },
+    { id: "mizu", name: "Mizu", type: "light", bg: "#afcbdd", main: "#fcfbf6", caret: "#fcfbf6", sub: "#85a5bb", subAlt: "#9fc1d4", text: "#1a2633", error: "#bf616a", errorExtra: "#793e44", colorfulError: "#bf616a", colorfulErrorExtra: "#793e44" },
+    { id: "modern_dolch", name: "Modern Dolch", type: "dark", bg: "#2d2e30", main: "#7eddd3", caret: "#7eddd3", sub: "#54585c", subAlt: "#242527", text: "#e3e6eb", error: "#d36a7b", errorExtra: "#994154", colorfulError: "#d36a7b", colorfulErrorExtra: "#994154" },
+    { id: "modern_dolch_light", name: "Modern Dolch Light", type: "light", bg: "#dbdbdb", main: "#8fd1c3", caret: "#8fd1c3", sub: "#a3a2a2", subAlt: "#e8e8e8", text: "#454545", error: "#ea8a9a", errorExtra: "#e0556d", colorfulError: "#ea8a9a", colorfulErrorExtra: "#e0556d" },
+    { id: "modern_ink", name: "Modern Ink", type: "light", bg: "#ffffff", main: "#ff360d", caret: "#ff0000", sub: "#b7b7b7", subAlt: "#ececec", text: "#000000", error: "#d70000", errorExtra: "#b00000", colorfulError: "#000000", colorfulErrorExtra: "#000000" },
+    { id: "monokai", name: "Monokai", type: "dark", bg: "#272822", main: "#a6e22e", caret: "#66d9ef", sub: "#e6db74", subAlt: "#1f201b", text: "#e2e2dc", error: "#f92672", errorExtra: "#fd971f", colorfulError: "#f92672", colorfulErrorExtra: "#fd971f" },
+    { id: "moonlight", name: "Moonlight", type: "dark", bg: "#191f28", main: "#c69f68", caret: "#8f744b", sub: "#4b5975", subAlt: "#141a22", text: "#ccccb5", error: "#b81b2c", errorExtra: "#84131f", colorfulError: "#b81b2c", colorfulErrorExtra: "#84131f" },
+    { id: "mountain", name: "Mountain", type: "dark", bg: "#0f0f0f", main: "#e7e7e7", caret: "#f5f5f5", sub: "#4c4c4c", subAlt: "#1a1a1a", text: "#e7e7e7", error: "#ac8c8c", errorExtra: "#c49ea0", colorfulError: "#aca98a", colorfulErrorExtra: "#c4c19e" },
+    { id: "mr_sleeves", name: "Mr Sleeves", type: "light", bg: "#d1d7da", main: "#daa99b", caret: "#8fadc9", sub: "#9a9fa1", subAlt: "#bfcbd1", text: "#1d1d1d", error: "#bf6464", errorExtra: "#793e44", colorfulError: "#8fadc9", colorfulErrorExtra: "#667c91" },
+    { id: "ms_cupcakes", name: "Ms Cupcakes", type: "light", bg: "#ffffff", main: "#5ed5f3", caret: "#303030", sub: "#d64090", subAlt: "#edf8fa", text: "#0a282f", error: "#a4dd32", errorExtra: "#90bd34", colorfulError: "#a4dd32", colorfulErrorExtra: "#87b330" },
+    { id: "muted", name: "Muted", type: "dark", bg: "#525252", main: "#c5b4e3", caret: "#b1e4e3", sub: "#939eae", subAlt: "#494949", text: "#b1e4e3", error: "#edc1cd", errorExtra: "#edc1cd", colorfulError: "#edc1cd", colorfulErrorExtra: "#edc1cd" },
+    { id: "nautilus", name: "Nautilus", type: "dark", bg: "#132237", main: "#ebb723", caret: "#ebb723", sub: "#0b4c6c", subAlt: "#0e1a29", text: "#1cbaac", error: "#da3333", errorExtra: "#791717", colorfulError: "#da3333", colorfulErrorExtra: "#791717" },
+    { id: "nebula", name: "Nebula", type: "dark", bg: "#212135", main: "#be3c88", caret: "#78c729", sub: "#19b3b8", subAlt: "#191928", text: "#838686", error: "#ca4754", errorExtra: "#7e2a33", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "night_runner", name: "Night Runner", type: "dark", bg: "#212121", main: "#feff04", caret: "#feff04", sub: "#5c4a9c", subAlt: "#1a1a1a", text: "#e8e8e8", error: "#da3333", errorExtra: "#791717", colorfulError: "#da3333", colorfulErrorExtra: "#791717" },
+    { id: "nord", name: "Nord", type: "dark", bg: "#242933", main: "#88c0d0", caret: "#eceff4", sub: "#929aaa", subAlt: "#2e3440", text: "#d8dee9", error: "#bf616a", errorExtra: "#793e44", colorfulError: "#bf616a", colorfulErrorExtra: "#793e44" },
+    { id: "nord_light", name: "Nord Light", type: "light", bg: "#eceff4", main: "#8fbcbb", caret: "#8fbcbb", sub: "#6a7791", subAlt: "#d8dee9", text: "#8fbcbb", error: "#bf616a", errorExtra: "#793e44", colorfulError: "#bf616a", colorfulErrorExtra: "#793e44" },
+    { id: "norse", name: "Norse", type: "dark", bg: "#242425", main: "#2b5f6d", caret: "#2b5f6d", sub: "#505b5e", subAlt: "#303333", text: "#ccc2b1", error: "#7e2a2a", errorExtra: "#771d1d", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "oblivion", name: "Oblivion", type: "dark", bg: "#313231", main: "#a5a096", caret: "#a5a096", sub: "#5d6263", subAlt: "#3a3b3b", text: "#f7f5f1", error: "#dd452e", errorExtra: "#9e3423", colorfulError: "#dd452e", colorfulErrorExtra: "#9e3423" },
+    { id: "olive", name: "Olive", type: "light", bg: "#e9e5cc", main: "#92946f", caret: "#92946f", sub: "#b7b39e", subAlt: "#d4cfbc", text: "#373731", error: "#cf2f2f", errorExtra: "#a22929", colorfulError: "#cf2f2f", colorfulErrorExtra: "#a22929" },
+    { id: "olivia", name: "Olivia", type: "dark", bg: "#1c1b1d", main: "#deaf9d", caret: "#deaf9d", sub: "#4e3e3e", subAlt: "#262223", text: "#f2efed", error: "#bf616a", errorExtra: "#793e44", colorfulError: "#e03d4e", colorfulErrorExtra: "#aa2f3b" },
+    { id: "onedark", name: "Onedark", type: "dark", bg: "#2f343f", main: "#61afef", caret: "#61afef", sub: "#eceff4", subAlt: "#262b34", text: "#98c379", error: "#e06c75", errorExtra: "#d62436", colorfulError: "#d62436", colorfulErrorExtra: "#ff0019" },
+    { id: "our_theme", name: "Our Theme", type: "dark", bg: "#ce1226", main: "#fcd116", caret: "#fcd116", sub: "#6d0f19", subAlt: "#9f1020", text: "#ffffff", error: "#fcd116", errorExtra: "#fcd116", colorfulError: "#1672fc", colorfulErrorExtra: "#1672fc" },
+    { id: "pale_nimbus", name: "Pale Nimbus", type: "dark", bg: "#433e4c", main: "#94ffc2", caret: "#9efffd", sub: "#ffaca3", subAlt: "#694f5e", text: "#feffdb", error: "#ff5c5c", errorExtra: "#ff0000", colorfulError: "#ff3874", colorfulErrorExtra: "#c2386f" },
+    { id: "paper", name: "Paper", type: "light", bg: "#eeeeee", main: "#444444", caret: "#444444", sub: "#b2b2b2", subAlt: "#dddddd", text: "#444444", error: "#d70000", errorExtra: "#d70000", colorfulError: "#d70000", colorfulErrorExtra: "#d70000" },
+    { id: "passion_fruit", name: "Passion Fruit", type: "dark", bg: "#7c2142", main: "#f4a3b4", caret: "#ffffff", sub: "#9994b8", subAlt: "#833c5e", text: "#ffffff", error: "#deb80b", errorExtra: "#deb80b", colorfulError: "#deb80b", colorfulErrorExtra: "#deb80b" },
+    { id: "pastel", name: "Pastel", type: "light", bg: "#e0b2bd", main: "#fbf4b6", caret: "#fbf4b6", sub: "#b4e9ff", subAlt: "#d29fab", text: "#6d5c6f", error: "#ff6961", errorExtra: "#c23b22", colorfulError: "#ff6961", colorfulErrorExtra: "#c23b22" },
+    { id: "peach_blossom", name: "Peach Blossom", type: "dark", bg: "#292929", main: "#99b898", caret: "#616161", sub: "#616161", subAlt: "#2a363b", text: "#fecea8", error: "#ff6961", errorExtra: "#e84a5f", colorfulError: "#ff6961", colorfulErrorExtra: "#e84a5f" },
+    { id: "peaches", name: "Peaches", type: "light", bg: "#e0d7c1", main: "#dd7a5f", caret: "#dd7a5f", sub: "#e7b28e", subAlt: "#e2caaf", text: "#5f4c41", error: "#ff6961", errorExtra: "#c23b22", colorfulError: "#ff6961", colorfulErrorExtra: "#c23b22" },
+    { id: "phantom", name: "Phantom", type: "dark", bg: "#000011", main: "#7aa2f7", caret: "#bb9af7", sub: "#414868", subAlt: "#24283b", text: "#c0caf5", error: "#f7768e", errorExtra: "#db4b4b", colorfulError: "#ff7a93", colorfulErrorExtra: "#ff9e64" },
+    { id: "pink_lemonade", name: "Pink Lemonade", type: "light", bg: "#f6d992", main: "#f6a192", caret: "#fcfcf8", sub: "#f6b092", subAlt: "#f6cc93", text: "#fcfcf8", error: "#ff6f69", errorExtra: "#ff6f69", colorfulError: "#ff6f69", colorfulErrorExtra: "#ff6f69" },
+    { id: "pulse", name: "Pulse", type: "dark", bg: "#181818", main: "#17b8bd", caret: "#17b8bd", sub: "#53565a", subAlt: "#121212", text: "#e5f4f4", error: "#da3333", errorExtra: "#791717", colorfulError: "#da3333", colorfulErrorExtra: "#791717" },
+    { id: "purpleish", name: "Purpleish", type: "dark", bg: "#1e1e32", main: "#7a52cc", caret: "#7a52cc", sub: "#5c5c99", subAlt: "#181829", text: "#a3a3cc", error: "#ff6666", errorExtra: "#ff6666", colorfulError: "#ff6666", colorfulErrorExtra: "#ff6666" },
+    { id: "rainbow_trail", name: "Rainbow Trail", type: "light", bg: "#f5f5f5", main: "#363636", caret: "#0d0d0d", sub: "#4f4f4f", subAlt: "#e0e0e0", text: "#1f1f1f", error: "#ff0008", errorExtra: "#ff0008", colorfulError: "#ff0008", colorfulErrorExtra: "#ff0008" },
+    { id: "red_dragon", name: "Red Dragon", type: "dark", bg: "#1a0b0c", main: "#ff3a32", caret: "#ff3a32", sub: "#e2a528", subAlt: "#0e0506", text: "#4a4d4e", error: "#771b1f", errorExtra: "#591317", colorfulError: "#771b1f", colorfulErrorExtra: "#591317" },
+    { id: "red_samurai", name: "Red Samurai", type: "dark", bg: "#84202c", main: "#c79e6e", caret: "#c79e6e", sub: "#55131b", subAlt: "#751d26", text: "#e2dad0", error: "#33bbda", errorExtra: "#176b79", colorfulError: "#33bbda", colorfulErrorExtra: "#176779" },
+    { id: "repose_dark", name: "Repose Dark", type: "dark", bg: "#2f3338", main: "#d6d2bc", caret: "#d6d2bc", sub: "#8f8e84", subAlt: "#3a3c3d", text: "#d6d2bc", error: "#ff4a59", errorExtra: "#c43c53", colorfulError: "#ff4a59", colorfulErrorExtra: "#c43c53" },
+    { id: "repose_light", name: "Repose Light", type: "light", bg: "#efead0", main: "#5f605e", caret: "#5f605e", sub: "#8f8e84", subAlt: "#dbd6c4", text: "#333538", error: "#c43c53", errorExtra: "#a52632", colorfulError: "#c43c53", colorfulErrorExtra: "#a52632" },
+    { id: "retro", name: "Retro", type: "light", bg: "#dad3c1", main: "#1d1b17", caret: "#1d1b17", sub: "#918b7d", subAlt: "#c8c3b3", text: "#1d1b17", error: "#bf616a", errorExtra: "#793e44", colorfulError: "#bf616a", colorfulErrorExtra: "#793e44" },
+    { id: "retrocast", name: "Retrocast", type: "dark", bg: "#07737a", main: "#88dbdf", caret: "#88dbdf", sub: "#f3e03b", subAlt: "#26858b", text: "#ffffff", error: "#ff585d", errorExtra: "#c04455", colorfulError: "#ff585d", colorfulErrorExtra: "#c04455" },
+    { id: "rgb", name: "RGB", type: "dark", bg: "#111111", main: "#eeeeee", caret: "#eeeeee", sub: "#444444", subAlt: "#1a1a1a", text: "#eeeeee", error: "#eeeeee", errorExtra: "#b3b3b3", colorfulError: "#eeeeee", colorfulErrorExtra: "#b3b3b3" },
+    { id: "rose_pine", name: "Rose Pine", type: "dark", bg: "#1f1d27", main: "#9ccfd8", caret: "#f6c177", sub: "#c4a7e7", subAlt: "#282533", text: "#e0def4", error: "#eb6f92", errorExtra: "#ebbcba", colorfulError: "#eb6f92", colorfulErrorExtra: "#ebbcba" },
+    { id: "rose_pine_dawn", name: "Rose Pine Dawn", type: "light", bg: "#fffaf3", main: "#56949f", caret: "#ea9d34", sub: "#c4a7e7", subAlt: "#f0e9df", text: "#286983", error: "#b4637a", errorExtra: "#d7827e", colorfulError: "#b4637a", colorfulErrorExtra: "#d7827e" },
+    { id: "rose_pine_moon", name: "Rose Pine Moon", type: "dark", bg: "#2a273f", main: "#9ccfd8", caret: "#f6c177", sub: "#c4a7e7", subAlt: "#211f32", text: "#e0def4", error: "#eb6f92", errorExtra: "#ebbcba", colorfulError: "#eb6f92", colorfulErrorExtra: "#ebbcba" },
+    { id: "rudy", name: "Rudy", type: "dark", bg: "#1a2b3e", main: "#af8f5c", caret: "#af8f5c", sub: "#3a506c", subAlt: "#152231", text: "#c9c8bf", error: "#bf616a", errorExtra: "#793e44", colorfulError: "#bf616a", colorfulErrorExtra: "#793e44" },
+    { id: "ryujinscales", name: "Ryujinscales", type: "dark", bg: "#081426", main: "#f17754", caret: "#ef6d49", sub: "#ffbc90", subAlt: "#040e1d", text: "#ffe4bc", error: "#ca4754", errorExtra: "#7e2a33", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "serika", name: "Serika", type: "light", bg: "#e1e1e3", main: "#e2b714", caret: "#e2b714", sub: "#aaaeb3", subAlt: "#d1d3d8", text: "#323437", error: "#da3333", errorExtra: "#791717", colorfulError: "#da3333", colorfulErrorExtra: "#791717" },
+    { id: "serika_dark", name: "Serika Dark", type: "dark", bg: "#323437", main: "#e2b714", caret: "#e2b714", sub: "#646669", subAlt: "#2c2e31", text: "#d1d0c5", error: "#ca4754", errorExtra: "#7e2a33", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "sewing_tin", name: "Sewing Tin", type: "dark", bg: "#241963", main: "#f2ce83", caret: "#fbdb8c", sub: "#446ad5", subAlt: "#2a277a", text: "#ffffff", error: "#c6915e", errorExtra: "#c6915e", colorfulError: "#c6915e", colorfulErrorExtra: "#c6915e" },
+    { id: "sewing_tin_light", name: "Sewing Tin Light", type: "light", bg: "#ffffff", main: "#2d2076", caret: "#fbdb8c", sub: "#385eca", subAlt: "#c8cedf", text: "#2d2076", error: "#f2ce83", errorExtra: "#f2ce83", colorfulError: "#f2ce83", colorfulErrorExtra: "#f2ce83" },
+    { id: "shadow", name: "Shadow", type: "dark", bg: "#000000", main: "#eeeeee", caret: "#eeeeee", sub: "#444444", subAlt: "#171717", text: "#eeeeee", error: "#ffffff", errorExtra: "#d8d8d8", colorfulError: "#ffffff", colorfulErrorExtra: "#d8d8d8" },
+    { id: "shoko", name: "Shoko", type: "light", bg: "#ced7e0", main: "#81c4dd", caret: "#81c4dd", sub: "#7599b1", subAlt: "#b7cada", text: "#3b4c58", error: "#bf616a", errorExtra: "#793e44", colorfulError: "#bf616a", colorfulErrorExtra: "#793e44" },
+    { id: "slambook", name: "Slambook", type: "light", bg: "#fffdde", main: "#03001c", caret: "#367e18", sub: "#1c82adc4", subAlt: "#c6dce4", text: "#13005a", error: "#f900bf", errorExtra: "#ce1212", colorfulError: "#ce1212", colorfulErrorExtra: "#3ec70b" },
+    { id: "snes", name: "SNES", type: "light", bg: "#bfbec2", main: "#553d94", caret: "#523793", sub: "#9f8ad4", subAlt: "#b5b0c2", text: "#2e2e2e", error: "#ca4754", errorExtra: "#7e2a33", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "soaring_skies", name: "Soaring Skies", type: "light", bg: "#fff9f2", main: "#55c6f0", caret: "#1e107a", sub: "#1e107a", subAlt: "#e5ddd4", text: "#1d1e1e", error: "#fb5745", errorExtra: "#b03c30", colorfulError: "#fb5745", colorfulErrorExtra: "#b03c30" },
+    { id: "solarized_dark", name: "Solarized Dark", type: "dark", bg: "#002b36", main: "#859900", caret: "#dc322f", sub: "#2aa198", subAlt: "#00222b", text: "#268bd2", error: "#d33682", errorExtra: "#9b225c", colorfulError: "#d33682", colorfulErrorExtra: "#9b225c" },
+    { id: "solarized_light", name: "Solarized Light", type: "light", bg: "#fdf6e3", main: "#859900", caret: "#dc322f", sub: "#2aa198", subAlt: "#e2d8be", text: "#181819", error: "#d33682", errorExtra: "#9b225c", colorfulError: "#d33682", colorfulErrorExtra: "#9b225c" },
+    { id: "solarized_osaka", name: "Solarized Osaka", type: "dark", bg: "#00141a", main: "#859900", caret: "#b58900", sub: "#2aa198", subAlt: "#00222b", text: "#eee8d5", error: "#dc322f", errorExtra: "#9b225c", colorfulError: "#d33682", colorfulErrorExtra: "#9b225c" },
+    { id: "sonokai", name: "Sonokai", type: "dark", bg: "#2c2e34", main: "#9ed072", caret: "#f38c71", sub: "#e7c664", subAlt: "#232429", text: "#e2e2e3", error: "#fc5d7c", errorExtra: "#ecac6a", colorfulError: "#fc5d7c", colorfulErrorExtra: "#ecac6a" },
+    { id: "spiderman", name: "Spiderman", type: "dark", bg: "#0d1219", main: "#e23636", caret: "#e23636", sub: "#0476f2", subAlt: "#0b1c2e", text: "#f0f0f0", error: "#0476f2", errorExtra: "#0353a8", colorfulError: "#0476f2", colorfulErrorExtra: "#0353a8" },
+    { id: "stealth", name: "Stealth", type: "dark", bg: "#010203", main: "#383e42", caret: "#e25303", sub: "#5e676e", subAlt: "#121212", text: "#383e42", error: "#e25303", errorExtra: "#73280c", colorfulError: "#e25303", colorfulErrorExtra: "#73280c" },
+    { id: "strawberry", name: "Strawberry", type: "dark", bg: "#f37f83", main: "#fcfcf8", caret: "#fcfcf8", sub: "#e53c58", subAlt: "#ef6e77", text: "#fcfcf8", error: "#fcd23f", errorExtra: "#d7ae1e", colorfulError: "#fcd23f", colorfulErrorExtra: "#d7ae1e" },
+    { id: "striker", name: "Striker", type: "dark", bg: "#124883", main: "#d7dcda", caret: "#d7dcda", sub: "#0f2d4e", subAlt: "#104176", text: "#d6dbd9", error: "#fb4934", errorExtra: "#cc241d", colorfulError: "#fb4934", colorfulErrorExtra: "#cc241d" },
+    { id: "suisei", name: "Suisei", type: "dark", bg: "#3b4a62", main: "#bef0ff", caret: "#bef0ff", sub: "#fe9841", subAlt: "#313e55", text: "#dbdeeb", error: "#ed2939", errorExtra: "#ce122c", colorfulError: "#ed2939", colorfulErrorExtra: "#ce122c" },
+    { id: "sunset", name: "Sunset", type: "dark", bg: "#211e24", main: "#f79777", caret: "#ffca99", sub: "#5b578e", subAlt: "#161319", text: "#f4e0c9", error: "#66a1ff", errorExtra: "#376ca4", colorfulError: "#66a1ff", colorfulErrorExtra: "#376ca4" },
+    { id: "superuser", name: "Superuser", type: "dark", bg: "#262a33", main: "#43ffaf", caret: "#43ffaf", sub: "#526777", subAlt: "#1f232c", text: "#e5f7ef", error: "#ff5f5f", errorExtra: "#d22a2a", colorfulError: "#ff5f5f", colorfulErrorExtra: "#d22a2a" },
+    { id: "sweden", name: "Sweden", type: "dark", bg: "#0058a3", main: "#ffcc02", caret: "#b5b5b5", sub: "#57abdb", subAlt: "#024f8e", text: "#ffffff", error: "#e74040", errorExtra: "#a22f2f", colorfulError: "#f56674", colorfulErrorExtra: "#e33546" },
+    { id: "tangerine", name: "Tangerine", type: "light", bg: "#ffede0", main: "#fe5503", caret: "#5d8500", sub: "#ff9562", subAlt: "#fdd3bf", text: "#3d1705", error: "#7fb500", errorExtra: "#5f8700", colorfulError: "#7fb500", colorfulErrorExtra: "#5f8700" },
+    { id: "taro", name: "Taro", type: "light", bg: "#b3baff", main: "#130f1a", caret: "#00e9e5", sub: "#6f6c91", subAlt: "#a3a7df", text: "#130f1a", error: "#ffe23e", errorExtra: "#fff1c3", colorfulError: "#ffe23e", colorfulErrorExtra: "#fff1c3" },
+    { id: "terminal", name: "Terminal", type: "dark", bg: "#191a1b", main: "#79a617", caret: "#79a617", sub: "#48494b", subAlt: "#141516", text: "#e7eae0", error: "#a61717", errorExtra: "#731010", colorfulError: "#a61717", colorfulErrorExtra: "#731010" },
+    { id: "terra", name: "Terra", type: "dark", bg: "#0c100e", main: "#89c559", caret: "#89c559", sub: "#436029", subAlt: "#0f1d18", text: "#f0edd1", error: "#d3ca78", errorExtra: "#89844d", colorfulError: "#d3ca78", colorfulErrorExtra: "#89844d" },
+    { id: "terrazzo", name: "Terrazzo", type: "light", bg: "#f1e5da", main: "#e0794e", caret: "#e0794e", sub: "#688e8f", subAlt: "#e3d3c6", text: "#023e3b", error: "#a01034", errorExtra: "#a01034", colorfulError: "#a01034", colorfulErrorExtra: "#a01034" },
+    { id: "terror_below", name: "Terror Below", type: "dark", bg: "#0b1e1a", main: "#66ac92", caret: "#66ac92", sub: "#015c53", subAlt: "#041715", text: "#dceae5", error: "#bf616a", errorExtra: "#793e44", colorfulError: "#bf616a", colorfulErrorExtra: "#793e44" },
+    { id: "tiramisu", name: "Tiramisu", type: "light", bg: "#cfc6b9", main: "#c0976f", caret: "#7d5448", sub: "#c0976f", subAlt: "#d0bca7", text: "#7d5448", error: "#e9632d", errorExtra: "#e9632d", colorfulError: "#e9632d", colorfulErrorExtra: "#e9632d" },
+    { id: "trackday", name: "Trackday", type: "dark", bg: "#464d66", main: "#e0513e", caret: "#475782", sub: "#5c7eb9", subAlt: "#3d4359", text: "#cfcfcf", error: "#e44e4e", errorExtra: "#fd3f3f", colorfulError: "#ff2e2e", colorfulErrorExtra: "#bb2525" },
+    { id: "trance", name: "Trance", type: "dark", bg: "#00021b", main: "#e51376", caret: "#e51376", sub: "#3c4c79", subAlt: "#18214c", text: "#ffffff", error: "#02d3b0", errorExtra: "#3f887c", colorfulError: "#02d3b0", colorfulErrorExtra: "#3f887c" },
+    { id: "tron_orange", name: "Tron Orange", type: "dark", bg: "#0d1c1c", main: "#f0e800", caret: "#f0e800", sub: "#ff6600", subAlt: "#9c9191", text: "#ffffff", error: "#ff0000", errorExtra: "#ff0000", colorfulError: "#ff0000", colorfulErrorExtra: "#ff0000" },
+    { id: "vaporwave", name: "Vaporwave", type: "dark", bg: "#a4a7ea", main: "#e368da", caret: "#28cafe", sub: "#7c7faf", subAlt: "#989bd9", text: "#f1ebf1", error: "#573ca9", errorExtra: "#3d2b77", colorfulError: "#28cafe", colorfulErrorExtra: "#25a9ce" },
+    { id: "vesper", name: "Vesper", type: "dark", bg: "#101010", main: "#ffc799", caret: "#99ffe4", sub: "#a0a0a0", subAlt: "#1c1c1c", text: "#ffffff", error: "#ff8080", errorExtra: "#b25959", colorfulError: "#ff8080", colorfulErrorExtra: "#b25959" },
+    { id: "vesper_light", name: "Vesper Light", type: "light", bg: "#ffffff", main: "#fb7100", caret: "#067a6e", sub: "#a0a0a0", subAlt: "#fff8f4", text: "#000000", error: "#ed2839", errorExtra: "#ff6c72", colorfulError: "#ed2839", colorfulErrorExtra: "#ff6c72" },
+    { id: "viridescent", name: "Viridescent", type: "dark", bg: "#2c3333", main: "#95d5b2", caret: "#f0d3c9", sub: "#84a98c", subAlt: "#232828", text: "#e9f5db", error: "#ff4646", errorExtra: "#ab2f2f", colorfulError: "#bd4141", colorfulErrorExtra: "#883434" },
+    { id: "voc", name: "Voc", type: "dark", bg: "#190618", main: "#e0caac", caret: "#e0caac", sub: "#4c1e48", subAlt: "#2c0c28", text: "#eeeae4", error: "#af3735", errorExtra: "#7e2a29", colorfulError: "#af3735", colorfulErrorExtra: "#7e2a29" },
+    { id: "vscode", name: "VS Code", type: "dark", bg: "#1e1e1e", main: "#007acc", caret: "#569cd6", sub: "#4d4d4d", subAlt: "#191919", text: "#d4d4d4", error: "#f44747", errorExtra: "#f44747", colorfulError: "#f44747", colorfulErrorExtra: "#f44747" },
+    { id: "watermelon", name: "Watermelon", type: "dark", bg: "#1f4437", main: "#d6686f", caret: "#d6686f", sub: "#3e7a65", subAlt: "#244d3f", text: "#cdc6bc", error: "#c82931", errorExtra: "#ac1823", colorfulError: "#c82931", colorfulErrorExtra: "#ac1823" },
+    { id: "wavez", name: "Wavez", type: "dark", bg: "#1c292f", main: "#6bde3b", caret: "#6bde3b", sub: "#1f5e6b", subAlt: "#1b3238", text: "#e9efe6", error: "#ca4754", errorExtra: "#7e2a33", colorfulError: "#ca4754", colorfulErrorExtra: "#7e2a33" },
+    { id: "witch_girl", name: "Witch Girl", type: "light", bg: "#f3dbda", main: "#56786a", caret: "#afc5bd", sub: "#ddb4a7", subAlt: "#e7c8be", text: "#56786a", error: "#b29a91", errorExtra: "#b29a91", colorfulError: "#b29a91", colorfulErrorExtra: "#b29a91" },
   ];
+
 
   const COLLECTION_COLORS = [
     '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -71,32 +205,36 @@
     '#f97316', '#14b8a6', '#a855f7', '#0ea5e9'
   ];
 
-  function deriveTheme(base) {
-    const isDark = base.type === 'dark';
-    const bg = base.bg, text = base.text, accent = base.accent;
-    const surface = isDark ? CU.lighten(bg, 8) : '#ffffff';
-    const surface2 = isDark ? CU.lighten(bg, 15) : CU.mix('#ffffff', bg, 0.5);
-    const border = isDark ? CU.lighten(bg, 22) : CU.mix('#ffffff', bg, 0.75);
-    const textMuted = CU.mix(text, bg, 0.42);
+  // Monkeytype's colors, 1:1 — the palette name is the exact color slot:
+  //   bg      = page background
+  //   main    = accent / primary highlight (monkeytype's main ink)
+  //   caret   = typing caret
+  //   sub     = secondary text + borders / recessed strokes
+  //   subAlt  = raised panels / alternate background surface
+  //   text    = primary text
+  //   error / errorExtra / colorfulError* = error states
+  // App CSS exposes these under monkeytype's own variable names
+  // (--bg-color, --main-color, --caret-color, --sub-color, --sub-alt-color,
+  // --text-color, --error-color, --error-extra-color,
+  // --colorful-error-color, --colorful-error-extra-color).
+  function resolveTheme(themeId) {
+    let t;
+    if (themeId === 'auto') {
+      const prefersDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
+      t = PRESET_THEMES.find(x => x.id === (prefersDark ? 'serika_dark' : 'serika'));
+    } else {
+      t = PRESET_THEMES.find(x => x.id === themeId) || PRESET_THEMES[0];
+    }
     return {
-      id: base.id, name: base.name, type: base.type,
-      bg, surface, surface2, border, text, textMuted,
-      accent, accentSoft: accent + '26'
+      id: t.id, name: t.name, type: t.type,
+      bg: t.bg, main: t.main, caret: t.caret, sub: t.sub, subAlt: t.subAlt,
+      text: t.text, error: t.error, errorExtra: t.errorExtra,
+      colorfulError: t.colorfulError, colorfulErrorExtra: t.colorfulErrorExtra
     };
   }
 
-  function resolveTheme(themeId, customThemes) {
-    if (themeId === 'auto') {
-      const prefersDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
-      return deriveTheme(PRESET_THEMES.find(t => t.id === (prefersDark ? 'dark' : 'light')));
-    }
-    const custom = customThemes && customThemes[themeId];
-    if (custom) return deriveTheme(custom);
-    const preset = PRESET_THEMES.find(t => t.id === themeId);
-    return deriveTheme(preset || PRESET_THEMES[0]);
-  }
-
-  const Themes = { PRESET_THEMES, COLLECTION_COLORS, deriveTheme, resolveTheme };
+  const Themes = { PRESET_THEMES, COLLECTION_COLORS, resolveTheme };
   if (typeof module !== 'undefined') module.exports = Themes;
   root.Themes = Themes;
 })(typeof self !== 'undefined' ? self : this);
+

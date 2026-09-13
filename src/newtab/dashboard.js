@@ -265,16 +265,18 @@
   /* ============ SETTINGS / THEME ============ */
   function applySettings() {
     const s = STATE.meta.settings;
-    const palette = Themes.resolveTheme(s.themeId, s.customThemes);
+    const palette = Themes.resolveTheme(s.themeId);
     const r = document.documentElement.style;
-    r.setProperty('--bg', palette.bg);
-    r.setProperty('--surface', palette.surface);
-    r.setProperty('--surface-2', palette.surface2);
-    r.setProperty('--border', palette.border);
-    r.setProperty('--text', palette.text);
-    r.setProperty('--text-muted', palette.textMuted);
-    r.setProperty('--accent', palette.accent);
-    r.setProperty('--accent-soft', palette.accentSoft);
+    r.setProperty('--bg-color', palette.bg);
+    r.setProperty('--main-color', palette.main);
+    r.setProperty('--caret-color', palette.caret);
+    r.setProperty('--sub-color', palette.sub);
+    r.setProperty('--sub-alt-color', palette.subAlt);
+    r.setProperty('--text-color', palette.text);
+    r.setProperty('--error-color', palette.error);
+    r.setProperty('--error-extra-color', palette.errorExtra);
+    r.setProperty('--colorful-error-color', palette.colorfulError);
+    r.setProperty('--colorful-error-extra-color', palette.colorfulErrorExtra);
     r.setProperty('--board-cols', String((s.dashboard && s.dashboard.columns) || 4));
     r.setProperty('--board-row-min', '200px');
     const opacity = (s.tabsList && s.tabsList.dimInactive) ? (((s.tabsList.inactiveOpacity ?? 55)) / 100) : 1;
@@ -608,8 +610,8 @@
     card.dataset.span = String(w.span || 1);
     card.dataset.rowspan = String(w.rowSpan || 1);
     if (w.tintColor && CU) {
-      const surface = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#ffffff';
-      card.style.background = CU.mix(surface, w.tintColor, 0.16);
+      const base = getComputedStyle(document.documentElement).getPropertyValue('--sub-alt-color').trim() || '#ffffff';
+      card.style.background = CU.mix(base, w.tintColor, 0.16);
     }
     // Board widgets auto-flow (CSS packs them top-left with no empty gaps);
     // data-span/data-rowspan drive their size. No explicit grid cells.
@@ -652,7 +654,7 @@
   function openTintPickerModal(currentColor, onSet) {
     const body = `
       <h2>Background color</h2>
-      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">Leave unset to use the normal background.</p>
+      <p style="color:var(--sub-color);font-size:13px;margin-top:-6px">Leave unset to use the normal background.</p>
       <div class="field"><label>Color</label><div class="color-picker" id="mtc-colors"></div></div>
       <div class="modal-actions">
         <button id="mtc-none" class="mini-btn">No tint (default)</button>
@@ -1605,10 +1607,14 @@
     const item = el('div', (isTile ? 'bookmark-tile' : 'bookmark-item') + (SELECTED.has(bm.id) ? ' selected' : ''));
     item.draggable = true;
     item.dataset.bookmarkId = bm.id;
-    const tintSrc = isTile ? colBg : bm.tintColor;
-    if (tintSrc && CU) {
-      const base = getComputedStyle(document.documentElement).getPropertyValue(isTile ? '--surface-2' : '--surface').trim() || '#ffffff';
-      item.style.background = CU.mix(base, tintSrc, isTile ? 0.26 : 0.18);
+    const tint = bm.tintColor || colBg;
+    if (tint && CU) {
+      if (isTile) {
+        item.style.background = `color-mix(in srgb, ${tint} 14%, transparent)`;
+      } else {
+        const base = getComputedStyle(document.documentElement).getPropertyValue('--sub-alt-color').trim() || '#ffffff';
+        item.style.background = CU.mix(base, tint, 0.18);
+      }
     }
     const fav = bm.favicon || faviconFor(bm.url);
     const tagsHtml = (bm.tags || []).slice(0, 2).map(t => `<span class="bm-tag">${escapeHtml(t)}</span>`).join('');
@@ -1844,7 +1850,7 @@
     }).join('');
     const body = `
       <h2>Move "${escapeHtml(sourceCol.name)}"</h2>
-      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">
+      <p style="color:var(--sub-color);font-size:13px;margin-top:-6px">
         The collection and its bookmarks move to the workspace's board, and the dashboard switches to it.
       </p>
       <div class="field"><label>Move to</label>
@@ -1887,7 +1893,7 @@
     if (!targets.length) { toast('No other collection to merge into'); return; }
     const body = `
       <h2>Merge "${escapeHtml(sourceCol.name)}"</h2>
-      <p style="color:var(--text-muted);font-size:13px;margin-top:-6px">
+      <p style="color:var(--sub-color);font-size:13px;margin-top:-6px">
         All bookmarks move into the collection you pick, then "${escapeHtml(sourceCol.name)}" is deleted.
       </p>
       <div class="field"><label>Merge into</label>
@@ -2345,16 +2351,6 @@
     $('#settings-close-x').onclick = () => $('#settings-overlay').classList.add('hidden');
 
     renderThemeGrids();
-    $('#ctb-save-btn').onclick = async () => {
-      const name = $('#ctb-name').value.trim() || 'My Theme';
-      const bg = $('#ctb-bg').value, text = $('#ctb-text').value, accent = $('#ctb-accent').value;
-      const type = ColorUtils_luminance(bg) > 0.4 ? 'light' : 'dark';
-      const t = await DB.saveCustomTheme(name, { bg, text, accent, type });
-      await DB.updateSettings({ themeId: t.id });
-      await reload();
-      syncSettingsUI();
-      toast(`Saved theme "${name}"`);
-    };
 
     $$('#density-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ density: b.dataset.val }); await reload(); syncSettingsUI(); });
     $('#setting-animations').onchange = async (e) => { await DB.updateSettings({ animations: e.target.checked }); await reload(); };
@@ -2396,15 +2392,8 @@
     };
   }
 
-  function ColorUtils_luminance(hex) {
-    return (typeof self !== 'undefined' && self.ColorUtils) ? self.ColorUtils.relativeLuminance(hex) : 0.5;
-  }
-
   function renderThemeGrids() {
-    const light = Themes.PRESET_THEMES.filter(t => t.type === 'light');
-    const dark = Themes.PRESET_THEMES.filter(t => t.type === 'dark');
-    renderThemeGrid('#theme-grid-light', light);
-    renderThemeGrid('#theme-grid-dark', dark);
+    renderThemeGrid('#theme-grid-all', Themes.PRESET_THEMES);
     renderAutoThemeCard();
   }
 
@@ -2413,7 +2402,9 @@
     wrap.innerHTML = '';
     const card = el('div', 'theme-swatch-card');
     card.dataset.themeId = 'auto';
-    card.innerHTML = `<div class="theme-swatch-preview"><span style="background:#f4f5f9"></span><span style="background:#14151c"></span></div><div class="theme-swatch-label">Auto (system)</div>`;
+    const serikaBg = Themes.resolveTheme('serika').bg;
+    const serikaDarkBg = Themes.resolveTheme('serika_dark').bg;
+    card.innerHTML = `<div class="theme-swatch-preview"><span style="background:${serikaBg}"></span><span style="background:${serikaDarkBg}"></span></div><div class="theme-swatch-label">Auto (system)</div>`;
     card.onclick = async () => { await DB.updateSettings({ themeId: 'auto' }); await reload(); syncSettingsUI(); };
     wrap.appendChild(card);
   }
@@ -2424,35 +2415,15 @@
     list.forEach(t => {
       const card = el('div', 'theme-swatch-card');
       card.dataset.themeId = t.id;
-      card.innerHTML = `<div class="theme-swatch-preview"><span style="background:${t.bg}"></span><span style="background:${t.accent}"></span></div><div class="theme-swatch-label">${t.name}</div>`;
+      card.innerHTML = `<div class="theme-swatch-preview"><span style="background:${t.bg}"></span><span style="background:${t.main}"></span></div><div class="theme-swatch-label">${t.name}</div>`;
       card.onclick = async () => { await DB.updateSettings({ themeId: t.id }); await reload(); syncSettingsUI(); };
       wrap.appendChild(card);
-    });
-  }
-
-  function renderCustomThemeList() {
-    const wrap = $('#custom-theme-list');
-    wrap.innerHTML = '';
-    const themes = Object.values(STATE.meta.settings.customThemes || {});
-    themes.forEach(t => {
-      const row = el('div', 'custom-theme-row' + (STATE.meta.settings.themeId === t.id ? ' active' : ''));
-      row.innerHTML = `<span class="ctr-dot" style="background:${t.accent}"></span><span class="ctr-name">${escapeHtml(t.name)}</span>
-        <button data-act="apply" title="Apply">${ICONS.check}</button>
-        <button data-act="delete" title="Delete">${ICONS.trash}</button>`;
-      row.querySelector('[data-act=apply]').onclick = async () => { await DB.updateSettings({ themeId: t.id }); await reload(); syncSettingsUI(); };
-      row.querySelector('[data-act=delete]').onclick = async () => {
-        await DB.deleteCustomTheme(t.id);
-        if (STATE.meta.settings.themeId === t.id) await DB.updateSettings({ themeId: 'auto' });
-        await reload(); syncSettingsUI();
-      };
-      wrap.appendChild(row);
     });
   }
 
   function syncSettingsUI() {
     const s = STATE.meta.settings;
     $$('.theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === s.themeId));
-    renderCustomThemeList();
     $$('#density-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.density));
     $('#setting-animations').checked = s.animations !== false;
 

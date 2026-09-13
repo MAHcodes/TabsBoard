@@ -195,8 +195,7 @@ function defaultState() {
     meta: {
       activeWorkspaceId: wsId,
       settings: {
-        themeId: 'auto',           // preset id, 'auto' (follows the OS), or a custom theme id
-        customThemes: {},          // id -> { id, name, type, bg, text, accent }
+        themeId: 'auto',           // preset id or 'auto' (follows the OS)
         density: 'comfortable',    // comfortable | compact
         viewMode: 'grid',          // grid | list — bookmark tiles vs rows *inside* a collection widget
         sidebarCollapsed: false,
@@ -240,25 +239,13 @@ function migrate(data) {
   if (!data.version || data.version < 2) {
     const s = data.meta.settings || {};
     const newSettings = {
-      themeId: s.darkMode === 'on' ? 'dark' : 'light',
-      customThemes: {},
+      themeId: s.darkMode === 'on' ? 'dark' : 'serika',
       density: s.density || 'comfortable',
       viewMode: s.viewMode || 'grid',
       sidebarCollapsed: false,
       confirmDelete: true,
       faviconSource: 'google'
     };
-    // Preserve a custom accent as a saved custom theme so nothing is lost.
-    if (s.theme && s.theme !== '#6366f1') {
-      const id = 'custom-' + uid();
-      newSettings.customThemes[id] = {
-        id, name: 'My Theme', type: s.darkMode === 'on' ? 'dark' : 'light',
-        bg: s.darkMode === 'on' ? '#14151c' : '#f4f5f9',
-        text: s.darkMode === 'on' ? '#eef0f6' : '#1c1e26',
-        accent: s.theme
-      };
-      newSettings.themeId = id;
-    }
     data.meta.settings = newSettings;
     for (const col of Object.values(data.collections || {})) {
       if (col.pinned === undefined) col.pinned = false;
@@ -848,21 +835,6 @@ async function updateSettings(patch) {
   return setState((d) => { Object.assign(d.meta.settings, patch); });
 }
 
-async function saveCustomTheme(theme) {
-  return setState((d) => {
-    const id = theme.id || ('custom-' + uid());
-    d.meta.settings.customThemes[id] = { ...theme, id };
-    return d.meta.settings.customThemes[id];
-  });
-}
-
-async function deleteCustomTheme(id) {
-  return setState((d) => {
-    delete d.meta.settings.customThemes[id];
-    if (d.meta.settings.themeId === id) d.meta.settings.themeId = 'light';
-  });
-}
-
 /* ---------- Import / Export ---------- */
 
 async function exportJSON() {
@@ -980,7 +952,7 @@ const TabsDB = {
   createBookmark, updateBookmark, moveBookmarks, reorderBookmarks, softDeleteBookmarks, toggleBookmarkPin, duplicateBookmark,
   restoreTrashItem, purgeTrashItem, emptyTrash,
   createSession, deleteSession, renameSession, updateSessionTabs, duplicateSession, convertSessionToCollection,
-  updateSettings, saveCustomTheme, deleteCustomTheme,
+  updateSettings,
   createWidget, updateWidget, deleteWidget, reorderWidgets,
   createBoard, renameBoard, deleteBoard, setActiveBoard,
   swapWidgetPositions, moveWidgetTo,
