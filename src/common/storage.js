@@ -196,6 +196,8 @@ function defaultState() {
       activeWorkspaceId: wsId,
       settings: {
         themeId: 'auto',           // preset id or 'auto' (follows the OS)
+        customThemeColors: null,   // MonkeyType custom-theme: 6 slots {bg,main,caret,sub,subAlt,text}, used when themeId==='custom'
+        favoriteThemes: [],        // MonkeyType theme favorites: array of preset/custom theme ids (★ add/remove/shuffle)
         density: 'comfortable',    // comfortable | compact
         viewMode: 'grid',          // grid | list — bookmark tiles vs rows *inside* a collection widget
         sidebarCollapsed: false,

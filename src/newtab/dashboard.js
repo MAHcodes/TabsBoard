@@ -295,7 +295,7 @@
 
   function applySettings() {
     const s = STATE.meta.settings;
-    applyThemeColors(Themes.resolveTheme(s.themeId));
+    applyThemeColors(Themes.resolveAppliedTheme(s));
     const r = document.documentElement.style;
     r.setProperty('--board-cols', String((s.dashboard && s.dashboard.columns) || 4));
     r.setProperty('--board-row-min', '200px');
@@ -2259,12 +2259,33 @@
   function paletteThemeItems() {
     const s = STATE.meta.settings;
     const cur = s.themeId;
+    const favIds = s.favoriteThemes || [];
     const light = Themes.resolveTheme('serika');
     const dark = Themes.resolveTheme('serika_dark');
+    const favFolder = {
+      kind: 'folder', label: '★ Favorites', children: (() => {
+        const out = [];
+        if (!favIds.length) out.push({ kind: 'item', label: 'No favorite themes yet.', value: '', run: () => {} });
+        favIds.forEach(id => {
+          const t = id === 'custom' ? Themes.resolveAppliedTheme(s) : Themes.resolveTheme(id);
+          if (!t || !t.id) return;
+          out.push({ kind: 'theme', label: t.name, themeId: t.id, chips: themeChipColors(t), value: cur === t.id ? 'Active' : '', run: () => selectTheme(t.id) });
+        });
+        out.push({ kind: 'action', label: 'Shuffle favorites', run: shuffleFavoriteThemes });
+        out.push({ kind: 'action', label: 'Random theme', run: randomThemeCommand });
+        return out;
+      })()
+    };
     const items = [{
       kind: 'theme', label: 'Auto (follow system)', themeId: 'auto',
       chips: [light.bg, light.main, light.text, dark.bg, dark.main, dark.text],
       value: cur === 'auto' ? 'Active' : '', run: () => selectTheme('auto')
+    }, favFolder, {
+      kind: 'action', label: 'Random theme', run: randomThemeCommand
+    }, {
+      kind: 'action', label: '★ Toggle current theme in favorites', run: toggleCurrentThemeFavorite
+    }, {
+      kind: 'action', label: 'Shuffle favorites', run: shuffleFavoriteThemes
     }];
     Themes.PRESET_THEMES.forEach(t => {
       items.push({ kind: 'theme', label: t.name, themeId: t.id, chips: themeChipColors(t), value: cur === t.id ? 'Active' : '', run: () => selectTheme(t.id) });
@@ -2387,6 +2408,39 @@
   async function selectTheme(themeId) {
     commitThemePreview();
     await DB.updateSettings({ themeId });
+  }
+
+  /* ---- MonkeyType theme commands (favorites ★ / shuffle / random) ---- */
+  function favoriteThemeIds() {
+    return (STATE.meta.settings.favoriteThemes || []);
+  }
+
+  async function toggleCurrentThemeFavorite() {
+    const id = STATE.meta.settings.themeId;
+    const favs = favoriteThemeIds();
+    const has = favs.includes(id);
+    const next = has ? favs.filter(x => x !== id) : favs.concat([id]);
+    await DB.updateSettings({ favoriteThemes: next });
+    toast(has ? `${id === 'auto' ? 'Auto' : id} removed from favorites` : `${id === 'auto' ? 'Auto' : id} added to favorites`);
+    if (document.activeElement) refreshThemeSwatchSelection();
+  }
+
+  async function randomThemeCommand() {
+    const all = Themes.PRESET_THEMES;
+    const pick = all[Math.floor(Math.random() * all.length)];
+    commitThemePreview();
+    await DB.updateSettings({ themeId: pick.id });
+    toast(`Random theme: ${pick.name}`);
+  }
+
+  async function shuffleFavoriteThemes() {
+    const favs = favoriteThemeIds();
+    if (!favs.length) { toast('No favorite themes yet — ★ a few first'); return; }
+    if (favs.length === 1) { await selectTheme(favs[0]); return; }
+    let next;
+    do { next = favs[Math.floor(Math.random() * favs.length)]; } while (next === STATE.meta.settings.themeId && favs.length > 1);
+    await selectTheme(next);
+    toast(`Shuffled to a favorite (${favs.length} favorites)`);
   }
 
   async function newBoardFromPalette() {
@@ -2634,7 +2688,10 @@
       card.style.borderColor = t.main;
       card.style.color = t.text;
       const chips = themeChipColors(t);
-      card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div>`;
+      const isFav = Array.isArray(STATE.meta.settings.favoriteThemes) && STATE.meta.settings.favoriteThemes.includes(t.id);
+      card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div><button class="theme-star-btn" title="${isFav ? 'Remove from favorites' : 'Add to favorites'}">${isFav ? '★' : '☆'}</button>`;
+      const star = card.querySelector('.theme-star-btn');
+      star.onclick = (ev) => { ev.stopPropagation(); toggleThemeFavorite(t.id); };
       card.onclick = async () => { commitThemePreview(); await DB.updateSettings({ themeId: t.id }); await reload(); syncSettingsUI(); };
       wrap.appendChild(card);
     });

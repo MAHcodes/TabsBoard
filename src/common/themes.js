@@ -233,7 +233,35 @@
     };
   }
 
-  const Themes = { PRESET_THEMES, COLLECTION_COLORS, resolveTheme };
+  /** MonkeyType custom-theme model: build a full theme object from a partial
+      6-slot palette, filling any missing slot from the current resolved base
+      (bg/main/caret/sub/subAlt/text). Missing error/errorExtra slots inherit
+      MonkeyType's default error palette so a partial custom theme is always valid. */
+  function resolveCustomTheme(colors, baseTheme) {
+    const b = baseTheme || resolveTheme('auto');
+    const pick = (k) => (colors && typeof colors[k] === 'string' && colors[k]) ? colors[k] : b[k];
+    return {
+      id: 'custom', name: 'Custom theme', type: (colors && colors.bg && /^#(?:f|F){6}$/.test(colors.bg)) ? 'light' : 'dark',
+      bg: pick('bg'), main: pick('main'), caret: pick('caret'), sub: pick('sub'),
+      subAlt: pick('subAlt'), text: pick('text'),
+      error: (colors && colors.error) || '#ca4754',
+      errorExtra: (colors && colors.errorExtra) || '#7e2a33',
+      colorfulError: (colors && colors.colorfulError) || '#ca4754',
+      colorfulErrorExtra: (colors && colors.colorfulErrorExtra) || '#7e2a33'
+    };
+  }
+
+  /** Theme resolution honoring the MonkeyType custom-theme slot: a settings object
+      carrying customThemeColors + themeId 'custom' resolves to the user's slots;
+      otherwise delegate to the preset/auto resolution. */
+  function resolveAppliedTheme(settings, baseTheme) {
+    if (settings && settings.themeId === 'custom' && settings.customThemeColors) {
+      return resolveCustomTheme(settings.customThemeColors, baseTheme);
+    }
+    return resolveTheme(settings && settings.themeId);
+  }
+
+  const Themes = { PRESET_THEMES, COLLECTION_COLORS, resolveTheme, resolveCustomTheme, resolveAppliedTheme };
   if (typeof module !== 'undefined') module.exports = Themes;
   root.Themes = Themes;
 })(typeof self !== 'undefined' ? self : this);
