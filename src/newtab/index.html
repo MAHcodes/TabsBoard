@@ -94,7 +94,8 @@
 <!-- Command palette -->
 <div id="palette-overlay" class="overlay hidden">
   <div class="palette">
-    <input id="palette-input" type="text" placeholder="Type a bookmark title, a URL, an open tab, or a command…" autocomplete="off" />
+    <input id="palette-input" type="text" placeholder="Search bookmarks, tabs, settings, themes, and commands…" autocomplete="off" />
+    <div id="palette-crumb" class="palette-crumb hidden"></div>
     <div id="palette-results" class="palette-results"></div>
   </div>
 </div>
@@ -136,6 +137,9 @@
         </div>
 
         <div class="settings-panel" id="panel-themes">
+          <div class="settings-row theme-search-row">
+            <input id="theme-search-input" class="theme-search" type="text" placeholder="Filter themes…" autocomplete="off" />
+          </div>
           <div class="settings-row">
             <label>Auto</label>
             <div id="theme-grid-auto" class="theme-grid"></div>

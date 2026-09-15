@@ -263,9 +263,7 @@
   }
 
   /* ============ SETTINGS / THEME ============ */
-  function applySettings() {
-    const s = STATE.meta.settings;
-    const palette = Themes.resolveTheme(s.themeId);
+  function applyThemeColors(palette) {
     const r = document.documentElement.style;
     r.setProperty('--bg-color', palette.bg);
     r.setProperty('--main-color', palette.main);
@@ -277,6 +275,28 @@
     r.setProperty('--error-extra-color', palette.errorExtra);
     r.setProperty('--colorful-error-color', palette.colorfulError);
     r.setProperty('--colorful-error-extra-color', palette.colorfulErrorExtra);
+  }
+
+  /* Live theme preview (MonkeyType-style): pointing at / arrowing onto a theme
+     in the command palette or theme picker applies it instantly without
+     saving. Choosing it commits; leaving without choosing reverts. */
+  let themePreviewing = false;
+  function previewTheme(themeId) {
+    if (!themeId) return;
+    themePreviewing = true;
+    applyThemeColors(Themes.resolveTheme(themeId));
+  }
+  function commitThemePreview() { themePreviewing = false; }
+  function endThemePreview() {
+    if (!themePreviewing) return;
+    themePreviewing = false;
+    applySettings();
+  }
+
+  function applySettings() {
+    const s = STATE.meta.settings;
+    applyThemeColors(Themes.resolveTheme(s.themeId));
+    const r = document.documentElement.style;
     r.setProperty('--board-cols', String((s.dashboard && s.dashboard.columns) || 4));
     r.setProperty('--board-row-min', '200px');
     const opacity = (s.tabsList && s.tabsList.dimInactive) ? (((s.tabsList.inactiveOpacity ?? 55)) / 100) : 1;
@@ -2187,11 +2207,91 @@
     $('#palette-overlay').classList.remove('hidden');
     const input = $('#palette-input');
     input.value = ''; input.focus();
+    resetPaletteNav();
     renderPaletteResults('');
   }
-  function closePalette() { $('#palette-overlay').classList.add('hidden'); }
+  function closePalette() { endThemePreview(); $('#palette-overlay').classList.add('hidden'); }
 
-  function paletteCommands() {
+  /* Registry of every user-facing setting so the command palette can expose
+     them all: each setting becomes a "cycle" command plus one command per
+     option. `set(value)` returns a settings patch; `get(s)` reads the current
+     value. Adding a new setting here automatically makes it palette-driven. */
+  const PALETTE_SETTINGS = [
+    { id: 'density', label: 'Density', get: s => s.density, set: v => ({ density: v }), options: [
+      { label: 'Comfortable', value: 'comfortable' }, { label: 'Compact', value: 'compact' } ] },
+    { id: 'viewMode', label: 'Bookmark view', get: s => s.viewMode, set: v => ({ viewMode: v }), options: [
+      { label: 'Tiles', value: 'grid' }, { label: 'Rows', value: 'list' } ] },
+    { id: 'columns', label: 'Board width', get: s => (s.dashboard && s.dashboard.columns) || 4, set: v => ({ dashboard: { columns: v } }), options: [
+      { label: '3 columns', value: 3 }, { label: '4 columns', value: 4 }, { label: '5 columns', value: 5 }, { label: '6 columns', value: 6 } ] },
+    { id: 'sidebarCollapsed', label: 'Sidebar collapsed', get: s => !!s.sidebarCollapsed, set: v => ({ sidebarCollapsed: v }), options: [
+      { label: 'Expanded', value: false }, { label: 'Collapsed', value: true } ] },
+    { id: 'sidebarCompact', label: 'Sidebar compact', get: s => !!s.sidebarCompact, set: v => ({ sidebarCompact: v }), options: [
+      { label: 'Off', value: false }, { label: 'Icons only', value: true } ] },
+    { id: 'animations', label: 'Animations', get: s => s.animations !== false, set: v => ({ animations: v }), options: [
+      { label: 'On', value: true }, { label: 'Off', value: false } ] },
+    { id: 'confirmDelete', label: 'Confirm before delete', get: s => s.confirmDelete !== false, set: v => ({ confirmDelete: v }), options: [
+      { label: 'On', value: true }, { label: 'Off', value: false } ] },
+    { id: 'openBookmarksInNewTab', label: 'Open bookmarks in new tab', get: s => !!s.openBookmarksInNewTab, set: v => ({ openBookmarksInNewTab: v }), options: [
+      { label: 'Off (same tab)', value: false }, { label: 'On (new tab)', value: true } ] },
+    { id: 'faviconSource', label: 'Favicon source', get: s => s.faviconSource, set: v => ({ faviconSource: v }), options: [
+      { label: 'Google', value: 'google' }, { label: 'DuckDuckGo', value: 'duckduckgo' }, { label: 'None', value: 'none' } ] },
+    { id: 'groupPinned', label: 'Group pinned tabs', get: s => !(s.tabsList && s.tabsList.groupPinned === false), set: v => ({ tabsList: { groupPinned: v } }), options: [
+      { label: 'On', value: true }, { label: 'Off', value: false } ] },
+    { id: 'dimInactive', label: 'Dim unloaded tabs', get: s => !(s.tabsList && s.tabsList.dimInactive === false), set: v => ({ tabsList: { dimInactive: v } }), options: [
+      { label: 'On', value: true }, { label: 'Off', value: false } ] },
+    { id: 'inactiveGrayscale', label: 'Grayscale unloaded tabs', get: s => !(s.tabsList && s.tabsList.inactiveGrayscale === false), set: v => ({ tabsList: { inactiveGrayscale: v } }), options: [
+      { label: 'On', value: true }, { label: 'Off', value: false } ] },
+    { id: 'inactiveOpacity', label: 'Inactive tab opacity', get: s => (s.tabsList && s.tabsList.inactiveOpacity) ?? 55, set: v => ({ tabsList: { inactiveOpacity: v } }), options: [
+      { label: 'Faint (35%)', value: 35 }, { label: 'Dim (55%)', value: 55 }, { label: 'Subtle (75%)', value: 75 }, { label: 'Off (100%)', value: 100 } ] }
+  ];
+  const PALETTE_SETTINGS_BY_ID = Object.fromEntries(PALETTE_SETTINGS.map(d => [d.id, d]));
+
+  /* The palette is a navigable tree: root → Themes / Settings groups → options.
+     Searching flattens every leaf so "change anything by typing" still works. */
+  const PALETTE_SETTING_GROUPS = [
+    { name: 'Appearance', keys: ['density', 'animations'] },
+    { name: 'Layout', keys: ['viewMode', 'columns', 'sidebarCollapsed', 'sidebarCompact'] },
+    { name: 'Behavior', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity'] }
+  ];
+
+  function themeChipColors(t) { return [t.bg, t.main, t.caret, t.sub, t.subAlt, t.text]; }
+
+  function paletteThemeItems() {
+    const s = STATE.meta.settings;
+    const cur = s.themeId;
+    const light = Themes.resolveTheme('serika');
+    const dark = Themes.resolveTheme('serika_dark');
+    const items = [{
+      kind: 'theme', label: 'Auto (follow system)', themeId: 'auto',
+      chips: [light.bg, light.main, light.text, dark.bg, dark.main, dark.text],
+      value: cur === 'auto' ? 'Active' : '', run: () => selectTheme('auto')
+    }];
+    Themes.PRESET_THEMES.forEach(t => {
+      items.push({ kind: 'theme', label: t.name, themeId: t.id, chips: themeChipColors(t), value: cur === t.id ? 'Active' : '', run: () => selectTheme(t.id) });
+    });
+    return items;
+  }
+
+  function paletteSettingOptions(def) {
+    const s = STATE.meta.settings;
+    const cur = def.get(s);
+    return def.options.map(o => ({
+      kind: 'setting', label: o.label, value: o.value === cur ? 'Active' : '', select: true,
+      run: async () => { await DB.updateSettings(def.set(o.value)); }
+    }));
+  }
+
+  function paletteSettingItem(def) {
+    const s = STATE.meta.settings;
+    const cur = def.get(s);
+    const idx = def.options.findIndex(o => o.value === cur);
+    return {
+      kind: 'folder', label: def.label, value: idx >= 0 ? def.options[idx].label : String(cur),
+      children: paletteSettingOptions(def)
+    };
+  }
+
+  function paletteRootItems() {
     const cmds = [
       { kind: 'action', label: 'New Collection', run: () => openCollectionModal() },
       { kind: 'action', label: 'Add Notes widget', run: () => addWidget('notes') },
@@ -2215,17 +2315,78 @@
       { kind: 'action', label: 'Go to Collections', run: () => switchNav('collections') },
       { kind: 'action', label: 'Go to Sessions', run: () => switchNav('sessions') }
     ];
-    // One command per workspace for quick jumping.
-    Object.values(STATE.workspaces)
-      .sort((a, b) => a.order - b.order)
-      .forEach(ws => {
-        cmds.push({ kind: 'action', label: `Go to workspace · ${ws.name}`, run: () => jumpToWorkspace(ws.id) });
-      });
-    // One command per board in the active workspace for quick switching.
+    Object.values(STATE.workspaces).sort((a, b) => a.order - b.order).forEach(ws => {
+      cmds.push({ kind: 'action', label: `Go to workspace · ${ws.name}`, run: () => jumpToWorkspace(ws.id) });
+    });
     boardsForActiveWS().forEach(board => {
       cmds.push({ kind: 'action', label: `Go to board · ${board.name}`, run: () => jumpToBoard(board.id) });
     });
+    cmds.push(
+      { kind: 'folder', label: 'Themes', children: paletteThemeItems() },
+      { kind: 'folder', label: 'Settings', children: PALETTE_SETTING_GROUPS.map(g => ({
+        kind: 'folder', label: g.name, children: g.keys.map(k => paletteSettingItem(PALETTE_SETTINGS_BY_ID[k]))
+      })) }
+    );
     return cmds;
+  }
+
+  /* ---------- Palette navigation (tree) ---------- */
+  let palNav = [];           // stack of { title, items } — empty = root level
+  function paletteLevel() { return palNav.length ? palNav[palNav.length - 1].items : paletteRootItems(); }
+
+  function paletteCrumbHtml() {
+    if (palNav.length === 0) return '';
+    const trail = palNav.map((n, i) => `<span class="crumb-seg" data-i="${i}">${escapeHtml(n.title)}</span>`).join('<span class="crumb-sep">›</span>');
+    return `<span class="crumb-seg" data-i="-1">All</span><span class="crumb-sep">›</span>${trail}`;
+  }
+
+  function renderPaletteCrumb() {
+    const crumb = $('#palette-crumb');
+    if (!$('#palette-input').value.trim() && palNav.length) {
+      crumb.classList.remove('hidden');
+      crumb.innerHTML = paletteCrumbHtml();
+      $$('.crumb-seg[data-i]', crumb).forEach(c => c.onclick = () => {
+        palNav.length = parseInt(c.dataset.i, 10) + 1;
+        paletteIndex = 0;
+        renderPaletteResults('');
+      });
+    } else {
+      crumb.classList.add('hidden');
+    }
+  }
+
+  function pushPaletteNav(folder) {
+    palNav.push({ title: folder.label, items: folder.children || [] });
+    $('#palette-input').value = '';
+    paletteIndex = 0;
+    renderPaletteResults('');
+  }
+  function popPaletteNav() {
+    if (!palNav.length) return false;
+    palNav.pop();
+    paletteIndex = 0;
+    renderPaletteResults('');
+    return true;
+  }
+  function resetPaletteNav() { palNav = []; paletteIndex = 0; }
+
+  /* Flattens the tree into searchable leaves; folder names become entries too. */
+  function flattenPalette(items, out = [], prefix = '') {
+    for (const it of items) {
+      if (it.children) {
+        const label = prefix ? `${prefix} · ${it.label}` : it.label;
+        out.push({ ...it, label, _navLabel: it.label, run: () => pushPaletteNav(it) });
+        flattenPalette(it.children, out, label);
+      } else {
+        out.push({ ...it, label: prefix ? `${prefix} · ${it.label}` : it.label });
+      }
+    }
+    return out;
+  }
+
+  async function selectTheme(themeId) {
+    commitThemePreview();
+    await DB.updateSettings({ themeId });
   }
 
   async function newBoardFromPalette() {
@@ -2247,21 +2408,22 @@
   }
 
 
+  let paletteItems = [];
+  let paletteIndex = 0;
+
   function renderPaletteResults(query) {
     const results = $('#palette-results');
     results.innerHTML = '';
     const q = query.trim();
 
     let all;
-    if (!q) {
-      const cmdMatches = paletteCommands().map(c => ({ kind: 'action', label: c.label, run: c.run }));
-      const tabMatches = OPEN_TABS.slice(0, 6).map(t => ({ kind: 'tab', label: t.title || t.url, run: () => sendMsg('FOCUS_TAB', { tabId: t.id }) }));
-      all = [...cmdMatches, ...tabMatches];
-    } else {
+    if (q) {
       const scored = [];
-      for (const c of paletteCommands()) {
+      for (const c of flattenPalette(paletteLevel())) {
         const s = fuzzyScore(q, c.label);
-        if (s >= 0) scored.push({ kind: 'action', label: c.label, run: c.run, score: s + 5 }); // slight bias toward commands
+        if (s < 0) continue;
+        const bias = c.kind === 'action' ? 5 : c.kind === 'setting' ? 4 : c.kind === 'theme' ? 2 : c.kind === 'folder' ? 3 : 0;
+        scored.push({ ...c, score: s + bias });
       }
       for (const t of OPEN_TABS) {
         const s = Math.max(fuzzyScore(q, t.title || ''), fuzzyScore(q, t.url));
@@ -2274,17 +2436,54 @@
         if (s >= 0) scored.push({ kind: 'bookmark', label: b.title, run: () => openBookmarkUrl(b), score: s });
       }
       scored.sort((a, b) => b.score - a.score);
-      all = scored.slice(0, 18);
+      all = scored.slice(0, 24);
+    } else {
+      // Browse mode: render the current tree level (+ a few open tabs at root).
+      const level = paletteLevel();
+      all = [...level];
+      if (!palNav.length) {
+        OPEN_TABS.slice(0, 5).forEach(t => all.push({ kind: 'tab', label: t.title || t.url, run: () => sendMsg('FOCUS_TAB', { tabId: t.id }) }));
+      }
     }
+    renderPaletteCrumb();
 
-    if (!all.length) { results.appendChild(el('div', 'palette-empty', 'No matches')); return; }
+    if (!all.length) { paletteItems = []; results.appendChild(el('div', 'palette-empty', 'No matches')); return; }
 
+    paletteItems = all;
+    paletteIndex = Math.min(paletteIndex, all.length - 1);
     all.forEach((item, i) => {
-      const row = el('div', 'palette-item' + (i === 0 ? ' active' : ''));
-      row.innerHTML = `<span class="pi-kind">${item.kind}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.label)}</span>`;
-      row.onclick = () => { item.run(); closePalette(); };
+      const row = el('div', 'palette-item' + (i === paletteIndex ? ' active' : ''));
+      const visual = item.chips
+        ? `<span class="pi-chips">${item.chips.map(c => `<span class="pi-chip" style="background:${c}"></span>`).join('')}</span>`
+        : (item.swatch ? `<span class="pi-swatch" style="background:${item.swatch}"></span>` : '');
+      const folderCaret = item.children ? `<span class="pi-caret">›</span>` : '';
+      const value = item.value ? `<span class="pi-val">${escapeHtml(item.value)}</span>` : '';
+      row.innerHTML = `${visual}<span class="pi-kind">${item.children ? 'group' : item.kind}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.label)}</span>${value}${folderCaret}`;
+      row.onmouseenter = () => {
+        paletteIndex = i;
+        highlightPalette($$('.palette-item'), i);
+        if (item.kind === 'theme') previewTheme(item.themeId);
+      };
+      row.onclick = () => activatePaletteItem(item);
       results.appendChild(row);
     });
+    highlightPalette($$('.palette-item'), paletteIndex);
+  }
+
+  function activatePaletteItem(item) {
+    if (item.children || item.kind === 'folder') { pushPaletteNav(item); return; }
+    runPaletteItem(item);
+  }
+
+  async function runPaletteItem(item) {
+    if (item.kind === 'theme') commitThemePreview();
+    await item.run();
+    if (item.select) {
+      STATE = await DB.getState(); // reflect the new value before re-rendering
+      renderPaletteResults($('#palette-input').value);
+    } else {
+      closePalette();
+    }
   }
 
   /* ============ TRASH ============ */
@@ -2336,7 +2535,7 @@
   }
 
   /* ============ SETTINGS PANEL ============ */
-  function openSettings() { syncSettingsUI(); $('#settings-overlay').classList.remove('hidden'); }
+  function openSettings() { renderThemeGrids(); syncSettingsUI(); $('#settings-overlay').classList.remove('hidden'); }
 
   function wireSettingsPanel() {
     $$('.settings-tab').forEach(btn => {
@@ -2348,9 +2547,10 @@
       };
     });
     $('#settings-btn').onclick = openSettings;
-    $('#settings-close-x').onclick = () => $('#settings-overlay').classList.add('hidden');
+    $('#settings-close-x').onclick = () => { endThemePreview(); $('#settings-overlay').classList.add('hidden'); };
 
     renderThemeGrids();
+    $('#theme-search-input').addEventListener('input', (e) => { renderThemeGrids(); syncSettingsUI(); });
 
     $$('#density-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ density: b.dataset.val }); await reload(); syncSettingsUI(); });
     $('#setting-animations').onchange = async (e) => { await DB.updateSettings({ animations: e.target.checked }); await reload(); };
@@ -2393,8 +2593,19 @@
   }
 
   function renderThemeGrids() {
-    renderThemeGrid('#theme-grid-all', Themes.PRESET_THEMES);
     renderAutoThemeCard();
+    const input = $('#theme-search-input');
+    const q = (input ? input.value : '').trim().toLowerCase();
+    const list = Themes.PRESET_THEMES.filter(t => !q || t.name.toLowerCase().includes(q));
+    const wrap = $('#theme-grid-all');
+    if (!list.length && q) {
+      wrap.innerHTML = '';
+      wrap.appendChild(el('div', 'theme-empty-hint', `No themes match “${q}”.`));
+      return;
+    }
+    const empty = wrap.querySelector('.theme-empty-hint');
+    if (empty) empty.remove();
+    renderThemeGrid('#theme-grid-all', list);
   }
 
   function renderAutoThemeCard() {
@@ -2402,10 +2613,14 @@
     wrap.innerHTML = '';
     const card = el('div', 'theme-swatch-card');
     card.dataset.themeId = 'auto';
-    const serikaBg = Themes.resolveTheme('serika').bg;
-    const serikaDarkBg = Themes.resolveTheme('serika_dark').bg;
-    card.innerHTML = `<div class="theme-swatch-preview"><span style="background:${serikaBg}"></span><span style="background:${serikaDarkBg}"></span></div><div class="theme-swatch-label">Auto (system)</div>`;
-    card.onclick = async () => { await DB.updateSettings({ themeId: 'auto' }); await reload(); syncSettingsUI(); };
+    const serika = Themes.resolveTheme('serika');
+    const serikaDark = Themes.resolveTheme('serika_dark');
+    card.style.background = `linear-gradient(135deg, ${serikaDark.bg} 50%, ${serika.bg} 50%)`;
+    card.style.borderColor = serika.main;
+    card.style.color = serika.text;
+    const chips = [serikaDark.bg, serikaDark.main, serikaDark.text, serika.bg, serika.main, serika.text];
+    card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">Auto (system)</div>`;
+    card.onclick = async () => { commitThemePreview(); await DB.updateSettings({ themeId: 'auto' }); await reload(); syncSettingsUI(); };
     wrap.appendChild(card);
   }
 
@@ -2415,8 +2630,12 @@
     list.forEach(t => {
       const card = el('div', 'theme-swatch-card');
       card.dataset.themeId = t.id;
-      card.innerHTML = `<div class="theme-swatch-preview"><span style="background:${t.bg}"></span><span style="background:${t.main}"></span></div><div class="theme-swatch-label">${t.name}</div>`;
-      card.onclick = async () => { await DB.updateSettings({ themeId: t.id }); await reload(); syncSettingsUI(); };
+      card.style.background = t.bg;
+      card.style.borderColor = t.main;
+      card.style.color = t.text;
+      const chips = themeChipColors(t);
+      card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div>`;
+      card.onclick = async () => { commitThemePreview(); await DB.updateSettings({ themeId: t.id }); await reload(); syncSettingsUI(); };
       wrap.appendChild(card);
     });
   }
@@ -2515,17 +2734,38 @@
     $('#bulk-clear-btn').onclick = () => { SELECTED.clear(); selectMode = false; renderBoard(); };
 
     ['modal-overlay', 'palette-overlay', 'settings-overlay', 'trash-overlay', 'shortcuts-overlay'].forEach(id => {
-      $('#' + id).addEventListener('click', (e) => { if (e.target.id === id) $('#' + id).classList.add('hidden'); });
+      $('#' + id).addEventListener('click', (e) => {
+        if (e.target.id !== id) return;
+        if (id === 'palette-overlay') endThemePreview();
+        $('#' + id).classList.add('hidden');
+      });
     });
 
-    let activeIndex = 0;
-    $('#palette-input').addEventListener('input', (e) => { activeIndex = 0; renderPaletteResults(e.target.value); });
+    $('#palette-input').addEventListener('input', (e) => { paletteIndex = 0; renderPaletteResults(e.target.value); });
     $('#palette-input').addEventListener('keydown', (e) => {
       const items = $$('.palette-item');
-      if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(activeIndex + 1, items.length - 1); highlightPalette(items, activeIndex); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(activeIndex - 1, 0); highlightPalette(items, activeIndex); }
-      else if (e.key === 'Enter') { items[activeIndex] && items[activeIndex].click(); }
-      else if (e.key === 'Escape') { closePalette(); }
+      const previewAt = (i) => { const it = paletteItems[i]; if (it && it.kind === 'theme') previewTheme(it.themeId); };
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        paletteIndex = Math.min(paletteIndex + 1, items.length - 1);
+        highlightPalette(items, paletteIndex); previewAt(paletteIndex);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        paletteIndex = Math.max(paletteIndex - 1, 0);
+        highlightPalette(items, paletteIndex); previewAt(paletteIndex);
+      } else if (e.key === 'ArrowRight' || e.key === 'Tab') {
+        e.preventDefault();
+        const it = paletteItems[paletteIndex];
+        if (it && (it.children || it.kind === 'folder')) activatePaletteItem(it);
+      } else if (e.key === 'ArrowLeft' || (e.key === 'Backspace' && !e.target.value)) {
+        e.preventDefault();
+        if (!popPaletteNav()) endThemePreview();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (paletteItems[paletteIndex]) activatePaletteItem(paletteItems[paletteIndex]);
+      } else if (e.key === 'Escape') {
+        endThemePreview(); closePalette();
+      }
     });
 
     document.addEventListener('keydown', (e) => {
@@ -2533,7 +2773,7 @@
       if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); return; }
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); quickAddCurrentTab(); return; }
       if (e.key === 'Escape') {
-        $('#palette-overlay').classList.add('hidden');
+        closePalette();
         $('#modal-overlay').classList.add('hidden');
         $('#settings-overlay').classList.add('hidden');
         $('#trash-overlay').classList.add('hidden');

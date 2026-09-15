@@ -832,7 +832,18 @@ async function convertSessionToCollection(id, name) {
 /* ---------- Settings ---------- */
 
 async function updateSettings(patch) {
-  return setState((d) => { Object.assign(d.meta.settings, patch); });
+  return setState((d) => {
+    for (const [key, value] of Object.entries(patch)) {
+      const cur = d.meta.settings[key];
+      // Shallow-merge nested setting groups (dashboard, tabsList, …) so a patch
+      // like { tabsList: { groupPinned: true } } keeps its sibling keys.
+      if (value && typeof value === 'object' && !Array.isArray(value) && cur && typeof cur === 'object' && !Array.isArray(cur)) {
+        Object.assign(cur, value);
+      } else {
+        d.meta.settings[key] = value;
+      }
+    }
+  });
 }
 
 /* ---------- Import / Export ---------- */
