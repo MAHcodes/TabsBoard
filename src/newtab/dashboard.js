@@ -2266,8 +2266,15 @@
       chips: [light.bg, light.main, light.text, dark.bg, dark.main, dark.text],
       value: cur === 'auto' ? 'Active' : '', run: () => selectTheme('auto')
     }];
-    Themes.PRESET_THEMES.forEach(t => {
-      items.push({ kind: 'theme', label: t.name, themeId: t.id, chips: themeChipColors(t), value: cur === t.id ? 'Active' : '', run: () => selectTheme(t.id) });
+    ['Light', 'Dark'].forEach(grp => {
+      const group = Themes.PRESET_THEMES.filter(t => (t.type === 'light') === (grp === 'Light'));
+      items.push({
+        kind: 'folder', label: grp + ' themes',
+        children: group.map(t => ({
+          kind: 'theme', label: t.name, themeId: t.id, chips: themeChipColors(t),
+          value: cur === t.id ? 'Active' : '', run: () => selectTheme(t.id)
+        }))
+      });
     });
     return items;
   }
