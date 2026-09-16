@@ -235,7 +235,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       case 'GET_RECENTLY_CLOSED': {
         if (!chrome.sessions) { sendResponse({ items: [] }); break; }
-        chrome.sessions.getRecentlyClosed({ maxResults: 10 }, (sessions) => {
+        chrome.sessions.getRecentlyClosed({ maxResults: 20 }, (sessions) => {
           const items = (sessions || [])
             .filter(s => s.tab)
             .map(s => ({ sessionId: s.tab.sessionId, title: s.tab.title, url: s.tab.url, favIconUrl: s.tab.favIconUrl }));

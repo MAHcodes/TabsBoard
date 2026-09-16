@@ -537,6 +537,7 @@ body.dragging-tab .widget-ghost { display: flex; }
 .palette-item { display: flex; align-items: center; gap: 10px; padding: 10px 11px; border-radius: 9px; font-size: 13px; }
 .palette-item.active, .palette-item:hover { background: var(--bg-color); }
 .palette-item .pi-kind { font-size: 10px; text-transform: uppercase; color: var(--sub-color); background: var(--bg-color); padding: 2px 7px; border-radius: 6px; font-weight: 700; flex-shrink: 0; }
+.palette-item .pi-fav { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; object-fit: contain; background: var(--bg-color); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); }
 .palette-item .pi-swatch { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
 .palette-item .pi-chips { display: inline-flex; gap: 3px; flex-shrink: 0; }
 .palette-item .pi-chip { width: 13px; height: 13px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .2); }

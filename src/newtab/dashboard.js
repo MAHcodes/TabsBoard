@@ -2528,6 +2528,25 @@
         if (s < 0) continue;
         scored.push({ ...c, score: s + (c.children ? 3 : 0) });
       }
+      // The palette promises "jump to a bookmark", so surface matching
+      // bookmarks from every collection (title and URL both count).
+      // Deduplicated by full URL so the same link never shows twice.
+      const seenUrls = new Set();
+      Object.values(STATE.bookmarks).forEach(bm => {
+        const urlKey = bm.url.trim().toLowerCase();
+        if (!urlKey || seenUrls.has(urlKey)) return;
+        seenUrls.add(urlKey);
+        const s = Math.max(fuzzyScore(q, bm.title || ''), fuzzyScore(q, bm.url || ''));
+        if (s < 0) return;
+        scored.push({
+          kind: 'bookmark',
+          label: bm.title || bm.url,
+          favicon: bm.favicon || '',
+          swatch: bm.tintColor || undefined,
+          run: () => openBookmarkUrl(bm),
+          score: s
+        });
+      });
       scored.sort((a, b) => b.score - a.score);
       all = scored.slice(0, 24);
     } else {
@@ -2546,7 +2565,9 @@
     paletteIndex = Math.min(paletteIndex, all.length - 1);
     all.forEach((item, i) => {
       const row = el('div', 'palette-item' + (i === paletteIndex ? ' active' : ''));
-      const visual = item.chips
+      const visual = item.favicon
+        ? `<img class="pi-fav" src="${item.favicon}" onerror="this.style.display='none'">`
+        : item.chips
         ? `<span class="pi-chips">${item.chips.map(c => `<span class="pi-chip" style="background:${c}"></span>`).join('')}</span>`
         : (item.swatch ? `<span class="pi-swatch" style="background:${item.swatch}"></span>` : '');
       const folderCaret = item.children ? `<span class="pi-caret">›</span>` : '';
@@ -2869,8 +2890,26 @@
       }
     });
 
+    async function cycleBoards(dir) {
+      const boards = boardsForActiveWS();
+      if (boards.length < 2) return;
+      const curIdx = boards.findIndex(b => b.id === activeBoardId());
+      const next = (curIdx + dir + boards.length) % boards.length;
+      await jumpToBoard(boards[next].id);
+    }
+
+    async function cycleWorkspaces(dir) {
+      const wsList = Object.values(STATE.workspaces).sort((a, b) => a.order - b.order);
+      if (wsList.length < 2) return;
+      const curIdx = wsList.findIndex(w => w.id === activeWorkspaceId());
+      const next = (curIdx + dir + wsList.length) % wsList.length;
+      await jumpToWorkspace(wsList[next].id);
+    }
+
     document.addEventListener('keydown', (e) => {
       const mod = e.metaKey || e.ctrlKey;
+
+      // Modifiers — always active, even inside inputs
       if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); return; }
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); quickAddCurrentTab(); return; }
       if (e.key === 'Escape') {
@@ -2882,12 +2921,20 @@
         if (SELECTED.size) { SELECTED.clear(); selectMode = false; renderBoard(); }
         return;
       }
+
+      // Single-key shortcuts — skip when typing in inputs
       const tag = (document.activeElement && document.activeElement.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (document.activeElement && document.activeElement.isContentEditable)) return;
       const k = e.key.toLowerCase();
-      if (k === 'n') openCollectionModal();
+
+      if (k === 'c') openCollectionModal();
       else if (k === 'v') toggleViewMode();
-      else if (e.key === '[') toggleSidebar();
+      else if (k === 'b') toggleSidebar();
+      else if (k === 's') openSettings();
+      else if (k === 'n') cycleBoards(1);       // next board
+      else if (k === 'p') cycleBoards(-1);      // prev board
+      else if (k === 'j') cycleWorkspaces(1);   // next workspace
+      else if (k === 'k') cycleWorkspaces(-1);  // prev workspace
     });
 
     setInterval(async () => { await refreshOpenTabs(); renderSidebar(); }, 4000);
