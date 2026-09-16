@@ -621,14 +621,23 @@ async function duplicateBookmark(id) {
   });
 }
 
-async function moveBookmarks(ids, targetCollectionId) {
+async function moveBookmarks(ids, targetCollectionId, targetIndex) {
   return setState((d) => {
-    ids.forEach((id, i) => {
-      if (d.bookmarks[id]) {
-        d.bookmarks[id].collectionId = targetCollectionId;
-        d.bookmarks[id].order = i;
-      }
-    });
+    if (targetIndex === undefined || targetIndex === null) {
+      const maxOrder = Math.max(-1, ...Object.values(d.bookmarks).filter(b => b.collectionId === targetCollectionId && !ids.includes(b.id)).map(b => b.order));
+      ids.forEach((id, i) => {
+        if (d.bookmarks[id]) {
+          d.bookmarks[id].collectionId = targetCollectionId;
+          d.bookmarks[id].order = maxOrder + 1 + i;
+        }
+      });
+      return;
+    }
+    const siblings = Object.values(d.bookmarks).filter(b => b.collectionId === targetCollectionId && !ids.includes(b.id)).sort((a, b) => a.order - b.order);
+    const toInsert = ids.map(id => d.bookmarks[id]).filter(Boolean);
+    const insertAt = Math.min(targetIndex, siblings.length);
+    const result = siblings.slice(0, insertAt).concat(toInsert).concat(siblings.slice(insertAt));
+    result.forEach((bm, i) => { bm.collectionId = targetCollectionId; bm.order = i; });
   });
 }
 

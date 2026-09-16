@@ -421,6 +421,16 @@ body.dragging-tab .widget-ghost { display: flex; }
 .bookmark-tile .bm-menu-btn { position: absolute; top: 3px; right: 3px; background: var(--bg-color); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
 .bookmark-tile .bm-pin-ic { position: absolute; top: 4px; left: 4px; }
 
+.bm-drop-indicator { pointer-events: none; z-index: 10; }
+.bm-drop-indicator.horizontal { height: 3px; background: var(--main-color); border-radius: 2px; margin: 2px 7px; flex-shrink: 0; }
+
+.bookmark-tile.drop-before::after, .bookmark-tile.drop-after::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 3px;
+  background: var(--main-color); border-radius: 2px; pointer-events: none;
+}
+.bookmark-tile.drop-before::after { left: -6px; }
+.bookmark-tile.drop-after::after { right: -6px; }
+
 .empty-collection-hint { padding: 18px; text-align: center; color: var(--sub-color); font-size: 12px; }
 /* .add-bookmark-row removed — adding a bookmark now lives as a small
    icon button next to the collection's ⋯ menu in the widget header,

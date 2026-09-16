@@ -16,6 +16,7 @@
   let OPEN_TABS = [];
   let SELECTED = new Set();
   let selectMode = false;
+  let bmDropIndicator = null;
   let currentNav = 'collections'; // 'collections' | 'sessions'
   let sidebarShowingClosed = false; // false = Open Tabs, true = Recently Closed (single toggle, not a tab component)
 
@@ -895,7 +896,7 @@
     const body = el('div', 'widget-body');
     const listWrap = el('div', 'bookmarks-list' + (viewMode === 'grid' && bms.length ? ' view-grid' : '') + (!bms.length ? ' is-empty' : ''));
     if (!bms.length) listWrap.appendChild(el('div', 'empty-collection-hint', 'Drop tabs here, or add a bookmark'));
-    bms.forEach(bm => listWrap.appendChild(renderBookmark(bm, viewMode, w.tintColor)));
+    bms.forEach(bm => listWrap.appendChild(renderBookmark(bm, viewMode, w.tintColor, col, listWrap)));
     body.appendChild(listWrap);
     card.appendChild(body);
 
@@ -1619,14 +1620,100 @@
     return ghost;
   }
 
+  /* ============ BOOKMARK DROP INDICATORS ============ */
+
+  function clearBmDropIndicator() {
+    if (bmDropIndicator) {
+      if (bmDropIndicator.classList.contains('bookmark-item') || bmDropIndicator.classList.contains('bookmark-tile')) {
+        bmDropIndicator.classList.remove('drop-before', 'drop-after');
+      } else {
+        bmDropIndicator.remove();
+      }
+      bmDropIndicator = null;
+    }
+  }
+
+  function getDropIndex(e, item, viewMode) {
+    const isGrid = viewMode === 'grid';
+    if (isGrid) {
+      const rect = item.getBoundingClientRect();
+      const midX = rect.left + rect.width / 2;
+      return e.clientX < midX ? null : 'after';
+    } else {
+      return e.clientY < (item.getBoundingClientRect().top + item.getBoundingClientRect().height / 2) ? null : 'after';
+    }
+  }
+
+  function showDropIndicator(e, item, viewMode) {
+    if (viewMode === 'grid') {
+      const rect = item.getBoundingClientRect();
+      const before = e.clientX < rect.left + rect.width / 2;
+      clearBmDropIndicator();
+      bmDropIndicator = item;
+      item.classList.add(before ? 'drop-before' : 'drop-after');
+    } else {
+      const rect = item.getBoundingClientRect();
+      const before = e.clientY < rect.top + rect.height / 2;
+      clearBmDropIndicator();
+      const indicator = el('div', 'bm-drop-indicator horizontal');
+      item.parentNode.insertBefore(indicator, before ? item : item.nextSibling);
+      bmDropIndicator = indicator;
+    }
+  }
+
+  function wireBookmarkItemDrop(item, bm, col, viewMode, listWrap) {
+    item.addEventListener('dragover', (e) => {
+      const hasBookmark = e.dataTransfer.types.includes('application/x-tdb-bookmark');
+      const hasTab = e.dataTransfer.types.includes('application/x-tdb-tab');
+      if (!hasBookmark && !hasTab) return;
+      e.preventDefault();
+      e.stopPropagation();
+      showDropIndicator(e, item, viewMode);
+    });
+
+    item.addEventListener('drop', async (e) => {
+      const tabData = e.dataTransfer.getData('application/x-tdb-tab');
+      const bookmarkId = e.dataTransfer.getData('application/x-tdb-bookmark');
+      if (!tabData && !bookmarkId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const beforeOrAfter = getDropIndex(e, item, viewMode);
+      clearBmDropIndicator();
+      const idx = beforeOrAfter === 'after' ? Array.from(listWrap.querySelectorAll('.bookmark-tile, .bookmark-item')).indexOf(item) + 1 : Array.from(listWrap.querySelectorAll('.bookmark-tile, .bookmark-item')).indexOf(item);
+      if (tabData) {
+        const tab = JSON.parse(tabData);
+        const created = await addBookmarkSmart(col.id, activeWorkspaceId(), { title: tab.title, url: tab.url, favicon: tab.favIconUrl });
+        if (created) {
+          await DB.moveBookmarks([created.id], col.id, idx);
+          toast(`Bookmarked to "${col.name}"`);
+          await reload();
+        }
+      } else if (bookmarkId) {
+        const ids = SELECTED.has(bookmarkId) && SELECTED.size > 1 ? Array.from(SELECTED) : [bookmarkId];
+        const sameCol = ids.every(id => STATE.bookmarks[id] && STATE.bookmarks[id].collectionId === col.id);
+        if (sameCol) {
+          const bms = bookmarksForCollection(col.id).map(b => b.id);
+          const others = bms.filter(id => !ids.includes(id));
+          others.splice(Math.min(idx, others.length), 0, ...ids.filter(id => bms.includes(id)));
+          await DB.reorderBookmarks(col.id, others);
+        } else {
+          await DB.moveBookmarks(ids, col.id, idx);
+        }
+        SELECTED.clear(); selectMode = false;
+        await reload();
+      }
+    });
+  }
+
   /* ============ BOOKMARKS ============ */
   function openBookmarkUrl(bm) { sendMsg('OPEN_URL', { url: bm.url }); }
 
-  function renderBookmark(bm, viewMode, colBg) {
+  function renderBookmark(bm, viewMode, colBg, col, listWrap) {
     const isTile = viewMode === 'grid';
     const item = el('div', (isTile ? 'bookmark-tile' : 'bookmark-item') + (SELECTED.has(bm.id) ? ' selected' : ''));
     item.draggable = true;
     item.dataset.bookmarkId = bm.id;
+    if (col && listWrap) wireBookmarkItemDrop(item, bm, col, viewMode, listWrap);
     const tint = bm.tintColor || colBg;
     if (tint && CU) {
       if (isTile) {
@@ -1664,6 +1751,7 @@
     item.addEventListener('dragend', () => {
       item.classList.remove('dragging');
       document.body.classList.remove('dragging-tab');
+      clearBmDropIndicator();
     });
 
     item.addEventListener('click', async (e) => {
@@ -1751,17 +1839,24 @@
 
   function wireCollectionDropZone(card, col, listWrap) {
     card.addEventListener('dragover', (e) => {
-      if (e.dataTransfer.types.includes('application/x-tdb-widget')) return; // handled by wireWidgetReorderDropZone
+      if (e.dataTransfer.types.includes('application/x-tdb-widget')) return;
       e.preventDefault();
       card.classList.add('drag-over');
     });
-    card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+    card.addEventListener('dragleave', (e) => {
+      if (!card.contains(e.relatedTarget)) {
+        card.classList.remove('drag-over');
+        clearBmDropIndicator();
+      }
+    });
     card.addEventListener('drop', async (e) => {
+      if (e.target.closest('.bookmark-tile, .bookmark-item')) return; // handled by per-item drop
       const tabData = e.dataTransfer.getData('application/x-tdb-tab');
       const bookmarkId = e.dataTransfer.getData('application/x-tdb-bookmark');
-      if (!tabData && !bookmarkId) return; // widget reorder drops are handled elsewhere
+      if (!tabData && !bookmarkId) return;
       e.preventDefault();
       card.classList.remove('drag-over');
+      clearBmDropIndicator();
 
       if (tabData) {
         const tab = JSON.parse(tabData);
