@@ -2399,6 +2399,24 @@
 
   let paletteItems = [];
   let paletteIndex = 0;
+  let paletteWheelAt = 0;
+  let paletteXPrimed = false;
+
+  function scrollPaletteActiveIntoView() {
+    const active = $$('.palette-item')[paletteIndex];
+    if (active) active.scrollIntoView({ block: 'nearest' });
+  }
+
+  function paletteStageEscape() {
+    if ($('.palette-item.active')) {
+      endThemePreview();
+      $$('.palette-item').forEach(r => r.classList.remove('active'));
+      highlightPalette($$('.palette-item'), -1);
+      return true;
+    }
+    closePalette();
+    return false;
+  }
 
   function renderPaletteResults(query) {
     const results = $('#palette-results');
@@ -2440,6 +2458,7 @@
       const value = item.value ? `<span class="pi-val">${escapeHtml(item.value)}</span>` : '';
       row.innerHTML = `${visual}<span class="pi-kind">${item.children ? 'group' : item.kind}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.label)}</span>${value}${folderCaret}`;
       row.onmouseenter = () => {
+        if (Date.now() - paletteWheelAt < 220) return;
         paletteIndex = i;
         highlightPalette($$('.palette-item'), i);
         if (item.kind === 'theme') previewTheme(item.themeId);
@@ -2728,11 +2747,11 @@
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         paletteIndex = Math.min(paletteIndex + 1, items.length - 1);
-        highlightPalette(items, paletteIndex); previewAt(paletteIndex);
+        highlightPalette(items, paletteIndex); previewAt(paletteIndex); scrollPaletteActiveIntoView();
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         paletteIndex = Math.max(paletteIndex - 1, 0);
-        highlightPalette(items, paletteIndex); previewAt(paletteIndex);
+        highlightPalette(items, paletteIndex); previewAt(paletteIndex); scrollPaletteActiveIntoView();
       } else if (e.key === 'ArrowRight' || e.key === 'Tab') {
         e.preventDefault();
         const it = paletteItems[paletteIndex];
@@ -2744,7 +2763,14 @@
         e.preventDefault();
         if (paletteItems[paletteIndex]) activatePaletteItem(paletteItems[paletteIndex]);
       } else if (e.key === 'Escape') {
-        endThemePreview(); closePalette();
+        e.preventDefault(); e.stopPropagation();
+        if (paletteXPrimed) {
+          paletteXPrimed = false;
+          endThemePreview();
+          $$('.palette-item').forEach(r => r.classList.remove('active'));
+        } else {
+          closePalette();
+        }
       }
     });
 
