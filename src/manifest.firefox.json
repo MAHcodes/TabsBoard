@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "TabsBoard",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "A rich, customizable new-tab dashboard for organizing bookmarks into collections and workspaces, with tab sessions and quick-add.",
   "icons": {
     "16": "icons/icon16.png",

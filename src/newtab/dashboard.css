@@ -410,6 +410,7 @@ body.dragging-tab .widget-ghost { display: flex; }
 .bm-menu-btn { background: none; border: none; color: var(--sub-color); width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 0; transition: opacity .12s ease; }
 .bm-menu-btn svg { width: 15px; height: 15px; }
 .bookmark-item:hover .bm-menu-btn { opacity: 1; }
+.bookmark-tile:hover .bm-menu-btn { opacity: 1; }
 .bm-menu-btn:hover { background: var(--bg-color); color: var(--text-color); }
 .bm-tag { font-size: 9px; background: var(--bg-color); border-radius: 6px; padding: 2px 6px; color: var(--sub-color); font-weight: 700; }
 
@@ -418,7 +419,8 @@ body.dragging-tab .widget-ghost { display: flex; }
 .bookmark-tile.selected { background: var(--sub-alt-color); outline: 2px solid var(--main-color); }
 .bookmark-tile .bm-favicon { width: 28px; height: 28px; border-radius: 7px; }
 .bookmark-tile .bm-title { font-size: 11px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.bookmark-tile .bm-menu-btn { position: absolute; top: 3px; right: 3px; background: var(--bg-color); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.bookmark-tile .bm-menu-btn { position: absolute; top: 3px; right: 3px; background: transparent; box-shadow: none; }
+.bookmark-tile .bm-menu-btn:hover { background: var(--bg-color); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
 .bookmark-tile .bm-pin-ic { position: absolute; top: 4px; left: 4px; }
 
 .bm-drop-indicator { pointer-events: none; z-index: 10; }
