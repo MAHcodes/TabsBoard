@@ -2572,7 +2572,7 @@
         : (item.swatch ? `<span class="pi-swatch" style="background:${item.swatch}"></span>` : '');
       const folderCaret = item.children ? `<span class="pi-caret">›</span>` : '';
       const value = item.value ? `<span class="pi-val">${escapeHtml(item.value)}</span>` : '';
-      row.innerHTML = `${visual}<span class="pi-kind">${item.children ? 'group' : item.kind}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.label)}</span>${value}${folderCaret}`;
+      row.innerHTML = `${visual}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.label)}</span><span class="pi-kind">${item.children ? 'group' : item.kind}</span>${value}${folderCaret}`;
       row.onmouseenter = () => {
         if (Date.now() - paletteWheelAt < 220) return;
         paletteIndex = i;
@@ -2929,12 +2929,14 @@
 
       if (k === 'c') openCollectionModal();
       else if (k === 'v') toggleViewMode();
-      else if (k === 'b') toggleSidebar();
+      else if (k === 't') toggleSidebar();
       else if (k === 's') openSettings();
-      else if (k === 'n') cycleBoards(1);       // next board
-      else if (k === 'p') cycleBoards(-1);      // prev board
-      else if (k === 'j') cycleWorkspaces(1);   // next workspace
-      else if (k === 'k') cycleWorkspaces(-1);  // prev workspace
+      else if (k === '/') openPalette();
+      else if (k === '?') openShortcuts();
+      else if (k === 'w' && !e.shiftKey) cycleWorkspaces(1);   // next workspace
+      else if (k === 'w' && e.shiftKey) cycleWorkspaces(-1);  // prev workspace
+      else if (k === 'b' && !e.shiftKey) cycleBoards(1);      // next board
+      else if (k === 'b' && e.shiftKey) cycleBoards(-1);      // prev board
     });
 
     setInterval(async () => { await refreshOpenTabs(); renderSidebar(); }, 4000);
