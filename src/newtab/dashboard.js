@@ -2266,14 +2266,10 @@
       chips: [light.bg, light.main, light.text, dark.bg, dark.main, dark.text],
       value: cur === 'auto' ? 'Active' : '', run: () => selectTheme('auto')
     }];
-    ['Light', 'Dark'].forEach(grp => {
-      const group = Themes.PRESET_THEMES.filter(t => (t.type === 'light') === (grp === 'Light'));
+    Themes.PRESET_THEMES.forEach(t => {
       items.push({
-        kind: 'folder', label: grp + ' themes',
-        children: group.map(t => ({
-          kind: 'theme', label: t.name, themeId: t.id, chips: themeChipColors(t),
-          value: cur === t.id ? 'Active' : '', run: () => selectTheme(t.id)
-        }))
+        kind: 'theme', label: t.name, themeId: t.id, chips: themeChipColors(t),
+        value: cur === t.id ? 'Active' : '', run: () => selectTheme(t.id)
       });
     });
     return items;
@@ -2377,20 +2373,6 @@
   }
   function resetPaletteNav() { palNav = []; paletteIndex = 0; }
 
-  /* Flattens the tree into searchable leaves; folder names become entries too. */
-  function flattenPalette(items, out = [], prefix = '') {
-    for (const it of items) {
-      if (it.children) {
-        const label = prefix ? `${prefix} · ${it.label}` : it.label;
-        out.push({ ...it, label, _navLabel: it.label, run: () => pushPaletteNav(it) });
-        flattenPalette(it.children, out, label);
-      } else {
-        out.push({ ...it, label: prefix ? `${prefix} · ${it.label}` : it.label });
-      }
-    }
-    return out;
-  }
-
   async function selectTheme(themeId) {
     commitThemePreview();
     await DB.updateSettings({ themeId });
@@ -2425,22 +2407,13 @@
 
     let all;
     if (q) {
+      // Search filters only the current level — at the root that surfaces
+      // group options like Themes/Settings, not a flattened "public search".
       const scored = [];
-      for (const c of flattenPalette(paletteLevel())) {
+      for (const c of paletteLevel()) {
         const s = fuzzyScore(q, c.label);
         if (s < 0) continue;
-        const bias = c.kind === 'action' ? 5 : c.kind === 'setting' ? 4 : c.kind === 'theme' ? 2 : c.kind === 'folder' ? 3 : 0;
-        scored.push({ ...c, score: s + bias });
-      }
-      for (const t of OPEN_TABS) {
-        const s = Math.max(fuzzyScore(q, t.title || ''), fuzzyScore(q, t.url));
-        if (s >= 0) scored.push({ kind: 'tab', label: t.title || t.url, run: () => sendMsg('FOCUS_TAB', { tabId: t.id }), score: s });
-      }
-      for (const b of Object.values(STATE.bookmarks)) {
-        if (b.workspaceId !== activeWorkspaceId()) continue;
-        const tagScore = (b.tags || []).reduce((best, tag) => Math.max(best, fuzzyScore(q, tag)), -1);
-        const s = Math.max(fuzzyScore(q, b.title), fuzzyScore(q, b.url), tagScore);
-        if (s >= 0) scored.push({ kind: 'bookmark', label: b.title, run: () => openBookmarkUrl(b), score: s });
+        scored.push({ ...c, score: s + (c.children ? 3 : 0) });
       }
       scored.sort((a, b) => b.score - a.score);
       all = scored.slice(0, 24);

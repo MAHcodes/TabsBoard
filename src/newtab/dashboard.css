@@ -234,7 +234,7 @@ svg { width: 100%; height: 100%; }
 .tab-row.dragging { opacity: .4; }
 .tab-row.tab-inactive { opacity: var(--inactive-tab-opacity, 1); filter: var(--inactive-tab-filter, none); }
 .tab-row.tab-inactive:hover { opacity: 1; filter: none; }
-.tab-row img.favicon, .bm-favicon { width: 17px; height: 17px; border-radius: 4px; flex-shrink: 0; background: var(--bg-color); }
+.tab-row img.favicon, .bm-favicon { width: 17px; height: 17px; border-radius: 4px; flex-shrink: 0; }
 .tab-row .tab-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-row .pin-badge { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 12px; height: 12px; color: var(--main-color); }
 .tab-row .tab-icons { display: flex; gap: 3px; opacity: 0; }
