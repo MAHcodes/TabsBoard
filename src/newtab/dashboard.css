@@ -554,9 +554,9 @@ body.dragging-tab .widget-ghost { display: flex; }
 /* Auto theme section: two preset-card-styled boxes showing the selected
    Light and Dark themes. Clicking one enters picking so the presets grid
    assigns to it. */
-.auto-theme-boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-.auto-theme-col { display: flex; flex-direction: column; gap: 6px; }
-.auto-theme-col label { font-size: 11px; font-weight: 800; letter-spacing: .4px; color: var(--sub-color); text-transform: uppercase; }
+.auto-theme-boxes { display: flex; gap: 10px; margin-top: 12px; }
+.auto-theme-col { display: flex; flex-direction: column; gap: 6px; flex: 0 0 100px; }
+.auto-theme-col label { font-size: 11px; font-weight: 800; letter-spacing: .4px; color: var(--sub-color); text-transform: uppercase; text-align: center; }
 .auto-theme-box.theme-swatch-card { font-family: inherit; align-items: stretch; width: 100%; box-sizing: border-box; }
 .auto-theme-box.theme-swatch-card.picking { border-color: var(--main-color); border-style: dashed; box-shadow: 0 0 0 2px color-mix(in srgb, var(--main-color) 30%, transparent); }
 .auto-theme-box.theme-swatch-card.picking.selected { transform: translateY(-1px); }
