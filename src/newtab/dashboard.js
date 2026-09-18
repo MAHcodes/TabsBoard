@@ -2871,6 +2871,7 @@
           const key = pickingThemeFor;
           await DB.updateSettings(key === 'light' ? { lightThemeId: t.id } : { darkThemeId: t.id });
           pickingThemeFor = null;
+          STATE = await DB.getState();
           renderAutoThemeBoxes();
           if (s.themeId === 'auto' && prefersDarkMode() === (key === 'dark')) await reload();
           syncSettingsUI();
