@@ -2825,19 +2825,19 @@
   }
 
   function renderAutoThemeBoxes() {
-    const row = $('#auto-theme-boxes');
-    if (!row) return;
-    $$('.auto-theme-box', row).forEach(box => {
+    const boxes = $$('#auto-theme-boxes .auto-theme-box');
+    boxes.forEach(box => {
       const key = box.dataset.key;
       const s = STATE.meta.settings;
       const id = key === 'light' ? (s.lightThemeId || 'serika') : (s.darkThemeId || 'serika_dark');
       const t = Themes.PRESET_THEMES.find(x => x.id === id) || Themes.PRESET_THEMES[0];
       const chips = themeChipColors(t);
-      box.innerHTML = `<span class="atb-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</span><span class="atb-name">${key === 'light' ? 'Light' : 'Dark'}</span><span class="atb-theme">${t.name}</span>`;
-      box.style.backgroundColor = t.bg;
+      box.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div>`;
+      box.style.background = t.bg;
       box.style.borderColor = t.main;
       box.style.color = t.text;
       box.classList.toggle('picking', pickingThemeFor === key);
+      box.classList.toggle('selected', id === appliedThemeId());
     });
   }
 
@@ -2890,10 +2890,8 @@
     const applied = appliedThemeId();
     $$('.theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === applied));
     $('#setting-auto-theme').checked = autoOn;
-    const row = $('#auto-theme-row');
-    if (row) row.classList.toggle('hidden', !autoOn);
-    const boxes = $('#auto-theme-boxes');
-    if (boxes) boxes.classList.toggle('hidden', !autoOn);
+    const extras = $('#auto-theme-extras');
+    if (extras) extras.classList.toggle('hidden', !autoOn);
     renderAutoThemeBoxes();
     const grid = $('#theme-grid-all');
     if (grid) grid.classList.toggle('pick-active', !!pickingThemeFor);
