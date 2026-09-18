@@ -857,11 +857,11 @@
     });
     card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
     card.addEventListener('drop', async (e) => {
+      card.classList.remove('drag-over');
       const draggedId = e.dataTransfer.getData('application/x-tdb-widget');
       if (!draggedId || draggedId === w.id) return;
       e.preventDefault();
       e.stopPropagation();
-      card.classList.remove('drag-over');
       const ordered = widgetsForActiveWS().map(x => x.id);
       const from = ordered.indexOf(draggedId);
       const to = ordered.indexOf(w.id);
@@ -1850,12 +1850,12 @@
       }
     });
     card.addEventListener('drop', async (e) => {
+      card.classList.remove('drag-over');
       if (e.target.closest('.bookmark-tile, .bookmark-item')) return; // handled by per-item drop
       const tabData = e.dataTransfer.getData('application/x-tdb-tab');
       const bookmarkId = e.dataTransfer.getData('application/x-tdb-bookmark');
       if (!tabData && !bookmarkId) return;
       e.preventDefault();
-      card.classList.remove('drag-over');
       clearBmDropIndicator();
 
       if (tabData) {
@@ -2821,6 +2821,14 @@
     $('#workspace-btn').onclick = (e) => { e.stopPropagation(); $('#workspace-menu').classList.toggle('hidden'); };
     document.addEventListener('click', (e) => {
       if (!e.target.closest('#workspace-menu') && !e.target.closest('#workspace-btn')) $('#workspace-menu').classList.add('hidden');
+    });
+
+    /* Safety net: an aborted drag (Esc), a drop on empty space, or a drop
+       intercepted before dragleave fires can leave hover styling (the dashed
+       .drag-over outline) stuck on. Clear it whenever any drag ends. */
+    document.addEventListener('dragend', () => {
+      document.querySelectorAll('.drag-over').forEach((n) => n.classList.remove('drag-over'));
+      clearBmDropIndicator();
     });
 
     $('#nav-collections-btn').onclick = () => switchNav('collections');
