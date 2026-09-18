@@ -12,7 +12,7 @@
 
   function applyTheme(state) {
     const s = state.meta.settings;
-    const palette = Themes.resolveTheme(s.themeId);
+    const palette = Themes.resolveTheme(s.themeId, s.lightThemeId, s.darkThemeId);
     const r = document.documentElement.style;
     r.setProperty('--bg-color', palette.bg);
     r.setProperty('--main-color', palette.main);

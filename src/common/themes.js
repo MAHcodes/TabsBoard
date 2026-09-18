@@ -217,11 +217,12 @@
   // (--bg-color, --main-color, --caret-color, --sub-color, --sub-alt-color,
   // --text-color, --error-color, --error-extra-color,
   // --colorful-error-color, --colorful-error-extra-color).
-  function resolveTheme(themeId) {
+  function resolveTheme(themeId, lightThemeId, darkThemeId) {
     let t;
     if (themeId === 'auto') {
       const prefersDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
-      t = PRESET_THEMES.find(x => x.id === (prefersDark ? 'serika_dark' : 'serika'));
+      const chosen = prefersDark ? (darkThemeId || 'serika_dark') : (lightThemeId || 'serika');
+      t = PRESET_THEMES.find(x => x.id === chosen) || PRESET_THEMES[0];
     } else {
       t = PRESET_THEMES.find(x => x.id === themeId) || PRESET_THEMES[0];
     }

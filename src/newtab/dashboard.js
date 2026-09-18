@@ -270,7 +270,8 @@
   function previewTheme(themeId) {
     if (!themeId) return;
     themePreviewing = true;
-    applyThemeColors(Themes.resolveTheme(themeId));
+    const s = STATE.meta.settings;
+    applyThemeColors(Themes.resolveTheme(themeId, s.lightThemeId, s.darkThemeId));
   }
   function commitThemePreview() { themePreviewing = false; }
   function endThemePreview() {
@@ -281,7 +282,7 @@
 
   function applySettings() {
     const s = STATE.meta.settings;
-    applyThemeColors(Themes.resolveTheme(s.themeId));
+    applyThemeColors(Themes.resolveTheme(s.themeId, s.lightThemeId, s.darkThemeId));
     const r = document.documentElement.style;
     r.setProperty('--board-cols', String((s.dashboard && s.dashboard.columns) || 4));
     r.setProperty('--board-row-min', '200px');
@@ -2406,8 +2407,8 @@
   function paletteThemeItems() {
     const s = STATE.meta.settings;
     const cur = s.themeId;
-    const light = Themes.resolveTheme('serika');
-    const dark = Themes.resolveTheme('serika_dark');
+    const light = Themes.resolveTheme('auto', s.lightThemeId, undefined);
+    const dark = Themes.resolveTheme('auto', undefined, s.darkThemeId);
     const items = [{
       kind: 'theme', label: 'Auto (follow system)', themeId: 'auto',
       chips: [light.bg, light.main, light.text, dark.bg, dark.main, dark.text],
@@ -2789,45 +2790,49 @@
     const input = $('#theme-search-input');
     const q = (input ? input.value : '').trim().toLowerCase();
     const list = Themes.PRESET_THEMES.filter(t => !q || t.name.toLowerCase().includes(q));
-    const wrap = $('#theme-grid-all');
-    if (!list.length && q) {
-      wrap.innerHTML = '';
-      wrap.appendChild(el('div', 'theme-empty-hint', `No themes match “${q}”.`));
-      return;
-    }
-    const empty = wrap.querySelector('.theme-empty-hint');
-    if (empty) empty.remove();
     renderThemeGrid('#theme-grid-all', list);
+    renderThemeGrid('#theme-grid-light', list, 'light');
+    renderThemeGrid('#theme-grid-dark', list, 'dark');
   }
 
   function renderAutoThemeCard() {
     const wrap = $('#theme-grid-auto');
     wrap.innerHTML = '';
+    const s = STATE.meta.settings;
+    const lightTheme = Themes.resolveTheme('auto', s.lightThemeId, undefined);
+    const darkTheme = Themes.resolveTheme('auto', undefined, s.darkThemeId);
     const card = el('div', 'theme-swatch-card');
     card.dataset.themeId = 'auto';
-    const serika = Themes.resolveTheme('serika');
-    const serikaDark = Themes.resolveTheme('serika_dark');
-    card.style.background = `linear-gradient(135deg, ${serikaDark.bg} 50%, ${serika.bg} 50%)`;
-    card.style.borderColor = serika.main;
-    card.style.color = serika.text;
-    const chips = [serikaDark.bg, serikaDark.main, serikaDark.text, serika.bg, serika.main, serika.text];
+    card.style.background = `linear-gradient(135deg, ${darkTheme.bg} 50%, ${lightTheme.bg} 50%)`;
+    card.style.borderColor = lightTheme.main;
+    card.style.color = lightTheme.text;
+    const chips = [darkTheme.bg, darkTheme.main, darkTheme.text, lightTheme.bg, lightTheme.main, lightTheme.text];
     card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">Auto (system)</div>`;
     card.onclick = async () => { commitThemePreview(); await DB.updateSettings({ themeId: 'auto' }); await reload(); syncSettingsUI(); };
     wrap.appendChild(card);
   }
 
-  function renderThemeGrid(selector, list) {
+  function renderThemeGrid(selector, list, picker) {
     const wrap = $(selector);
     wrap.innerHTML = '';
+    if (!list.length) { wrap.appendChild(el('div', 'theme-empty-hint', 'No themes match.')); return; }
     list.forEach(t => {
       const card = el('div', 'theme-swatch-card');
       card.dataset.themeId = t.id;
+      if (picker) card.dataset.picker = picker;
       card.style.background = t.bg;
       card.style.borderColor = t.main;
       card.style.color = t.text;
       const chips = themeChipColors(t);
       card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div>`;
-      card.onclick = async () => { commitThemePreview(); await DB.updateSettings({ themeId: t.id }); await reload(); syncSettingsUI(); };
+      card.onclick = async () => {
+        commitThemePreview();
+        if (picker === 'light') { await DB.updateSettings({ lightThemeId: t.id }); }
+        else if (picker === 'dark') { await DB.updateSettings({ darkThemeId: t.id }); }
+        else { await DB.updateSettings({ themeId: t.id }); }
+        if (STATE.meta.settings.themeId === 'auto') await reload();
+        syncSettingsUI();
+      };
       wrap.appendChild(card);
     });
   }
@@ -2835,6 +2840,8 @@
   function syncSettingsUI() {
     const s = STATE.meta.settings;
     $$('.theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === s.themeId));
+    $$('#theme-grid-light .theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === (s.lightThemeId || 'serika')));
+    $$('#theme-grid-dark .theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === (s.darkThemeId || 'serika_dark')));
     $$('#density-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.density));
     $('#setting-animations').checked = s.animations !== false;
 

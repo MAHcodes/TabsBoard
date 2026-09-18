@@ -5,7 +5,7 @@
  */
 
 const STORAGE_KEY = 'tdb_data';
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 const DEFAULT_COLLECTION_COLORS = (typeof self !== 'undefined' && self.Themes) ? self.Themes.COLLECTION_COLORS : [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -204,6 +204,8 @@ function defaultState() {
         faviconSource: 'google',   // google | duckduckgo | none
         animations: true,
         openBookmarksInNewTab: false, // false = open bookmarks in the current tab, true = open in a new tab
+        lightThemeId: 'serika',    // used when themeId is 'auto' and the OS is in light mode
+        darkThemeId: 'serika_dark', // used when themeId is 'auto' and the OS is in dark mode
         clockFormat: '24',         // '12' | '24' — default for new Clock widgets
         weatherUnits: 'c',         // 'c' | 'f' — default for new Weather widgets
         pomodoroFocus: 25,         // default focus minutes for new Pomodoro widgets
@@ -377,6 +379,14 @@ function migrate(data) {
     };
     for (const [k, v] of Object.entries(d11)) { if (s[k] === undefined) s[k] = v; }
     data.version = 11;
+  }
+  if (data.version < 12) {
+    // v12: auto theme becomes two user-chosen themes (light + dark) instead
+    // of a hardcoded pair. Existing users keep the classic defaults.
+    const s = data.meta.settings;
+    if (s.lightThemeId === undefined) s.lightThemeId = 'serika';
+    if (s.darkThemeId === undefined) s.darkThemeId = 'serika_dark';
+    data.version = 12;
   }
   return data;
 }
