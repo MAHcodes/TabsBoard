@@ -184,12 +184,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'DISCARD_TAB': {
         // Manually unload a tab from memory (Chrome keeps it in the tab
         // strip but frees its process/memory — like Zen Browser's "unload
-        // tab"). Chrome silently no-ops this on the focused tab, so the
-        // caller should avoid offering it for the active tab.
+        // tab"). Chrome silently no-ops this on the focused/active tab, so
+        // the caller avoids offering it there. Supports both the callback
+        // (Chrome, resolves with the updated tab) and Promise (Firefox,
+        // resolves with no arguments) forms of chrome.tabs.discard, and
+        // always answers exactly once.
         if (!chrome.tabs.discard) { sendResponse({ ok: false, error: 'not supported' }); break; }
-        chrome.tabs.discard(msg.tabId, (tab) => {
-          sendResponse({ ok: !!tab, discarded: tab && tab.discarded, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : undefined });
-        });
+        let answered = false;
+        const finish = (success, tab, errMsg) => {
+          if (answered) return;
+          answered = true;
+          // Chrome hands back the updated tab; Firefox's promise has no
+          // result, so a clean resolve there means "discarded".
+          const discarded = (tab && typeof tab.discarded === 'boolean') ? tab.discarded : success;
+          sendResponse({ ok: !!success && discarded, discarded, error: errMsg });
+        };
+        try {
+          const maybePromise = chrome.tabs.discard(msg.tabId, (tab) => {
+            const err = chrome.runtime.lastError;
+            finish(!err, tab, err ? err.message : undefined);
+          });
+          if (maybePromise && typeof maybePromise.then === 'function') {
+            maybePromise.then(() => finish(true), (err) => finish(false, null, (err && err.message) || String(err)));
+          }
+        } catch (err) {
+          finish(false, null, (err && err.message) || String(err));
+        }
         break;
       }
       case 'OPEN_URL': {

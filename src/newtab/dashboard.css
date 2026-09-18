@@ -179,13 +179,20 @@ svg { width: 100%; height: 100%; }
   display: flex; flex-direction: column;
 }
 .sidebar.collapsed { width: 0; padding: 16px 0; overflow: hidden; opacity: 0; border-right: none; transition: none; }
-.sidebar.compact { width: 64px; }
+.sidebar.compact:not(.collapsed) { width: 64px; padding: 12px 8px; }
+.sidebar.compact .sidebar-heading { flex-direction: column; align-items: center; gap: 4px; padding: 0 0 8px; }
 .sidebar.compact .sidebar-heading > span:first-child,
 .sidebar.compact .tab-title,
-.sidebar.compact .tab-group-label,
-.sidebar.compact .pin-badge { display: none; }
-.sidebar.compact .tab-row { justify-content: center; padding: 8px 4px; }
-.sidebar.compact .favicon { width: 20px; height: 20px; }
+.sidebar.compact .pin-badge,
+.sidebar.compact .empty-collection-hint { display: none; }
+.sidebar.compact .tab-group-label { font-size: 0; padding: 5px 8px 2px; }
+.sidebar.compact .tab-group-label::after { content: ''; display: block; height: 1px; background: var(--border-color); }
+.sidebar.compact .tab-row { justify-content: center; padding: 8px 4px; gap: 0; }
+.sidebar.compact .tab-row img.favicon { width: 22px; height: 22px; }
+.sidebar.compact .tab-icons {
+  position: absolute; inset: 0; align-items: center; justify-content: center; gap: 2px;
+  background: var(--sub-alt-color); border-radius: 9px;
+}
 .sidebar-heading {
   display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 11px; text-transform: uppercase;
   letter-spacing: .06em; color: var(--sub-color); font-weight: 800; padding: 0 6px 10px; flex-shrink: 0;
@@ -237,8 +244,8 @@ svg { width: 100%; height: 100%; }
 .tab-row img.favicon, .bm-favicon { width: 17px; height: 17px; border-radius: 4px; flex-shrink: 0; }
 .tab-row .tab-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-row .pin-badge { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 12px; height: 12px; color: var(--main-color); }
-.tab-row .tab-icons { display: flex; gap: 3px; opacity: 0; }
-.tab-row:hover .tab-icons { opacity: 1; }
+.tab-row .tab-icons { display: flex; gap: 3px; opacity: 0; pointer-events: none; }
+.tab-row:hover .tab-icons { opacity: 1; pointer-events: auto; }
 .tab-row .tab-icons button { border: none; background: none; color: var(--sub-color); width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
 .tab-row .tab-icons button svg { width: 13px; height: 13px; }
 .tab-row .tab-icons button:hover { background: var(--bg-color); color: var(--text-color); }

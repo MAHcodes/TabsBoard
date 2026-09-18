@@ -136,12 +136,6 @@
     } catch { return ''; }
   }
 
-  /* Duplicate-link detection: surfaces where a URL is already saved instead
-     of silently letting the same page pile up across collections. */
-  function normalizeUrl(u) {
-    try { const x = new URL(u); return (x.hostname + x.pathname + x.search).replace(/\/$/, '').toLowerCase(); } catch { return (u || '').toLowerCase(); }
-  }
-
   /* Lightweight fuzzy matcher for the command palette: query characters
      must appear in order in the target (not necessarily adjacent), so
      "gcal" matches "Google Calendar" and small typos/skipped letters still
@@ -170,19 +164,7 @@
     return score;
   }
 
-  function findExistingBookmark(url) {
-    return Object.values(STATE.bookmarks).find(b => b.workspaceId === activeWorkspaceId() && normalizeUrl(b.url) === normalizeUrl(url));
-  }
   async function addBookmarkSmart(collectionId, wsId, data) {
-    const dupe = findExistingBookmark(data.url);
-    if (dupe) {
-      const col = STATE.collections[dupe.collectionId];
-      toast(`Already saved in "${col ? col.name : 'another collection'}"`, 'Add anyway', async () => {
-        await DB.createBookmark(collectionId, wsId, data);
-        await reload();
-      });
-      return null;
-    }
     const created = await DB.createBookmark(collectionId, wsId, data);
     await reload();
     return created;
@@ -2121,11 +2103,6 @@
           await DB.updateBookmark(existing.id, { title, url, tags, notes });
           if (collectionId !== existing.collectionId) await DB.moveBookmarks([existing.id], collectionId);
         } else {
-          const dupe = findExistingBookmark(url);
-          if (dupe) {
-            const dupeCol = STATE.collections[dupe.collectionId];
-            if (!confirm(`This is already saved in "${dupeCol ? dupeCol.name : 'another collection'}". Add it again anyway?`)) return;
-          }
           await DB.createBookmark(collectionId, activeWorkspaceId(), { title, url, tags, notes });
         }
         await reload(); closeModal();
