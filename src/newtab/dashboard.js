@@ -2833,7 +2833,7 @@
       card.style.borderColor = t.main;
       card.style.color = t.text;
       const chips = themeChipColors(t);
-      card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div>`;
+      card.innerHTML = `<span class="theme-mode-tag"></span><div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div>`;
       card.onclick = async () => {
         commitThemePreview();
         const mode = STATE.meta.settings.themeId === 'auto' ? (autoEditMode === 'light' ? 'light' : 'dark') : null;
@@ -2856,7 +2856,17 @@
     const s = STATE.meta.settings;
     const autoOn = s.themeId === 'auto';
     const applied = appliedThemeId();
-    $$('.theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === applied));
+    const lightId = s.lightThemeId || 'serika';
+    const darkId = s.darkThemeId || 'serika_dark';
+    $$('.theme-swatch-card').forEach(c => {
+      const id = c.dataset.themeId;
+      c.classList.toggle('selected', id === applied);
+      const tag = c.querySelector('.theme-mode-tag');
+      if (!tag) return;
+      if (autoOn && id === lightId) { tag.textContent = 'Light'; tag.style.display = ''; }
+      else if (autoOn && id === darkId) { tag.textContent = 'Dark'; tag.style.display = ''; }
+      else { tag.style.display = 'none'; }
+    });
     $('#setting-auto-theme').checked = autoOn;
     const modeRow = $('#auto-mode-row');
     if (modeRow) modeRow.classList.toggle('hidden', !autoOn);
