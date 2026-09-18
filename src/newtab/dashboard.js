@@ -2733,7 +2733,19 @@
       await reload();
       syncSettingsUI();
     };
-    $('#theme-search-input').addEventListener('input', (e) => { renderThemeGrids(); syncSettingsUI(); });
+    const themeSearchInput = $('#theme-search-input');
+    const themeSearchClear = $('#theme-search-clear');
+    themeSearchClear.innerHTML = ICONS.x;
+    const updateSearchClear = () => themeSearchClear.classList.toggle('hidden', !themeSearchInput.value.trim());
+    themeSearchInput.addEventListener('input', (e) => { renderThemeGrids(); syncSettingsUI(); updateSearchClear(); });
+    themeSearchClear.onclick = () => {
+      themeSearchInput.value = '';
+      themeSearchInput.focus();
+      renderThemeGrids();
+      syncSettingsUI();
+      updateSearchClear();
+    };
+    updateSearchClear();
 
     $$('#density-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ density: b.dataset.val }); await reload(); syncSettingsUI(); });
     $('#setting-animations').onchange = async (e) => { await DB.updateSettings({ animations: e.target.checked }); await reload(); };

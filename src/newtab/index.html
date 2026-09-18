@@ -155,7 +155,12 @@
               <h3>Themes</h3>
               <p>Pick a color scheme — themes preview live as you browse the grid.</p>
             </div>
-            <input id="theme-search-input" class="theme-search" type="text" placeholder="Filter themes…" autocomplete="off" />
+            <div class="theme-search-wrap">
+              <div class="theme-search-box">
+                <input id="theme-search-input" class="theme-search" type="text" placeholder="Filter themes…" autocomplete="off" />
+                <button type="button" id="theme-search-clear" class="theme-search-clear hidden" title="Clear filter" aria-label="Clear filter"></button>
+              </div>
+            </div>
             <div class="settings-row">
               <div class="switch-row">
                 <span class="switch-text"><span class="switch-title">Auto theme (follow system)</span><span class="switch-desc">Use the light theme in light mode and the dark theme in dark mode.</span></span>
