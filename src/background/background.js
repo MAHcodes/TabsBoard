@@ -25,6 +25,20 @@ chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(() => {
   rebuildContextMenus();
 });
 
+// Purge trash items older than the retention setting. Runs on worker start
+// up and then periodically, so expired items are cleared even when the
+// dashboard never opens. No chrome.alarms permission needed — MV3 workers
+// restart (re-running this) and Firefox keeps the interval alive.
+async function runTrashPurge() {
+  try {
+    const state = await DB.getState();
+    const days = (state.meta.settings && state.meta.settings.trashRetentionDays) || 0;
+    await DB.purgeExpiredTrash(days);
+  } catch (e) { /* non-fatal */ }
+}
+runTrashPurge();
+setInterval(runTrashPurge, 12 * 60 * 60 * 1000);
+
 async function rebuildContextMenus() {
   chrome.contextMenus.removeAll(async () => {
     const state = await DB.getState();

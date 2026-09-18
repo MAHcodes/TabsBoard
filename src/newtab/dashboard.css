@@ -47,6 +47,7 @@ html.theme-ready { visibility: visible; }
 
 html.density-compact { --gap: 10px; --pad: 9px; }
 html.no-anim, html.no-anim * { transition: none !important; animation: none !important; }
+html.font-large { zoom: 1.07; }
 
 * { box-sizing: border-box; }
 body {
@@ -382,6 +383,7 @@ body.dragging-tab .widget-ghost { display: flex; }
 /* Weather widget */
 .weather-body { padding: 18px 14px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
 .weather-temp { font-size: 32px; font-weight: 800; letter-spacing: -.02em; }
+.weather-temp .weather-unit { font-size: 15px; font-weight: 700; color: var(--sub-color); margin-left: 2px; }
 .weather-desc { font-size: 12.5px; color: var(--sub-color); font-weight: 600; }
 
 /* RSS widget */
@@ -506,6 +508,9 @@ body.dragging-tab .widget-ghost { display: flex; }
   display: flex; flex-direction: column; overflow: hidden;
 }
 .settings-modal .modal-header-row { flex-shrink: 0; padding-bottom: 14px; border-bottom: 1px solid var(--border-color); margin-bottom: 0; }
+/* Command palette sits higher on screen rather than dead-center, like a
+   launcher — the backdrop still blurs behind it. */
+#palette-overlay { align-items: flex-start; padding-top: 15vh; }
 .settings-layout { display: flex; flex: 1; min-height: 0; padding-top: 16px; }
 .settings-tabs { display: flex; flex-direction: column; gap: 2px; width: 196px; flex-shrink: 0; overflow-y: auto; padding-right: 14px; }
 .settings-tab {
@@ -560,6 +565,10 @@ body.dragging-tab .widget-ghost { display: flex; }
 .segmented button.active { background: var(--bg-color); color: var(--text-color); box-shadow: 0 1px 3px rgba(0,0,0,.14); }
 .checkbox-row { font-size: 13px; margin-bottom: 4px; }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.num-inline { display: flex; align-items: center; gap: 8px; }
+.num-inline input { width: 86px; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); font-size: 13px; font-weight: 700; outline: none; text-align: center; }
+.num-inline input:focus { border-color: var(--main-color); }
+.num-inline .num-sep { color: var(--sub-color); font-weight: 700; font-size: 13px; }
 
 .shortcuts-modal { width: min(440px, 92vw); }
 .shortcut-list-big { list-style: none; padding: 0; margin: 14px 0; display: flex; flex-direction: column; gap: 10px; }

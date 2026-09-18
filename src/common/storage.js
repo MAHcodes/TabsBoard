@@ -5,7 +5,7 @@
  */
 
 const STORAGE_KEY = 'tdb_data';
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 const DEFAULT_COLLECTION_COLORS = (typeof self !== 'undefined' && self.Themes) ? self.Themes.COLLECTION_COLORS : [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -204,6 +204,18 @@ function defaultState() {
         faviconSource: 'google',   // google | duckduckgo | none
         animations: true,
         openBookmarksInNewTab: false, // false = open bookmarks in the current tab, true = open in a new tab
+        clockFormat: '24',         // '12' | '24' — default for new Clock widgets
+        weatherUnits: 'c',         // 'c' | 'f' — default for new Weather widgets
+        pomodoroFocus: 25,         // default focus minutes for new Pomodoro widgets
+        pomodoroBreak: 5,          // default break minutes for new Pomodoro widgets
+        countdownDays: 7,          // default target (days out) for new Countdown widgets
+        rssRefreshInterval: 0,     // minutes between automatic RSS refreshes; 0 = manual only
+        recentlyClosedLimit: 20,   // how many recently-closed tabs the sidebar shows
+        trashRetentionDays: 0,     // days to keep trash items before auto-purge; 0 = keep forever
+        confirmRestoreSession: false, // ask before restoring a saved session
+        showTopbarSearch: true,    // show the "Jump to…" search bar in the header
+        showTopbarButtons: true,   // show the shortcuts + trash buttons in the header
+        interfaceFontLarge: false, // bump up the base interface font size
         dashboard: {
           columns: 4               // board width in columns (3–6); each widget spans 1–N of these
         },
@@ -352,6 +364,19 @@ function migrate(data) {
     // a new tab unless they've opted into it moving forward.
     if (data.meta.settings.openBookmarksInNewTab === undefined) data.meta.settings.openBookmarksInNewTab = false;
     data.version = 10;
+  }
+  if (data.version < 11) {
+    // v11: new widget defaults, topbar/retention/font options. Backfill
+    // missing keys so every existing user gets sensible values.
+    const s = data.meta.settings;
+    const d11 = {
+      clockFormat: '24', weatherUnits: 'c', pomodoroFocus: 25, pomodoroBreak: 5,
+      countdownDays: 7, rssRefreshInterval: 0, recentlyClosedLimit: 20,
+      trashRetentionDays: 0, confirmRestoreSession: false,
+      showTopbarSearch: true, showTopbarButtons: true, interfaceFontLarge: false
+    };
+    for (const [k, v] of Object.entries(d11)) { if (s[k] === undefined) s[k] = v; }
+    data.version = 11;
   }
   return data;
 }
@@ -661,17 +686,24 @@ async function softDeleteBookmarks(ids) {
 
 /* ---------- Widgets (dashboard board) ---------- */
 
-function widgetDefaults(type) {
+function widgetDefaults(type, settings) {
+  const s = settings || {};
   const base = { tintColor: null }; // per-widget background tint override; null = default surface color
   if (type === 'notes') return { ...base, text: '' };
   if (type === 'todo') return { ...base, items: [] };
-  if (type === 'clock') return { ...base, format: '24', timezone: '' };
+  if (type === 'clock') return { ...base, format: s.clockFormat || '24', timezone: '' };
   if (type === 'search') return { ...base, engine: 'google' };
-  if (type === 'countdown') return { ...base, label: 'Countdown', targetDate: '' };
-  if (type === 'pomodoro') return { ...base, focusMinutes: 25, breakMinutes: 5, mode: 'focus', running: false, endsAt: null };
+  if (type === 'countdown') {
+    // Default target = a few days out, so a fresh Countdown widget means
+    // something immediately instead of "no date set".
+    const days = (s.countdownDays && s.countdownDays > 0 ? s.countdownDays : 7);
+    const d = new Date(Date.now() + days * 86400000);
+    return { ...base, label: 'Countdown', targetDate: d.toISOString().slice(0, 10) };
+  }
+  if (type === 'pomodoro') return { ...base, focusMinutes: s.pomodoroFocus || 25, breakMinutes: s.pomodoroBreak || 5, mode: 'focus', running: false, endsAt: null };
   if (type === 'timer') return { ...base, durationSec: 300, remainingMs: 300000, running: false, startedAt: null, showMs: false };
   if (type === 'stopwatch') return { ...base, running: false, startedAt: null, accumMs: 0, showMs: false };
-  if (type === 'weather') return { ...base, query: '', label: '', lat: null, lon: null };
+  if (type === 'weather') return { ...base, query: '', label: '', lat: null, lon: null, units: s.weatherUnits || 'c' };
   if (type === 'rss') return { ...base, feedUrl: '', label: '', items: [], lastFetched: null };
   return base;
 }
@@ -681,7 +713,7 @@ async function createWidget(workspaceId, type, extra) {
     const id = uid();
     const boardId = activeBoardIdFor(d, workspaceId);
     const order = Object.values(d.widgets).filter(w => w.boardId === boardId).length;
-    d.widgets[id] = { id, workspaceId, boardId, type, span: 1, rowSpan: 1, order, createdAt: now(), ...widgetDefaults(type), ...(extra || {}) };
+    d.widgets[id] = { id, workspaceId, boardId, type, span: 1, rowSpan: 1, order, createdAt: now(), ...widgetDefaults(type, d.meta.settings), ...(extra || {}) };
     assignWidgetPosition(d, id);
     return d.widgets[id];
   });
@@ -771,6 +803,21 @@ async function purgeTrashItem(trashId) {
 
 async function emptyTrash() {
   return setState((d) => { d.trash = {}; });
+}
+
+// Delete trash items older than retentionDays (0 = never). Returns how many
+// were purged. Called by the background so it runs even when the dashboard
+// isn't open.
+async function purgeExpiredTrash(retentionDays) {
+  if (!retentionDays || retentionDays < 1) return 0;
+  const cutoff = now() - retentionDays * 86400000;
+  return setState((d) => {
+    let purged = 0;
+    for (const [tid, item] of Object.entries(d.trash)) {
+      if (item.deletedAt && item.deletedAt < cutoff) { delete d.trash[tid]; purged++; }
+    }
+    return purged;
+  });
 }
 
 /* ---------- Sessions ---------- */
@@ -970,7 +1017,7 @@ const TabsDB = {
   createCollection, updateCollection, reorderCollections, softDeleteCollection,
   toggleCollectionPin, duplicateCollection, setCollectionSortMode, setCollectionViewMode,
   createBookmark, updateBookmark, moveBookmarks, reorderBookmarks, softDeleteBookmarks, toggleBookmarkPin, duplicateBookmark,
-  restoreTrashItem, purgeTrashItem, emptyTrash,
+  restoreTrashItem, purgeTrashItem, emptyTrash, purgeExpiredTrash,
   createSession, deleteSession, renameSession, updateSessionTabs, duplicateSession, convertSessionToCollection,
   updateSettings,
   createWidget, updateWidget, deleteWidget, reorderWidgets,

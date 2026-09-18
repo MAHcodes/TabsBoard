@@ -202,6 +202,7 @@
     }
     setInterval(updateClockWidgets, 1000 * 30);
     setInterval(updatePomodoroWidgets, 1000);
+    setInterval(runRssAutoRefresh, 60000);
     function tickTimerWidgets() { updateTimerWidgets(); requestAnimationFrame(tickTimerWidgets); }
     requestAnimationFrame(tickTimerWidgets);
   }
@@ -216,7 +217,8 @@
   let RECENTLY_CLOSED = [];
   async function refreshRecentlyClosed() {
     const res = await sendMsg('GET_RECENTLY_CLOSED');
-    RECENTLY_CLOSED = (res && res.items) || [];
+    const limit = Number((STATE.meta.settings && STATE.meta.settings.recentlyClosedLimit) || 20);
+    RECENTLY_CLOSED = ((res && res.items) || []).slice(0, limit);
   }
 
   function renderAll() {
@@ -289,6 +291,12 @@
     r.setProperty('--inactive-tab-filter', grayscale);
     document.documentElement.classList.toggle('density-compact', s.density === 'compact');
     document.documentElement.classList.toggle('no-anim', s.animations === false);
+    document.documentElement.classList.toggle('font-large', s.interfaceFontLarge === true);
+    ['#search-trigger', '#shortcuts-btn', '#trash-btn'].forEach(sel => {
+      const elNode = $(sel);
+      if (!elNode) return;
+      elNode.classList.toggle('hidden', sel === '#search-trigger' ? s.showTopbarSearch === false : s.showTopbarButtons === false);
+    });
     $('#sidebar').classList.toggle('collapsed', !!s.sidebarCollapsed);
     $('#sidebar').classList.toggle('compact', !!s.sidebarCompact);
     $('#sidebar-toggle-btn .icon').style.transform = s.sidebarCollapsed ? 'rotate(180deg)' : 'none';
@@ -1356,16 +1364,19 @@
     }
     body.innerHTML = `<div class="empty-collection-hint">Loading…</div>`;
     card.appendChild(body);
-    fetchWeather(w.lat, w.lon).then(data => {
+    const units = w.units || STATE.meta.settings.weatherUnits || 'c';
+    fetchWeather(w.lat, w.lon, units).then(data => {
       if (!data) { body.innerHTML = `<div class="empty-collection-hint">Couldn't load weather</div>`; return; }
       const desc = WEATHER_CODES[data.weathercode] || '—';
-      body.innerHTML = `<div class="weather-temp">${Math.round(data.temperature)}°</div><div class="weather-desc">${desc}</div>`;
+      const unitLabel = units === 'f' ? '°F' : '°C';
+      body.innerHTML = `<div class="weather-temp">${Math.round(data.temperature)}<span class="weather-unit">${unitLabel}</span></div><div class="weather-desc">${desc}</div>`;
     });
     return card;
   }
-  async function fetchWeather(lat, lon) {
+  async function fetchWeather(lat, lon, units) {
     try {
-      const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+      const tempUnit = units === 'f' ? '&temperature_unit=fahrenheit' : '';
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true${tempUnit}`);
       const json = await res.json();
       return json.current_weather || null;
     } catch { return null; }
@@ -1472,15 +1483,52 @@
       return { items: atomEntries.filter(i => i.link).slice(0, 10), label: feedTitle ? feedTitle.textContent : '' };
     } catch { return null; }
   }
-  async function refreshRssWidget(w) {
-    if (!w.feedUrl) { toast('Set a feed URL first'); return; }
-    const ok = await ensureFeedPermission(w.feedUrl);
-    if (!ok) { toast('Permission for that feed was not granted'); return; }
-    const result = await fetchFeed(w.feedUrl);
-    if (!result) { toast("Couldn't load that feed"); return; }
-    await DB.updateWidget(w.id, { items: result.items, label: w.label || result.label, lastFetched: Date.now() });
-    await reload();
-    toast('Feed refreshed');
+  const rssRefreshing = new Set();
+  async function refreshRssWidget(w, silent) {
+    if (!w.feedUrl) { if (!silent) toast('Set a feed URL first'); return; }
+    if (rssRefreshing.has(w.id)) return;
+    rssRefreshing.add(w.id);
+    try {
+      if (silent) {
+        // Auto-refresh runs outside a user gesture, so chrome.permissions
+        // .request() would fail/no-op — only refresh feeds whose origin was
+        // already granted, and stay quiet about it.
+        const pattern = originPatternFor(w.feedUrl);
+        if (pattern && chrome.permissions) {
+          const granted = await new Promise(res => chrome.permissions.contains({ origins: [pattern] }, res));
+          if (!granted) return;
+        }
+      } else {
+        const ok = await ensureFeedPermission(w.feedUrl);
+        if (!ok) { toast('Permission for that feed was not granted'); return; }
+      }
+      const result = await fetchFeed(w.feedUrl);
+      if (!result) { if (!silent) toast("Couldn't load that feed"); return; }
+      await DB.updateWidget(w.id, { items: result.items, label: w.label || result.label, lastFetched: Date.now() });
+      if (!silent) await reload();
+      if (!silent) toast('Feed refreshed');
+    } finally {
+      rssRefreshing.delete(w.id);
+    }
+  }
+
+  // Periodic auto-refresh for RSS widgets. New items appear in the cached
+  // list on the widget, which renderRssWidget already reads, so this only
+  // needs a full re-render (reload()) when an idle feed actually refreshed.
+  async function runRssAutoRefresh() {
+    const minutes = (STATE.meta.settings && STATE.meta.settings.rssRefreshInterval) || 0;
+    if (!(minutes > 0)) return;
+    const minMs = minutes * 60000;
+    const nowTs = Date.now();
+    for (const w of Object.values(STATE.widgets)) {
+      if (w.type !== 'rss' || !w.feedUrl) continue;
+      if (w.lastFetched && (nowTs - w.lastFetched) < minMs) continue;
+      const fetchedBefore = w.lastFetched;
+      await refreshRssWidget(w, true);
+      const after = await DB.getState().then(d => d.widgets[w.id]);
+      if (!after) continue;
+      if (after.lastFetched !== fetchedBefore) await reload();
+    }
   }
   function openRssEditModal(w) {
     const body = `
@@ -2211,6 +2259,7 @@
       const restoreNewBtn = card.querySelector('[data-act=restore-new]');
       const runRestore = async (btn, newWindow) => {
         if (btn.disabled) return;
+        if (STATE.meta.settings.confirmRestoreSession && !confirm(`Restore "${s.name}" (${s.tabs.length} tabs)${newWindow ? ' in a new window' : ''}?`)) return;
         btn.disabled = true;
         const original = btn.innerHTML;
         btn.innerHTML = `${icon('refresh', 'sm')} Restoring…`;
@@ -2315,16 +2364,41 @@
     { id: 'inactiveGrayscale', label: 'Grayscale unloaded tabs', get: s => !(s.tabsList && s.tabsList.inactiveGrayscale === false), set: v => ({ tabsList: { inactiveGrayscale: v } }), options: [
       { label: 'On', value: true }, { label: 'Off', value: false } ] },
     { id: 'inactiveOpacity', label: 'Inactive tab opacity', get: s => (s.tabsList && s.tabsList.inactiveOpacity) ?? 55, set: v => ({ tabsList: { inactiveOpacity: v } }), options: [
-      { label: 'Faint (35%)', value: 35 }, { label: 'Dim (55%)', value: 55 }, { label: 'Subtle (75%)', value: 75 }, { label: 'Off (100%)', value: 100 } ] }
+      { label: 'Faint (35%)', value: 35 }, { label: 'Dim (55%)', value: 55 }, { label: 'Subtle (75%)', value: 75 }, { label: 'Off (100%)', value: 100 } ] },
+    { id: 'clockFormat', label: 'Clock widget format', get: s => s.clockFormat || '24', set: v => ({ clockFormat: v }), options: [
+      { label: '24-hour', value: '24' }, { label: '12-hour', value: '12' } ] },
+    { id: 'weatherUnits', label: 'Weather units', get: s => s.weatherUnits || 'c', set: v => ({ weatherUnits: v }), options: [
+      { label: 'Celsius', value: 'c' }, { label: 'Fahrenheit', value: 'f' } ] },
+    { id: 'pomodoroFocus', label: 'Pomodoro focus (min)', get: s => s.pomodoroFocus || 25, set: v => ({ pomodoroFocus: v }), options: [
+      { label: '15 min', value: 15 }, { label: '20 min', value: 20 }, { label: '25 min', value: 25 }, { label: '30 min', value: 30 }, { label: '45 min', value: 45 } ] },
+    { id: 'pomodoroBreak', label: 'Pomodoro break (min)', get: s => s.pomodoroBreak || 5, set: v => ({ pomodoroBreak: v }), options: [
+      { label: '5 min', value: 5 }, { label: '10 min', value: 10 }, { label: '15 min', value: 15 }, { label: '20 min', value: 20 } ] },
+    { id: 'countdownDays', label: 'Countdown default (days)', get: s => s.countdownDays || 7, set: v => ({ countdownDays: v }), options: [
+      { label: '7 days', value: 7 }, { label: '14 days', value: 14 }, { label: '30 days', value: 30 }, { label: '60 days', value: 60 } ] },
+    { id: 'rssRefreshInterval', label: 'RSS auto-refresh', get: s => s.rssRefreshInterval || 0, set: v => ({ rssRefreshInterval: v }), options: [
+      { label: 'Off', value: 0 }, { label: 'Every 15 min', value: 15 }, { label: 'Every 30 min', value: 30 }, { label: 'Every 60 min', value: 60 } ] },
+    { id: 'confirmRestoreSession', label: 'Confirm before restoring session', get: s => s.confirmRestoreSession === true, set: v => ({ confirmRestoreSession: v }), options: [
+      { label: 'Off', value: false }, { label: 'On', value: true } ] },
+    { id: 'showTopbarSearch', label: 'Topbar search bar', get: s => s.showTopbarSearch !== false, set: v => ({ showTopbarSearch: v }), options: [
+      { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
+    { id: 'showTopbarButtons', label: 'Shortcuts & trash buttons', get: s => s.showTopbarButtons !== false, set: v => ({ showTopbarButtons: v }), options: [
+      { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
+    { id: 'fontLarge', label: 'Larger interface font', get: s => s.interfaceFontLarge === true, set: v => ({ interfaceFontLarge: v }), options: [
+      { label: 'Off', value: false }, { label: 'On', value: true } ] },
+    { id: 'recentlyClosedLimit', label: 'Recently closed tabs shown', get: s => s.recentlyClosedLimit || 20, set: v => ({ recentlyClosedLimit: v }), options: [
+      { label: '5', value: 5 }, { label: '10', value: 10 }, { label: '20', value: 20 }, { label: '40', value: 40 } ] },
+    { id: 'trashRetentionDays', label: 'Keep deleted bookmarks for', get: s => s.trashRetentionDays || 0, set: v => ({ trashRetentionDays: v }), options: [
+      { label: 'Forever', value: 0 }, { label: '7 days', value: 7 }, { label: '30 days', value: 30 }, { label: '90 days', value: 90 } ] }
   ];
   const PALETTE_SETTINGS_BY_ID = Object.fromEntries(PALETTE_SETTINGS.map(d => [d.id, d]));
 
   /* The palette is a navigable tree: root → Themes / Settings groups → options.
      Searching flattens every leaf so "change anything by typing" still works. */
   const PALETTE_SETTING_GROUPS = [
-    { name: 'Appearance', keys: ['density', 'animations'] },
-    { name: 'Layout', keys: ['viewMode', 'columns', 'sidebarCollapsed', 'sidebarCompact'] },
-    { name: 'Behavior', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity'] }
+    { name: 'Appearance', keys: ['density', 'animations', 'fontLarge'] },
+    { name: 'Layout', keys: ['viewMode', 'columns', 'sidebarCollapsed', 'sidebarCompact', 'showTopbarSearch', 'showTopbarButtons'] },
+    { name: 'Behavior', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'clockFormat', 'weatherUnits', 'pomodoroFocus', 'pomodoroBreak', 'countdownDays', 'rssRefreshInterval', 'confirmRestoreSession'] },
+    { name: 'Data', keys: ['recentlyClosedLimit', 'trashRetentionDays'] }
   ];
 
   function themeChipColors(t) { return [t.bg, t.main, t.caret, t.sub, t.subAlt, t.text]; }
@@ -2661,6 +2735,31 @@
     $('#setting-inactive-grayscale').onchange = async (e) => { await DB.updateSettings({ tabsList: { inactiveGrayscale: e.target.checked } }); await reload(); };
     $$('#inactiveopacity-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ tabsList: { inactiveOpacity: parseInt(b.dataset.val, 10) } }); await reload(); syncSettingsUI(); });
 
+    $('#setting-show-topbar-search').onchange = async (e) => { await DB.updateSettings({ showTopbarSearch: e.target.checked }); await reload(); };
+    $('#setting-show-topbar-buttons').onchange = async (e) => { await DB.updateSettings({ showTopbarButtons: e.target.checked }); await reload(); };
+    $('#setting-font-large').onchange = async (e) => { await DB.updateSettings({ interfaceFontLarge: e.target.checked }); await reload(); };
+
+    $$('#widget-clock-format button').forEach(b => b.onclick = async () => { await DB.updateSettings({ clockFormat: b.dataset.val }); await reload(); syncSettingsUI(); });
+    $$('#widget-weather-units button').forEach(b => b.onclick = async () => { await DB.updateSettings({ weatherUnits: b.dataset.val }); await reload(); syncSettingsUI(); });
+    $('#widget-pomodoro-focus').onchange = async (e) => {
+      const v = parseInt(e.target.value, 10);
+      if (v >= 1 && v <= 180) { await DB.updateSettings({ pomodoroFocus: v }); await reload(); } else syncSettingsUI();
+    };
+    $('#widget-pomodoro-break').onchange = async (e) => {
+      const v = parseInt(e.target.value, 10);
+      if (v >= 1 && v <= 60) { await DB.updateSettings({ pomodoroBreak: v }); await reload(); } else syncSettingsUI();
+    };
+    $('#widget-countdown-days').onchange = async (e) => {
+      const v = parseInt(e.target.value, 10);
+      if (v >= 1 && v <= 365) { await DB.updateSettings({ countdownDays: v }); await reload(); } else syncSettingsUI();
+    };
+    $$('#widget-rss-refresh button').forEach(b => b.onclick = async () => { await DB.updateSettings({ rssRefreshInterval: parseInt(b.dataset.val, 10) }); await reload(); syncSettingsUI(); });
+
+    $('#setting-confirm-restore-session').onchange = async (e) => { await DB.updateSettings({ confirmRestoreSession: e.target.checked }); await reload(); };
+
+    $$('#recently-closed-limit button').forEach(b => b.onclick = async () => { await DB.updateSettings({ recentlyClosedLimit: parseInt(b.dataset.val, 10) }); await reload(); syncSettingsUI(); });
+    $$('#trash-retention button').forEach(b => b.onclick = async () => { await DB.updateSettings({ trashRetentionDays: parseInt(b.dataset.val, 10) }); await reload(); syncSettingsUI(); });
+
     $('#export-json-btn').onclick = async () => downloadFile('tabsboard-export.json', await DB.exportJSON(), 'application/json');
     $('#export-html-btn').onclick = () => {
       const cols = collectionsForActiveWS();
@@ -2752,6 +2851,22 @@
     $('#setting-dim-inactive').checked = tl.dimInactive !== false;
     $('#setting-inactive-grayscale').checked = tl.inactiveGrayscale !== false;
     $$('#inactiveopacity-toggle button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (tl.inactiveOpacity ?? 55)));
+
+    $('#setting-show-topbar-search').checked = s.showTopbarSearch !== false;
+    $('#setting-show-topbar-buttons').checked = s.showTopbarButtons !== false;
+    $('#setting-font-large').checked = s.interfaceFontLarge === true;
+
+    $$('#widget-clock-format button').forEach(b => b.classList.toggle('active', b.dataset.val === (s.clockFormat || '24')));
+    $$('#widget-weather-units button').forEach(b => b.classList.toggle('active', b.dataset.val === (s.weatherUnits || 'c')));
+    $('#widget-pomodoro-focus').value = s.pomodoroFocus || 25;
+    $('#widget-pomodoro-break').value = s.pomodoroBreak || 5;
+    $('#widget-countdown-days').value = s.countdownDays || 7;
+    $$('#widget-rss-refresh button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (s.rssRefreshInterval || 0)));
+
+    $('#setting-confirm-restore-session').checked = s.confirmRestoreSession === true;
+
+    $$('#recently-closed-limit button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (s.recentlyClosedLimit || 20)));
+    $$('#trash-retention button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (s.trashRetentionDays || 0)));
   }
 
   function downloadFile(filename, content, mime) {
