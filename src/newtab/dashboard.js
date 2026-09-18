@@ -2703,7 +2703,8 @@
   }
 
   /* ============ SETTINGS PANEL ============ */
-  function openSettings() { renderThemeGrids(); renderThemeDropdowns(); syncSettingsUI(); $('#settings-overlay').classList.remove('hidden'); }
+  function openSettings() { renderThemeGrids(); renderThemePickers(); syncSettingsUI(); $('#settings-overlay').classList.remove('hidden'); }
+  function closeSettings() { cancelThemePick(); $('#settings-overlay').classList.add('hidden'); }
 
   function wireSettingsPanel() {
     $$('.settings-tab').forEach(btn => {
@@ -2715,11 +2716,23 @@
       };
     });
     $('#settings-btn').onclick = openSettings;
-    $('#settings-close-x').onclick = () => { endThemePreview(); $('#settings-overlay').classList.add('hidden'); };
+    $('#settings-close-x').onclick = () => { endThemePreview(); closeSettings(); };
 
     renderThemeGrids();
-    renderThemeDropdowns();
-    document.addEventListener('click', closeThemeDropdowns);
+    renderThemePickers();
+    $('#setting-auto-theme').onchange = async (e) => {
+      const s = STATE.meta.settings;
+      if (e.target.checked) {
+        await DB.updateSettings({ themeId: 'auto' });
+      } else {
+        // Turn auto off: land on whichever of the two modes matches the OS
+        // right now, so the look barely changes.
+        const prefersDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
+        await DB.updateSettings({ themeId: prefersDark ? (s.darkThemeId || 'serika_dark') : (s.lightThemeId || 'serika') });
+      }
+      await reload();
+      syncSettingsUI();
+    };
     $('#theme-search-input').addEventListener('input', (e) => { renderThemeGrids(); syncSettingsUI(); });
 
     $$('#density-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ density: b.dataset.val }); await reload(); syncSettingsUI(); });
@@ -2788,72 +2801,60 @@
   }
 
   function renderThemeGrids() {
-    renderAutoThemeCard();
     const input = $('#theme-search-input');
     const q = (input ? input.value : '').trim().toLowerCase();
     const list = Themes.PRESET_THEMES.filter(t => !q || t.name.toLowerCase().includes(q));
     renderThemeGrid('#theme-grid-all', list);
   }
 
-  /* Auto mode's light/dark theme pickers: each trigger renders as a mini
-     swatch card for the currently chosen preset, and clicking it opens a
-     dropdown listing every preset (rows show color chips + name). */
-  function themeMiniChips(t) {
-    return `<span class="tdd-chips">${themeChipColors(t).slice(0, 5).map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</span>`;
-  }
-  function closeThemeDropdowns() {
-    $$('.theme-dropdown-list').forEach(l => l.classList.add('hidden'));
-  }
-  function openThemeDropdown(key) {
-    const list = $(`#auto-${key}-dropdown .theme-dropdown-list`);
-    if (!list) return;
-    closeThemeDropdowns();
-    list.classList.remove('hidden');
-  }
-  function renderThemeDropdown(key) {
-    const wrap = $(`#auto-${key}-dropdown`);
-    if (!wrap) return;
-    const s = STATE.meta.settings;
-    const curId = key === 'light' ? (s.lightThemeId || 'serika') : (s.darkThemeId || 'serika_dark');
-    const cur = Themes.PRESET_THEMES.find(x => x.id === curId) || Themes.PRESET_THEMES[0];
-    const trigger = wrap.querySelector('.theme-dropdown-trigger');
-    trigger.innerHTML = `<div class="theme-swatch-chips">${themeChipColors(cur).slice(0, 3).map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><span class="theme-swatch-label">${cur.name}</span>`;
-    trigger.style.background = cur.bg;
-    trigger.style.borderColor = cur.main;
-    trigger.style.color = cur.text;
-    trigger.onclick = (e) => { e.stopPropagation(); openThemeDropdown(key); };
+  /* Auto theme's light/dark pickers: buttons that render the full 6-color
+     chips of the currently selected theme. Clicking one enters "pick mode" —
+     the presets below are highlighted, and clicking a preset assigns it to
+     that mode (Esc cancels). */
+  let pickingThemeFor = null; // 'light' | 'dark' | null
 
-    const list = wrap.querySelector('.theme-dropdown-list');
-    list.innerHTML = '';
-    Themes.PRESET_THEMES.forEach(pt => {
-      const row = el('div', 'theme-dropdown-row' + (pt.id === curId ? ' active' : ''));
-      row.innerHTML = `${themeMiniChips(pt)}<span style="flex:1">${pt.name}</span>${pt.id === curId ? `<span class="tdd-check">${ICONS.check || '✓'}</span>` : ''}`;
-      row.onclick = async () => {
-        await DB.updateSettings(key === 'light' ? { lightThemeId: pt.id } : { darkThemeId: pt.id });
-        if (STATE.meta.settings.themeId === 'auto') await reload();
-        closeThemeDropdowns();
-        renderThemeDropdown(key);
-      };
-      list.appendChild(row);
+  function pickerThemeFor(key) {
+    const s = STATE.meta.settings;
+    return (key === 'light' ? (s.lightThemeId || 'serika') : (s.darkThemeId || 'serika_dark'));
+  }
+  function startThemePick(key) {
+    pickingThemeFor = pickingThemeFor === key ? null : key;
+    updatePickModeUI();
+  }
+  function cancelThemePick() {
+    pickingThemeFor = null;
+    updatePickModeUI();
+  }
+  function endThemePick(key, name) {
+    pickingThemeFor = null;
+    updatePickModeUI();
+    toast(`${key === 'light' ? 'Light' : 'Dark'} theme set to ${name}`);
+  }
+  function updatePickModeUI() {
+    const btns = $$('.theme-pick-btn');
+    btns.forEach(b => b.classList.toggle('picking', b.dataset.key === pickingThemeFor));
+    const grid = $('#theme-grid-all');
+    if (grid) grid.classList.toggle('pick-active', !!pickingThemeFor);
+    const hint = $('#theme-pick-hint');
+    if (hint) {
+      hint.classList.toggle('hidden', !pickingThemeFor);
+      hint.innerHTML = pickingThemeFor
+        ? `<span class="pick-hint-dot"></span> Pick a theme below for the <b>${pickingThemeFor} theme</b> — Esc to cancel.`
+        : '';
+    }
+  }
+  function renderThemePickers() {
+    ['light', 'dark'].forEach(key => {
+      const btn = $(`#auto-${key}-btn`);
+      if (!btn) return;
+      const name = pickerThemeFor(key);
+      const t = Themes.PRESET_THEMES.find(x => x.id === name) || Themes.PRESET_THEMES[0];
+      btn.innerHTML = `<span class="tp-chips">${themeChipColors(t).slice(0, 6).map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</span><span class="tp-label">${t.name}</span><span class="tp-caret">${ICONS.chevronDown}</span>`;
+      btn.style.background = t.bg;
+      btn.style.borderColor = t.main;
+      btn.style.color = t.text;
+      btn.onclick = (e) => { e.stopPropagation(); startThemePick(key); };
     });
-  }
-  function renderThemeDropdowns() { renderThemeDropdown('light'); renderThemeDropdown('dark'); }
-
-  function renderAutoThemeCard() {
-    const wrap = $('#theme-grid-auto');
-    wrap.innerHTML = '';
-    const s = STATE.meta.settings;
-    const lightTheme = Themes.resolveTheme('auto', s.lightThemeId, undefined);
-    const darkTheme = Themes.resolveTheme('auto', undefined, s.darkThemeId);
-    const card = el('div', 'theme-swatch-card');
-    card.dataset.themeId = 'auto';
-    card.style.background = `linear-gradient(135deg, ${darkTheme.bg} 50%, ${lightTheme.bg} 50%)`;
-    card.style.borderColor = lightTheme.main;
-    card.style.color = lightTheme.text;
-    const chips = [darkTheme.bg, darkTheme.main, darkTheme.text, lightTheme.bg, lightTheme.main, lightTheme.text];
-    card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">Auto (system)</div>`;
-    card.onclick = async () => { commitThemePreview(); await DB.updateSettings({ themeId: 'auto' }); await reload(); syncSettingsUI(); };
-    wrap.appendChild(card);
   }
 
   function renderThemeGrid(selector, list) {
@@ -2868,7 +2869,19 @@
       card.style.color = t.text;
       const chips = themeChipColors(t);
       card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div>`;
-      card.onclick = async () => { commitThemePreview(); await DB.updateSettings({ themeId: t.id }); await reload(); syncSettingsUI(); };
+      card.onclick = async () => {
+        commitThemePreview();
+        if (pickingThemeFor) {
+          await DB.updateSettings(pickingThemeFor === 'light' ? { lightThemeId: t.id } : { darkThemeId: t.id });
+          if (STATE.meta.settings.themeId === 'auto') await reload();
+          syncSettingsUI();
+          endThemePick(pickingThemeFor, t.name);
+        } else {
+          await DB.updateSettings({ themeId: t.id });
+          await reload();
+          syncSettingsUI();
+        }
+      };
       wrap.appendChild(card);
     });
   }
@@ -2876,7 +2889,8 @@
   function syncSettingsUI() {
     const s = STATE.meta.settings;
     $$('.theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === s.themeId));
-    renderThemeDropdowns();
+    $('#setting-auto-theme').checked = s.themeId === 'auto';
+    renderThemePickers();
     $$('#density-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.density));
     $('#setting-animations').checked = s.animations !== false;
 
@@ -3057,7 +3071,7 @@
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); quickAddCurrentTab(); return; }
       if (e.key === 'Escape') {
         closePalette();
-        closeThemeDropdowns();
+        cancelThemePick();
         $('#modal-overlay').classList.add('hidden');
         $('#settings-overlay').classList.add('hidden');
         $('#trash-overlay').classList.add('hidden');

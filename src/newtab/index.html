@@ -157,26 +157,20 @@
             </div>
             <input id="theme-search-input" class="theme-search" type="text" placeholder="Filter themes…" autocomplete="off" />
             <div class="settings-row">
-              <label>Auto (system theme)</label>
-              <div class="auto-theme-picker">
-                <div id="theme-grid-auto" class="theme-grid"></div>
-                <div class="auto-select">
-                  <span class="auto-select-label">Light mode</span>
-                  <div class="theme-dropdown" id="auto-light-dropdown">
-                    <button type="button" class="theme-dropdown-trigger"></button>
-                    <div class="theme-dropdown-list hidden"></div>
-                  </div>
-                </div>
-                <div class="auto-select">
-                  <span class="auto-select-label">Dark mode</span>
-                  <div class="theme-dropdown" id="auto-dark-dropdown">
-                    <button type="button" class="theme-dropdown-trigger"></button>
-                    <div class="theme-dropdown-list hidden"></div>
-                  </div>
-                </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Auto theme (follow system)</span><span class="switch-desc">Use the light theme in light mode and the dark theme in dark mode.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-auto-theme"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
-              <div class="hint-text">With Auto active, the chosen light theme shows in light mode and the dark theme in dark mode.</div>
             </div>
+            <div class="settings-row">
+              <label>Light theme</label>
+              <button type="button" id="auto-light-btn" class="theme-pick-btn" data-key="light"></button>
+            </div>
+            <div class="settings-row">
+              <label>Dark theme</label>
+              <button type="button" id="auto-dark-btn" class="theme-pick-btn" data-key="dark"></button>
+            </div>
+            <div id="theme-pick-hint" class="theme-pick-hint hidden"></div>
             <div class="settings-row">
               <label>Presets</label>
               <div id="theme-grid-all" class="theme-grid"></div>
