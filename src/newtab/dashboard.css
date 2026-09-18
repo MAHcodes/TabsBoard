@@ -553,13 +553,16 @@ body.dragging-tab .widget-ghost { display: flex; }
 
 /* Auto theme section: two preset-card-styled boxes showing the selected
    Light and Dark themes. Clicking one enters picking so the presets grid
-   assigns to it. */
-.auto-theme-boxes { display: flex; gap: 10px; margin-top: 12px; }
-.auto-theme-col { display: flex; flex-direction: column; gap: 6px; flex: 0 0 100px; }
-.auto-theme-col label { font-size: 11px; font-weight: 800; letter-spacing: .4px; color: var(--sub-color); text-transform: uppercase; text-align: center; }
-.auto-theme-box.theme-swatch-card { font-family: inherit; align-items: stretch; width: 100%; box-sizing: border-box; }
+   assigns to it. They share the presets grid's track sizing so the boxes
+   align exactly with the first two preset cards below. */
+.auto-theme-boxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color); }
+.auto-theme-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.auto-theme-col label { margin: 0; font-size: 10.5px; font-weight: 800; letter-spacing: .5px; color: var(--sub-color); text-transform: uppercase; text-align: center; }
+.auto-theme-box.theme-swatch-card { appearance: none; font-family: inherit; align-items: stretch; width: 100%; min-width: 0; box-sizing: border-box; }
 .auto-theme-box.theme-swatch-card.picking { border-color: var(--main-color); border-style: dashed; box-shadow: 0 0 0 2px color-mix(in srgb, var(--main-color) 30%, transparent); }
 .auto-theme-box.theme-swatch-card.picking.selected { transform: translateY(-1px); }
+
+#auto-theme-extras .hint-text { margin: 8px 0 0; }
 
 .theme-grid.pick-active .theme-swatch-card { cursor: pointer; border-color: color-mix(in srgb, var(--main-color) 45%, var(--border-color)); }
 .theme-grid.pick-active .theme-swatch-card:hover { border-color: var(--main-color); transform: translateY(-2px); }

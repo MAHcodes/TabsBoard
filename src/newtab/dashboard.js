@@ -2909,8 +2909,6 @@
     renderAutoThemeBoxes();
     const grid = $('#theme-grid-all');
     if (grid) grid.classList.toggle('pick-active', !!pickingThemeFor);
-    const ctx = $('#theme-grid-ctx');
-    if (ctx) ctx.textContent = pickingThemeFor ? ` — choose the ${pickingThemeFor} theme` : (autoOn ? ' — synced with the OS theme' : '');
     $$('#density-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.density));
     $('#setting-animations').checked = s.animations !== false;
 
