@@ -2703,7 +2703,7 @@
   }
 
   /* ============ SETTINGS PANEL ============ */
-  function openSettings() { renderThemeGrids(); populateThemeSelects(); syncSettingsUI(); $('#settings-overlay').classList.remove('hidden'); }
+  function openSettings() { renderThemeGrids(); renderThemeDropdowns(); syncSettingsUI(); $('#settings-overlay').classList.remove('hidden'); }
 
   function wireSettingsPanel() {
     $$('.settings-tab').forEach(btn => {
@@ -2718,15 +2718,8 @@
     $('#settings-close-x').onclick = () => { endThemePreview(); $('#settings-overlay').classList.add('hidden'); };
 
     renderThemeGrids();
-    populateThemeSelects();
-    $('#auto-light-theme-select').onchange = async (e) => {
-      await DB.updateSettings({ lightThemeId: e.target.value });
-      if (STATE.meta.settings.themeId === 'auto') await reload();
-    };
-    $('#auto-dark-theme-select').onchange = async (e) => {
-      await DB.updateSettings({ darkThemeId: e.target.value });
-      if (STATE.meta.settings.themeId === 'auto') await reload();
-    };
+    renderThemeDropdowns();
+    document.addEventListener('click', closeThemeDropdowns);
     $('#theme-search-input').addEventListener('input', (e) => { renderThemeGrids(); syncSettingsUI(); });
 
     $$('#density-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ density: b.dataset.val }); await reload(); syncSettingsUI(); });
@@ -2802,23 +2795,49 @@
     renderThemeGrid('#theme-grid-all', list);
   }
 
-  function populateThemeSelects() {
-    const s = STATE.meta.settings;
-    const lightSel = $('#auto-light-theme-select');
-    const darkSel = $('#auto-dark-theme-select');
-    if (!lightSel || !darkSel) return;
-    [lightSel, darkSel].forEach(sel => {
-      sel.innerHTML = '';
-      Themes.PRESET_THEMES.forEach(t => {
-        const opt = el('option');
-        opt.value = t.id;
-        opt.textContent = t.name;
-        sel.appendChild(opt);
-      });
-    });
-    lightSel.value = s.lightThemeId || 'serika';
-    darkSel.value = s.darkThemeId || 'serika_dark';
+  /* Auto mode's light/dark theme pickers: each trigger renders as a mini
+     swatch card for the currently chosen preset, and clicking it opens a
+     dropdown listing every preset (rows show color chips + name). */
+  function themeMiniChips(t) {
+    return `<span class="tdd-chips">${themeChipColors(t).slice(0, 5).map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</span>`;
   }
+  function closeThemeDropdowns() {
+    $$('.theme-dropdown-list').forEach(l => l.classList.add('hidden'));
+  }
+  function openThemeDropdown(key) {
+    const list = $(`#auto-${key}-dropdown .theme-dropdown-list`);
+    if (!list) return;
+    closeThemeDropdowns();
+    list.classList.remove('hidden');
+  }
+  function renderThemeDropdown(key) {
+    const wrap = $(`#auto-${key}-dropdown`);
+    if (!wrap) return;
+    const s = STATE.meta.settings;
+    const curId = key === 'light' ? (s.lightThemeId || 'serika') : (s.darkThemeId || 'serika_dark');
+    const cur = Themes.PRESET_THEMES.find(x => x.id === curId) || Themes.PRESET_THEMES[0];
+    const trigger = wrap.querySelector('.theme-dropdown-trigger');
+    trigger.innerHTML = `<div class="theme-swatch-chips">${themeChipColors(cur).slice(0, 3).map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><span class="theme-swatch-label">${cur.name}</span>`;
+    trigger.style.background = cur.bg;
+    trigger.style.borderColor = cur.main;
+    trigger.style.color = cur.text;
+    trigger.onclick = (e) => { e.stopPropagation(); openThemeDropdown(key); };
+
+    const list = wrap.querySelector('.theme-dropdown-list');
+    list.innerHTML = '';
+    Themes.PRESET_THEMES.forEach(pt => {
+      const row = el('div', 'theme-dropdown-row' + (pt.id === curId ? ' active' : ''));
+      row.innerHTML = `${themeMiniChips(pt)}<span style="flex:1">${pt.name}</span>${pt.id === curId ? `<span class="tdd-check">${ICONS.check || '✓'}</span>` : ''}`;
+      row.onclick = async () => {
+        await DB.updateSettings(key === 'light' ? { lightThemeId: pt.id } : { darkThemeId: pt.id });
+        if (STATE.meta.settings.themeId === 'auto') await reload();
+        closeThemeDropdowns();
+        renderThemeDropdown(key);
+      };
+      list.appendChild(row);
+    });
+  }
+  function renderThemeDropdowns() { renderThemeDropdown('light'); renderThemeDropdown('dark'); }
 
   function renderAutoThemeCard() {
     const wrap = $('#theme-grid-auto');
@@ -2857,10 +2876,7 @@
   function syncSettingsUI() {
     const s = STATE.meta.settings;
     $$('.theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === s.themeId));
-    const lightSel = $('#auto-light-theme-select');
-    const darkSel = $('#auto-dark-theme-select');
-    if (lightSel) lightSel.value = s.lightThemeId || 'serika';
-    if (darkSel) darkSel.value = s.darkThemeId || 'serika_dark';
+    renderThemeDropdowns();
     $$('#density-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.density));
     $('#setting-animations').checked = s.animations !== false;
 
@@ -3041,6 +3057,7 @@
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); quickAddCurrentTab(); return; }
       if (e.key === 'Escape') {
         closePalette();
+        closeThemeDropdowns();
         $('#modal-overlay').classList.add('hidden');
         $('#settings-overlay').classList.add('hidden');
         $('#trash-overlay').classList.add('hidden');

@@ -162,11 +162,17 @@
                 <div id="theme-grid-auto" class="theme-grid"></div>
                 <div class="auto-select">
                   <span class="auto-select-label">Light mode</span>
-                  <select id="auto-light-theme-select"></select>
+                  <div class="theme-dropdown" id="auto-light-dropdown">
+                    <button type="button" class="theme-dropdown-trigger"></button>
+                    <div class="theme-dropdown-list hidden"></div>
+                  </div>
                 </div>
                 <div class="auto-select">
                   <span class="auto-select-label">Dark mode</span>
-                  <select id="auto-dark-theme-select"></select>
+                  <div class="theme-dropdown" id="auto-dark-dropdown">
+                    <button type="button" class="theme-dropdown-trigger"></button>
+                    <div class="theme-dropdown-list hidden"></div>
+                  </div>
                 </div>
               </div>
               <div class="hint-text">With Auto active, the chosen light theme shows in light mode and the dark theme in dark mode.</div>
