@@ -197,7 +197,7 @@
     // no reload needed.
     if (window.matchMedia) {
       matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (STATE.meta.settings.themeId === 'auto') applySettings();
+        if (STATE.meta.settings.themeId === 'auto') { applySettings(); syncSettingsUI(); }
       });
     }
     setInterval(updateClockWidgets, 1000 * 30);
@@ -2703,8 +2703,8 @@
   }
 
   /* ============ SETTINGS PANEL ============ */
-  function openSettings() { renderThemeGrids(); renderThemePickers(); syncSettingsUI(); $('#settings-overlay').classList.remove('hidden'); }
-  function closeSettings() { cancelThemePick(); $('#settings-overlay').classList.add('hidden'); }
+  function openSettings() { autoEditMode = prefersDarkMode() ? 'dark' : 'light'; renderThemeGrids(); syncSettingsUI(); $('#settings-overlay').classList.remove('hidden'); }
+  function closeSettings() { $('#settings-overlay').classList.add('hidden'); }
 
   function wireSettingsPanel() {
     $$('.settings-tab').forEach(btn => {
@@ -2719,7 +2719,7 @@
     $('#settings-close-x').onclick = () => { endThemePreview(); closeSettings(); };
 
     renderThemeGrids();
-    renderThemePickers();
+    $$('#auto-mode-toggle button').forEach(b => b.onclick = () => { autoEditMode = b.dataset.mode; syncSettingsUI(); });
     $('#setting-auto-theme').onchange = async (e) => {
       const s = STATE.meta.settings;
       if (e.target.checked) {
@@ -2807,54 +2807,19 @@
     renderThemeGrid('#theme-grid-all', list);
   }
 
-  /* Auto theme's light/dark pickers: buttons that render the full 6-color
-     chips of the currently selected theme. Clicking one enters "pick mode" —
-     the presets below are highlighted, and clicking a preset assigns it to
-     that mode (Esc cancels). */
-  let pickingThemeFor = null; // 'light' | 'dark' | null
+  /* With Auto on, "Set theme for" picks which mode the presets grid assigns
+     to. The grid's selected swatch is always the theme actually applied right
+     now — in auto mode that's whichever preset matches the OS light/dark. */
+  let autoEditMode = prefersDarkMode() ? 'dark' : 'light';
 
-  function pickerThemeFor(key) {
+  function prefersDarkMode() {
+    return typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function appliedThemeId() {
     const s = STATE.meta.settings;
-    return (key === 'light' ? (s.lightThemeId || 'serika') : (s.darkThemeId || 'serika_dark'));
-  }
-  function startThemePick(key) {
-    pickingThemeFor = pickingThemeFor === key ? null : key;
-    updatePickModeUI();
-  }
-  function cancelThemePick() {
-    pickingThemeFor = null;
-    updatePickModeUI();
-  }
-  function endThemePick(key, name) {
-    pickingThemeFor = null;
-    updatePickModeUI();
-    toast(`${key === 'light' ? 'Light' : 'Dark'} theme set to ${name}`);
-  }
-  function updatePickModeUI() {
-    const btns = $$('.theme-pick-btn');
-    btns.forEach(b => b.classList.toggle('picking', b.dataset.key === pickingThemeFor));
-    const grid = $('#theme-grid-all');
-    if (grid) grid.classList.toggle('pick-active', !!pickingThemeFor);
-    const hint = $('#theme-pick-hint');
-    if (hint) {
-      hint.classList.toggle('hidden', !pickingThemeFor);
-      hint.innerHTML = pickingThemeFor
-        ? `<span class="pick-hint-dot"></span> Pick a theme below for the <b>${pickingThemeFor} theme</b> — Esc to cancel.`
-        : '';
-    }
-  }
-  function renderThemePickers() {
-    ['light', 'dark'].forEach(key => {
-      const btn = $(`#auto-${key}-btn`);
-      if (!btn) return;
-      const name = pickerThemeFor(key);
-      const t = Themes.PRESET_THEMES.find(x => x.id === name) || Themes.PRESET_THEMES[0];
-      btn.innerHTML = `<span class="tp-chips">${themeChipColors(t).slice(0, 6).map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</span><span class="tp-label">${t.name}</span><span class="tp-caret">${ICONS.chevronDown}</span>`;
-      btn.style.background = t.bg;
-      btn.style.borderColor = t.main;
-      btn.style.color = t.text;
-      btn.onclick = (e) => { e.stopPropagation(); startThemePick(key); };
-    });
+    if (s.themeId !== 'auto') return s.themeId;
+    return prefersDarkMode() ? (s.darkThemeId || 'serika_dark') : (s.lightThemeId || 'serika');
   }
 
   function renderThemeGrid(selector, list) {
@@ -2871,11 +2836,12 @@
       card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div>`;
       card.onclick = async () => {
         commitThemePreview();
-        if (pickingThemeFor) {
-          await DB.updateSettings(pickingThemeFor === 'light' ? { lightThemeId: t.id } : { darkThemeId: t.id });
-          if (STATE.meta.settings.themeId === 'auto') await reload();
+        const mode = STATE.meta.settings.themeId === 'auto' ? (autoEditMode === 'light' ? 'light' : 'dark') : null;
+        if (mode) {
+          await DB.updateSettings(mode === 'light' ? { lightThemeId: t.id } : { darkThemeId: t.id });
+          if (prefersDarkMode() === (mode === 'dark')) await reload();
           syncSettingsUI();
-          endThemePick(pickingThemeFor, t.name);
+          toast(`${mode === 'light' ? 'Light' : 'Dark'} theme set to ${t.name}`);
         } else {
           await DB.updateSettings({ themeId: t.id });
           await reload();
@@ -2888,9 +2854,15 @@
 
   function syncSettingsUI() {
     const s = STATE.meta.settings;
-    $$('.theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === s.themeId));
-    $('#setting-auto-theme').checked = s.themeId === 'auto';
-    renderThemePickers();
+    const autoOn = s.themeId === 'auto';
+    const applied = appliedThemeId();
+    $$('.theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === applied));
+    $('#setting-auto-theme').checked = autoOn;
+    const modeRow = $('#auto-mode-row');
+    if (modeRow) modeRow.classList.toggle('hidden', !autoOn);
+    $$('#auto-mode-toggle button').forEach(b => b.classList.toggle('active', b.dataset.mode === autoEditMode));
+    const ctx = $('#theme-grid-ctx');
+    if (ctx) ctx.textContent = autoOn ? ` — sets the ${autoEditMode} theme` : '';
     $$('#density-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.density));
     $('#setting-animations').checked = s.animations !== false;
 
@@ -3071,7 +3043,6 @@
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); quickAddCurrentTab(); return; }
       if (e.key === 'Escape') {
         closePalette();
-        cancelThemePick();
         $('#modal-overlay').classList.add('hidden');
         $('#settings-overlay').classList.add('hidden');
         $('#trash-overlay').classList.add('hidden');

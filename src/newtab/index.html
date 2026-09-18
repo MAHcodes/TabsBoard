@@ -162,17 +162,16 @@
                 <label class="switch"><input type="checkbox" id="setting-auto-theme"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
             </div>
-            <div class="settings-row">
-              <label>Light theme</label>
-              <button type="button" id="auto-light-btn" class="theme-pick-btn" data-key="light"></button>
+            <div class="settings-row" id="auto-mode-row">
+              <label>Set theme for</label>
+              <div class="segmented" id="auto-mode-toggle">
+                <button data-mode="light">Light</button>
+                <button data-mode="dark">Dark</button>
+              </div>
+              <div class="hint-text">With Auto on, a preset you pick below becomes that mode's theme — applying live when it's the mode your system is using right now.</div>
             </div>
             <div class="settings-row">
-              <label>Dark theme</label>
-              <button type="button" id="auto-dark-btn" class="theme-pick-btn" data-key="dark"></button>
-            </div>
-            <div id="theme-pick-hint" class="theme-pick-hint hidden"></div>
-            <div class="settings-row">
-              <label>Presets</label>
+              <label>Presets<span id="theme-grid-ctx"></span></label>
               <div id="theme-grid-all" class="theme-grid"></div>
             </div>
           </div>
