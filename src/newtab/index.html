@@ -156,19 +156,16 @@
               <p>Pick a color scheme — themes preview live as you browse the grid.</p>
             </div>
             <input id="theme-search-input" class="theme-search" type="text" placeholder="Filter themes…" autocomplete="off" />
-            <div class="settings-row">
+            <div class="settings-row" id="auto-theme-row">
               <div class="switch-row">
                 <span class="switch-text"><span class="switch-title">Auto theme (follow system)</span><span class="switch-desc">Use the light theme in light mode and the dark theme in dark mode.</span></span>
                 <label class="switch"><input type="checkbox" id="setting-auto-theme"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
-            </div>
-            <div class="settings-row" id="auto-mode-row">
-              <label>Set theme for</label>
-              <div class="segmented" id="auto-mode-toggle">
-                <button data-mode="light">Light</button>
-                <button data-mode="dark">Dark</button>
+              <div class="auto-theme-boxes" id="auto-theme-boxes">
+                <button type="button" class="auto-theme-box" data-key="light"></button>
+                <button type="button" class="auto-theme-box" data-key="dark"></button>
               </div>
-              <div class="hint-text">With Auto on, a preset you pick below becomes that mode's theme — applying live when it's the mode your system is using right now.</div>
+              <div class="hint-text">Pick a Light or Dark theme above, then choose one from the presets below. If it's the mode your system is using right now, it applies immediately.</div>
             </div>
             <div class="settings-row">
               <label>Presets<span id="theme-grid-ctx"></span></label>
