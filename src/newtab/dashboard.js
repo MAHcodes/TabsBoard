@@ -2703,7 +2703,7 @@
   }
 
   /* ============ SETTINGS PANEL ============ */
-  function openSettings() { renderThemeGrids(); syncSettingsUI(); $('#settings-overlay').classList.remove('hidden'); }
+  function openSettings() { renderThemeGrids(); populateThemeSelects(); syncSettingsUI(); $('#settings-overlay').classList.remove('hidden'); }
 
   function wireSettingsPanel() {
     $$('.settings-tab').forEach(btn => {
@@ -2718,6 +2718,15 @@
     $('#settings-close-x').onclick = () => { endThemePreview(); $('#settings-overlay').classList.add('hidden'); };
 
     renderThemeGrids();
+    populateThemeSelects();
+    $('#auto-light-theme-select').onchange = async (e) => {
+      await DB.updateSettings({ lightThemeId: e.target.value });
+      if (STATE.meta.settings.themeId === 'auto') await reload();
+    };
+    $('#auto-dark-theme-select').onchange = async (e) => {
+      await DB.updateSettings({ darkThemeId: e.target.value });
+      if (STATE.meta.settings.themeId === 'auto') await reload();
+    };
     $('#theme-search-input').addEventListener('input', (e) => { renderThemeGrids(); syncSettingsUI(); });
 
     $$('#density-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ density: b.dataset.val }); await reload(); syncSettingsUI(); });
@@ -2791,8 +2800,24 @@
     const q = (input ? input.value : '').trim().toLowerCase();
     const list = Themes.PRESET_THEMES.filter(t => !q || t.name.toLowerCase().includes(q));
     renderThemeGrid('#theme-grid-all', list);
-    renderThemeGrid('#theme-grid-light', list, 'light');
-    renderThemeGrid('#theme-grid-dark', list, 'dark');
+  }
+
+  function populateThemeSelects() {
+    const s = STATE.meta.settings;
+    const lightSel = $('#auto-light-theme-select');
+    const darkSel = $('#auto-dark-theme-select');
+    if (!lightSel || !darkSel) return;
+    [lightSel, darkSel].forEach(sel => {
+      sel.innerHTML = '';
+      Themes.PRESET_THEMES.forEach(t => {
+        const opt = el('option');
+        opt.value = t.id;
+        opt.textContent = t.name;
+        sel.appendChild(opt);
+      });
+    });
+    lightSel.value = s.lightThemeId || 'serika';
+    darkSel.value = s.darkThemeId || 'serika_dark';
   }
 
   function renderAutoThemeCard() {
@@ -2812,27 +2837,19 @@
     wrap.appendChild(card);
   }
 
-  function renderThemeGrid(selector, list, picker) {
+  function renderThemeGrid(selector, list) {
     const wrap = $(selector);
     wrap.innerHTML = '';
     if (!list.length) { wrap.appendChild(el('div', 'theme-empty-hint', 'No themes match.')); return; }
     list.forEach(t => {
       const card = el('div', 'theme-swatch-card');
       card.dataset.themeId = t.id;
-      if (picker) card.dataset.picker = picker;
       card.style.background = t.bg;
       card.style.borderColor = t.main;
       card.style.color = t.text;
       const chips = themeChipColors(t);
       card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div>`;
-      card.onclick = async () => {
-        commitThemePreview();
-        if (picker === 'light') { await DB.updateSettings({ lightThemeId: t.id }); }
-        else if (picker === 'dark') { await DB.updateSettings({ darkThemeId: t.id }); }
-        else { await DB.updateSettings({ themeId: t.id }); }
-        if (STATE.meta.settings.themeId === 'auto') await reload();
-        syncSettingsUI();
-      };
+      card.onclick = async () => { commitThemePreview(); await DB.updateSettings({ themeId: t.id }); await reload(); syncSettingsUI(); };
       wrap.appendChild(card);
     });
   }
@@ -2840,8 +2857,10 @@
   function syncSettingsUI() {
     const s = STATE.meta.settings;
     $$('.theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === s.themeId));
-    $$('#theme-grid-light .theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === (s.lightThemeId || 'serika')));
-    $$('#theme-grid-dark .theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === (s.darkThemeId || 'serika_dark')));
+    const lightSel = $('#auto-light-theme-select');
+    const darkSel = $('#auto-dark-theme-select');
+    if (lightSel) lightSel.value = s.lightThemeId || 'serika';
+    if (darkSel) darkSel.value = s.darkThemeId || 'serika_dark';
     $$('#density-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.density));
     $('#setting-animations').checked = s.animations !== false;
 
