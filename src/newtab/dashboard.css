@@ -460,8 +460,20 @@ body.dragging-tab .widget-ghost { display: flex; }
 .session-card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
 
 /* ---------- Overlays / Modals ---------- */
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-start; justify-content: center; padding-top: 8vh; z-index: 100; }
-.modal { background: var(--sub-alt-color); border: 1px solid var(--border-color); border-radius: 16px; box-shadow: var(--shadow); padding: 22px; width: min(480px, 92vw); max-height: 82vh; overflow-y: auto; }
+.overlay {
+  position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: rgba(0, 0, 0, .45);
+  -webkit-backdrop-filter: blur(10px) saturate(120%); backdrop-filter: blur(10px) saturate(120%);
+  animation: overlay-in .16s ease-out;
+}
+.modal {
+  background: var(--sub-alt-color); border: 1px solid var(--border-color); border-radius: 18px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .38); padding: 24px; width: min(480px, 92vw); max-height: 86vh; overflow-y: auto;
+  box-sizing: border-box;
+  animation: modal-pop .18s cubic-bezier(.2, .9, .3, 1.2);
+}
+@keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-pop { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
 .modal h2 { margin-top: 0; font-size: 17px; }
 .modal-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .field { margin-bottom: 14px; }
@@ -484,41 +496,68 @@ body.dragging-tab .widget-ghost { display: flex; }
 .color-swatch-none.selected { border-color: var(--main-color); }
 
 /* ---------- Settings ---------- */
+.modal-heading h2 { margin: 0; }
+.modal-subtitle { margin: 3px 0 0; font-size: 12px; color: var(--sub-color); }
+
 /* Fixed height so switching between tabs (short vs long content) doesn't
    make the whole popup grow/shrink — only the panel body scrolls. */
 .settings-modal {
-  width: min(680px, 94vw); height: 640px; max-height: 82vh;
+  width: min(760px, 94vw); height: min(660px, 86vh);
   display: flex; flex-direction: column; overflow: hidden;
 }
-.settings-modal .modal-header-row { flex-shrink: 0; }
-.settings-layout { display: flex; gap: 20px; margin-top: 10px; flex: 1; min-height: 0; }
-.settings-tabs { display: flex; flex-direction: column; gap: 3px; width: 160px; flex-shrink: 0; overflow-y: auto; }
-.settings-tab { text-align: left; background: none; border: none; padding: 10px 12px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--sub-color); }
+.settings-modal .modal-header-row { flex-shrink: 0; padding-bottom: 14px; border-bottom: 1px solid var(--border-color); margin-bottom: 0; }
+.settings-layout { display: flex; flex: 1; min-height: 0; padding-top: 16px; }
+.settings-tabs { display: flex; flex-direction: column; gap: 2px; width: 196px; flex-shrink: 0; overflow-y: auto; padding-right: 14px; }
+.settings-tab {
+  width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+  background: none; border: none; padding: 10px 12px; border-radius: 10px;
+  font-size: 13px; font-weight: 700; color: var(--sub-color); cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+.settings-tab .stab-ic { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 16px; height: 16px; }
 .settings-tab:hover { background: var(--bg-color); color: var(--text-color); }
-.settings-tab.active { background: var(--bg-color); color: var(--main-color); }
-.settings-panels { flex: 1; min-width: 0; overflow-y: auto; padding-right: 6px; }
+.settings-tab.active { background: var(--main-color); color: var(--bg-color); }
+.settings-panels { flex: 1; min-width: 0; overflow-y: auto; padding: 0 2px 6px 18px; }
 .settings-panel { display: none; }
-.settings-panel.active { display: block; }
-.settings-row { margin-bottom: 22px; }
+.settings-panel.active { display: block; animation: panel-in .16s ease-out; }
+@keyframes panel-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+.settings-group { margin-bottom: 26px; }
+.settings-group:last-child { margin-bottom: 4px; }
+.settings-group-head { margin-bottom: 12px; }
+.settings-group-head h3 { margin: 0; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--sub-color); }
+.settings-group-head p { margin: 3px 0 0; font-size: 12px; color: var(--sub-color); opacity: .85; }
+
+.settings-row {
+  margin-bottom: 14px; padding: 14px 16px; border-radius: 12px;
+  background: var(--bg-color); border: 1px solid var(--border-color);
+}
 .settings-row label { display: block; font-size: 12px; font-weight: 800; color: var(--sub-color); margin-bottom: 9px; }
-.hint-text { font-size: 11.5px; color: var(--sub-color); margin-top: 6px; }
+.settings-row > .hint-text { margin: 10px 0 0; }
+.hint-text { font-size: 11.5px; color: var(--sub-color); margin-top: 6px; line-height: 1.45; }
+
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 1px 0; }
+.switch-row + .switch-row { border-top: 1px solid var(--border-color); margin-top: 11px; padding-top: 11px; }
+.switch-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.switch-title { font-size: 13px; font-weight: 700; }
+.switch-desc { font-size: 11px; color: var(--sub-color); }
 
 .theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
-.theme-swatch-card { border: 2px solid var(--border-color); border-radius: 11px; overflow: hidden; cursor: pointer; font-size: 10.5px; font-weight: 700; padding: 8px 8px 6px; display: flex; flex-direction: column; gap: 8px; }
-.theme-swatch-card.selected { border-color: var(--main-color); }
+.theme-swatch-card { border: 2px solid var(--border-color); border-radius: 11px; overflow: hidden; cursor: pointer; font-size: 10.5px; font-weight: 700; padding: 8px 8px 6px; display: flex; flex-direction: column; gap: 8px; transition: transform .12s ease, border-color .12s ease; }
+.theme-swatch-card:hover { transform: translateY(-2px); }
+.theme-swatch-card.selected { border-color: var(--main-color); box-shadow: 0 0 0 1px var(--main-color); }
 .theme-swatch-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
 .theme-swatch-chips .tsc { width: 100%; aspect-ratio: 1; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18); }
 .theme-swatch-label { text-align: center; padding: 2px 0 2px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.theme-search-row { position: sticky; top: -10px; z-index: 2; margin: -10px 0 14px; padding: 18px 6px 8px; background: var(--sub-alt-color); }
-.theme-search { width: 100%; box-sizing: border-box; padding: 9px 12px; border-radius: 9px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); font-size: 13px; outline: none; }
+.theme-search { width: 100%; box-sizing: border-box; padding: 10px 13px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); font-size: 13px; outline: none; margin-bottom: 14px; }
 .theme-search:focus { border-color: var(--main-color); }
 .theme-empty-hint { padding: 20px; text-align: center; color: var(--sub-color); font-size: 12.5px; }
 
-.segmented { display: flex; background: var(--bg-color); border-radius: 9px; padding: 3px; gap: 3px; }
-.segmented button { flex: 1; background: none; border: none; padding: 8px; border-radius: 7px; font-size: 12px; color: var(--sub-color); font-weight: 700; }
+.segmented { display: flex; background: var(--sub-alt-color); border-radius: 10px; padding: 3px; gap: 3px; }
+.segmented button { flex: 1; background: none; border: none; padding: 8px; border-radius: 8px; font-size: 12px; color: var(--sub-color); font-weight: 700; cursor: pointer; }
 .segmented button:hover { color: var(--text-color); }
-.segmented button.active { background: var(--sub-alt-color); color: var(--text-color); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.segmented button.active { background: var(--bg-color); color: var(--text-color); box-shadow: 0 1px 3px rgba(0,0,0,.14); }
 .checkbox-row { font-size: 13px; margin-bottom: 4px; }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 

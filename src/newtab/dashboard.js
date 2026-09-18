@@ -243,6 +243,7 @@
     $('#board-switcher-btn .chev-ic').innerHTML = ICONS.chevronDown;
     $('#settings-close-x').innerHTML = icon('close', 'sm');
     $('#shortcuts-close-x').innerHTML = icon('close', 'sm');
+    $$('.settings-tab .stab-ic').forEach(s => { if (ICONS[s.dataset.icon]) s.innerHTML = ICONS[s.dataset.icon]; });
   }
 
   /* ============ SETTINGS / THEME ============ */

@@ -109,118 +109,184 @@
 <div id="settings-overlay" class="overlay hidden">
   <div class="modal settings-modal">
     <div class="modal-header-row">
-      <h2>Settings</h2>
+      <div class="modal-heading">
+        <h2>Settings</h2>
+        <p class="modal-subtitle">Personalize your dashboard, layout, and behavior.</p>
+      </div>
       <button id="settings-close-x" class="icon-btn small"></button>
     </div>
     <div class="settings-layout">
-      <div class="settings-tabs" id="settings-tabs">
-        <button class="settings-tab active" data-tab="appearance">Appearance</button>
-        <button class="settings-tab" data-tab="themes">Themes</button>
-        <button class="settings-tab" data-tab="layout">Layout</button>
-        <button class="settings-tab" data-tab="behavior">Behavior</button>
-        <button class="settings-tab" data-tab="data">Data &amp; Import/Export</button>
-      </div>
+      <nav class="settings-tabs" id="settings-tabs">
+        <button class="settings-tab active" data-tab="appearance"><span class="stab-ic" data-icon="palette"></span><span class="stab-label">Appearance</span></button>
+        <button class="settings-tab" data-tab="themes"><span class="stab-ic" data-icon="grid"></span><span class="stab-label">Themes</span></button>
+        <button class="settings-tab" data-tab="layout"><span class="stab-ic" data-icon="columns"></span><span class="stab-label">Layout</span></button>
+        <button class="settings-tab" data-tab="behavior"><span class="stab-ic" data-icon="settings"></span><span class="stab-label">Behavior</span></button>
+        <button class="settings-tab" data-tab="data"><span class="stab-ic" data-icon="save"></span><span class="stab-label">Data</span></button>
+      </nav>
       <div class="settings-panels">
 
         <div class="settings-panel active" id="panel-appearance">
-          <div class="settings-row">
-            <label>Density</label>
-            <div class="segmented" id="density-toggle">
-              <button data-val="comfortable">Comfortable</button>
-              <button data-val="compact">Compact</button>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Appearance</h3>
+              <p>Control the overall density and motion of the interface.</p>
             </div>
-          </div>
-          <div class="settings-row">
-            <label>Interface</label>
-            <div class="switch-row"><span>Enable animations &amp; transitions</span><label class="switch"><input type="checkbox" id="setting-animations"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+            <div class="settings-row">
+              <label>Density</label>
+              <div class="segmented" id="density-toggle">
+                <button data-val="comfortable">Comfortable</button>
+                <button data-val="compact">Compact</button>
+              </div>
+              <div class="hint-text">Compact tightens gaps and padding so more fits on screen.</div>
+            </div>
+            <div class="settings-row">
+              <label>Interface</label>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Animations &amp; transitions</span><span class="switch-desc">Subtle motion when opening menus, modals, and reordering items.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-animations"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="settings-panel" id="panel-themes">
-          <div class="settings-row theme-search-row">
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Themes</h3>
+              <p>Pick a color scheme — themes preview live as you browse the grid.</p>
+            </div>
             <input id="theme-search-input" class="theme-search" type="text" placeholder="Filter themes…" autocomplete="off" />
-          </div>
-          <div class="settings-row">
-            <label>Auto</label>
-            <div id="theme-grid-auto" class="theme-grid"></div>
-          </div>
-          <div class="settings-row">
-            <label>Presets</label>
-            <div id="theme-grid-all" class="theme-grid"></div>
+            <div class="settings-row">
+              <label>Auto</label>
+              <div id="theme-grid-auto" class="theme-grid"></div>
+            </div>
+            <div class="settings-row">
+              <label>Presets</label>
+              <div id="theme-grid-all" class="theme-grid"></div>
+            </div>
           </div>
         </div>
 
         <div class="settings-panel" id="panel-layout">
-          <div class="settings-row">
-            <label>Board width</label>
-            <div class="segmented" id="boardcols-toggle">
-              <button data-val="3">3 cols</button>
-              <button data-val="4">4 cols</button>
-              <button data-val="5">5 cols</button>
-              <button data-val="6">6 cols</button>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Board</h3>
+              <p>Grid density and how widgets arrange themselves.</p>
             </div>
-            <div class="hint-text">Widgets snap to the grid — resize by dragging a widget's edge, drag onto another to swap, or drop onto empty space to move it. Gap cells stay empty.</div>
-          </div>
-          <div class="settings-row">
-            <label>Bookmarks inside a collection</label>
-            <div class="segmented" id="viewmode-toggle">
-              <button data-val="grid">Tiles</button>
-              <button data-val="list">Rows</button>
+            <div class="settings-row">
+              <label>Board width</label>
+              <div class="segmented" id="boardcols-toggle">
+                <button data-val="3">3 cols</button>
+                <button data-val="4">4 cols</button>
+                <button data-val="5">5 cols</button>
+                <button data-val="6">6 cols</button>
+              </div>
+              <div class="hint-text">Widgets snap to the grid — resize by dragging a widget's edge, drag onto another to swap, or drop onto empty space to move it. Gap cells stay empty.</div>
+            </div>
+            <div class="settings-row">
+              <label>Bookmarks inside a collection</label>
+              <div class="segmented" id="viewmode-toggle">
+                <button data-val="grid">Tiles</button>
+                <button data-val="list">Rows</button>
+              </div>
+              <div class="hint-text">Tiles show a card grid; rows show a compact vertical list.</div>
             </div>
           </div>
-          <div class="settings-row">
-            <label>Sidebar</label>
-            <div class="switch-row"><span>Start collapsed</span><label class="switch"><input type="checkbox" id="setting-sidebar-collapsed"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
-            <div class="switch-row"><span>Compact (icons only, no titles)</span><label class="switch"><input type="checkbox" id="setting-sidebar-compact"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Sidebar</h3>
+              <p>How the open-tabs rail behaves.</p>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Start collapsed</span><span class="switch-desc">Keep the sidebar hidden until you open it.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-sidebar-collapsed"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Compact (icons only)</span><span class="switch-desc">Show favicons only, with no tab titles.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-sidebar-compact"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="settings-panel" id="panel-behavior">
-          <div class="settings-row">
-            <label>Deleting items</label>
-            <div class="switch-row"><span>Confirm before permanently deleting from trash</span><label class="switch"><input type="checkbox" id="setting-confirm-delete"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
-          </div>
-          <div class="settings-row">
-            <label>Opening bookmarks</label>
-            <div class="switch-row"><span>Open bookmarks in a new tab (off = open in the current tab)</span><label class="switch"><input type="checkbox" id="setting-open-in-new-tab"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
-          </div>
-          <div class="settings-row">
-            <label>Favicon source</label>
-            <div class="segmented" id="favicon-toggle">
-              <button data-val="google">Google</button>
-              <button data-val="duckduckgo">DuckDuckGo</button>
-              <button data-val="none">None</button>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>General behavior</h3>
+              <p>Deleting, opening, and favicon preferences.</p>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Confirm before deleting permanently</span><span class="switch-desc">Ask for confirmation before emptying the trash.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-confirm-delete"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Open bookmarks in a new tab</span><span class="switch-desc">Off = open in the current tab.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-open-in-new-tab"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>Favicon source</label>
+              <div class="segmented" id="favicon-toggle">
+                <button data-val="google">Google</button>
+                <button data-val="duckduckgo">DuckDuckGo</button>
+                <button data-val="none">None</button>
+              </div>
             </div>
           </div>
-          <div class="settings-row">
-            <label>Open Tabs list</label>
-            <div class="switch-row"><span>Group pinned tabs at the top</span><label class="switch"><input type="checkbox" id="setting-group-pinned"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
-            <div class="switch-row"><span>Dim tabs that are unloaded (discarded from memory)</span><label class="switch"><input type="checkbox" id="setting-dim-inactive"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
-            <div class="switch-row"><span>Desaturate (grayscale) unloaded tabs</span><label class="switch"><input type="checkbox" id="setting-inactive-grayscale"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
-            <div class="segmented" id="inactiveopacity-toggle">
-              <button data-val="35">Faint</button>
-              <button data-val="55">Dim</button>
-              <button data-val="75">Subtle</button>
-              <button data-val="100">Off</button>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Open Tabs list</h3>
+              <p>How unloaded tabs are shown in the sidebar.</p>
             </div>
-            <div class="hint-text">A tab counts as "unloaded" once Chrome (or you, from a tab's ⋯ menu → Unload this tab) frees its memory — refocusing it reloads it automatically.</div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Group pinned tabs at the top</span><span class="switch-desc">Split the list into Pinned and Tabs sections.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-group-pinned"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Dim unloaded tabs</span><span class="switch-desc">Gray out tabs freed from memory.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-dim-inactive"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Desaturate unloaded tabs</span><span class="switch-desc">Fully grayscale discarded tabs.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-inactive-grayscale"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="hint-text">A tab counts as "unloaded" once Chrome (or you, from a tab's ⋯ menu → Unload this tab) frees its memory — refocusing it reloads it automatically.</div>
+            </div>
+            <div class="settings-row">
+              <label>Dim level</label>
+              <div class="segmented" id="inactiveopacity-toggle">
+                <button data-val="35">Faint</button>
+                <button data-val="55">Dim</button>
+                <button data-val="75">Subtle</button>
+                <button data-val="100">Off</button>
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="settings-panel" id="panel-data">
-          <div class="settings-row">
-            <label>Export</label>
-            <div class="btn-row">
-              <button id="export-json-btn" class="mini-btn">Export full JSON backup</button>
-              <button id="export-html-btn" class="mini-btn">Export as Bookmarks HTML</button>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Backup &amp; restore</h3>
+              <p>Export your data or bring it back from a backup file.</p>
             </div>
-          </div>
-          <div class="settings-row">
-            <label>Import</label>
-            <div class="btn-row">
-              <label class="mini-btn file-btn">Import JSON backup<input id="import-json-input" type="file" accept="application/json" hidden></label>
+            <div class="settings-row">
+              <label>Export</label>
+              <div class="btn-row">
+                <button id="export-json-btn" class="mini-btn">Export full JSON backup</button>
+                <button id="export-html-btn" class="mini-btn">Export as Bookmarks HTML</button>
+              </div>
             </div>
-            <div class="hint-text">Imported data is merged in as a new workspace — nothing existing is overwritten.</div>
+            <div class="settings-row">
+              <label>Import</label>
+              <div class="btn-row">
+                <label class="mini-btn file-btn">Import JSON backup<input id="import-json-input" type="file" accept="application/json" hidden></label>
+              </div>
+              <div class="hint-text">Imported data is merged in as a new workspace — nothing existing is overwritten.</div>
+            </div>
           </div>
         </div>
 
