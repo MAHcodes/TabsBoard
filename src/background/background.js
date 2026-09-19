@@ -293,3 +293,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.tdb_data) rebuildContextMenus();
 });
+
+/* Live update push for open dashboards.
+   Any tab/window/session change is debounced into a single lightweight
+   TABS_CHANGED broadcast. The dashboard re-fetches its Open Tabs and
+   Recently Closed lists on receipt, so the sidebar updates the instant a
+   tab opens/closes/navigates instead of waiting up to the next poll. The
+   poll stays as a safety net for anything that happens while no dashboard
+   is listening (chrome.runtime.sendMessage resolves/rejects harmlessly when
+   no receiving context is open, which is why the promise is swallowed). */
+let broadcastTimer = null;
+function broadcastTabsChanged() {
+  clearTimeout(broadcastTimer);
+  broadcastTimer = setTimeout(() => {
+    try {
+      const p = chrome.runtime.sendMessage({ type: 'TABS_CHANGED' });
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch (e) { /* no dashboard open to notify */ }
+  }, 200);
+}
+
+chrome.tabs.onCreated.addListener(broadcastTabsChanged);
+chrome.tabs.onRemoved.addListener(broadcastTabsChanged);
+chrome.tabs.onUpdated.addListener(broadcastTabsChanged);
+chrome.tabs.onActivated.addListener(broadcastTabsChanged);
+chrome.windows.onCreated.addListener(broadcastTabsChanged);
+chrome.windows.onRemoved.addListener(broadcastTabsChanged);
+chrome.windows.onFocusChanged.addListener(broadcastTabsChanged);
+if (chrome.sessions && chrome.sessions.onChanged) {
+  chrome.sessions.onChanged.addListener(broadcastTabsChanged);
+}

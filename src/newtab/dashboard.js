@@ -192,6 +192,16 @@
     });
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg && msg.type === 'TOGGLE_SIDEBAR_REQUEST') toggleSidebar();
+      // Background pushes this whenever tabs/windows/sessions change, so
+      // the Open Tabs / Recently Closed sidebar is fresh without waiting
+      // for the periodic poll.
+      if (msg && msg.type === 'TABS_CHANGED') {
+        (async () => {
+          await refreshOpenTabs();
+          if (sidebarShowingClosed) await refreshRecentlyClosed();
+          renderSidebar();
+        })();
+      }
     });
     // When the theme is "auto", follow the OS light/dark switch live —
     // no reload needed.
@@ -3115,8 +3125,12 @@
       else if (k === 'b' && e.shiftKey) cycleBoards(-1);      // prev board
     });
 
-    setInterval(async () => { await refreshOpenTabs(); renderSidebar(); }, 4000);
-    setInterval(async () => { await refreshRecentlyClosed(); if (sidebarShowingClosed) renderSidebar(); }, 8000);
+    // Safety-net polls: the background now pushes a TABS_CHANGED broadcast
+    // on every tab/window/session event, so the live push keeps the lists
+    // current and these slower polls only catch anything that slipped past
+    // (e.g. events fired while no dashboard was open).
+    setInterval(async () => { await refreshOpenTabs(); renderSidebar(); }, 8000);
+    setInterval(async () => { await refreshRecentlyClosed(); if (sidebarShowingClosed) renderSidebar(); }, 12000);
 
     wireSettingsPanel();
   }
