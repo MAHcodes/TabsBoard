@@ -447,7 +447,7 @@
     const canUnload = !tab.discarded && !tab.active;
 
     menu.innerHTML = `
-      <div class="ws-item" data-act="addcol"><span class="mi-ic">${ICONS.plus}</span>Add to collection…</div>
+      <div class="ws-item" data-act="addcol"><span class="mi-ic">${ICONS.folderPlus}</span>Add to collection…</div>
       <hr>
       <div class="ws-item" data-act="pin"><span class="mi-ic">${ICONS.pin}</span>${pinned ? 'Unpin from tab strip' : 'Keep pinned in tab strip'}</div>
       <div class="ws-item" data-act="mute"><span class="mi-ic">${muted ? ICONS.unmute : ICONS.mute}</span>${muted ? 'Let it play sound again' : 'Silence this tab'}</div>
@@ -1057,7 +1057,7 @@
   /* ---- Countdown: days remaining until a date ---- */
   function renderCountdownWidget(w) {
     const titleHtml = `<span class="widget-title">${escapeHtml(w.label || 'Countdown')}</span>`;
-    const { card, header } = widgetShell(w, ICONS.clock, titleHtml);
+    const { card, header } = widgetShell(w, ICONS.hourglass, titleHtml);
     header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
     const body = el('div', 'widget-body countdown-body');
     if (!w.targetDate) {
@@ -1103,7 +1103,7 @@
   }
   function renderPomodoroWidget(w) {
     const titleHtml = `<span class="widget-title">Pomodoro</span>`;
-    const { card, header } = widgetShell(w, ICONS.clock, titleHtml);
+    const { card, header } = widgetShell(w, ICONS.target, titleHtml);
     header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
     const body = el('div', 'widget-body pomodoro-body');
     body.innerHTML = `
@@ -1222,7 +1222,7 @@
   }
   function renderStopwatchWidget(w) {
     const titleHtml = `<span class="widget-title">Stopwatch</span>`;
-    const { card, header } = widgetShell(w, ICONS.clock, titleHtml);
+    const { card, header } = widgetShell(w, ICONS.stopwatch, titleHtml);
     header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
     const body = el('div', 'widget-body timer-body');
     body.innerHTML = `
@@ -1261,7 +1261,7 @@
   }
   function renderTimerWidget(w) {
     const titleHtml = `<span class="widget-title">Timer</span>`;
-    const { card, header } = widgetShell(w, ICONS.clock, titleHtml);
+    const { card, header } = widgetShell(w, ICONS.timer, titleHtml);
     header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
     const body = el('div', 'widget-body timer-body');
     body.innerHTML = `
@@ -1355,7 +1355,7 @@
   };
   function renderWeatherWidget(w) {
     const titleHtml = `<span class="widget-title">${escapeHtml(w.label || 'Weather')}</span>`;
-    const { card, header } = widgetShell(w, ICONS.globe, titleHtml);
+    const { card, header } = widgetShell(w, ICONS.cloudSun, titleHtml);
     header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
     const body = el('div', 'widget-body weather-body');
     if (!w.lat || !w.lon) {
@@ -1421,7 +1421,7 @@
      broad access up front. ---- */
   function renderRssWidget(w) {
     const titleHtml = `<span class="widget-title">${escapeHtml(w.label || 'RSS Feed')}</span>`;
-    const { card, header } = widgetShell(w, ICONS.globe, titleHtml);
+    const { card, header } = widgetShell(w, ICONS.rss, titleHtml);
     header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
     const body = el('div', 'widget-body rss-body');
     if (!w.feedUrl) {
@@ -2692,12 +2692,12 @@
       <div class="ws-item" data-act="todo"><span class="mi-ic">${ICONS.checkSquare}</span>To-Do checklist</div>
       <div class="ws-item" data-act="clock"><span class="mi-ic">${ICONS.clock}</span>Clock &amp; date</div>
       <div class="ws-item" data-act="search"><span class="mi-ic">${ICONS.search}</span>Search box</div>
-      <div class="ws-item" data-act="countdown"><span class="mi-ic">${ICONS.clock}</span>Countdown</div>
-      <div class="ws-item" data-act="pomodoro"><span class="mi-ic">${ICONS.clock}</span>Pomodoro timer</div>
-      <div class="ws-item" data-act="timer"><span class="mi-ic">${ICONS.clock}</span>Timer</div>
-      <div class="ws-item" data-act="stopwatch"><span class="mi-ic">${ICONS.clock}</span>Stopwatch</div>
-      <div class="ws-item" data-act="weather"><span class="mi-ic">${ICONS.globe}</span>Weather</div>
-      <div class="ws-item" data-act="rss"><span class="mi-ic">${ICONS.globe}</span>RSS Feed</div>`;
+      <div class="ws-item" data-act="countdown"><span class="mi-ic">${ICONS.hourglass}</span>Countdown</div>
+      <div class="ws-item" data-act="pomodoro"><span class="mi-ic">${ICONS.target}</span>Pomodoro timer</div>
+      <div class="ws-item" data-act="timer"><span class="mi-ic">${ICONS.timer}</span>Timer</div>
+      <div class="ws-item" data-act="stopwatch"><span class="mi-ic">${ICONS.stopwatch}</span>Stopwatch</div>
+      <div class="ws-item" data-act="weather"><span class="mi-ic">${ICONS.cloudSun}</span>Weather</div>
+      <div class="ws-item" data-act="rss"><span class="mi-ic">${ICONS.rss}</span>RSS Feed</div>`;
     const close = showDropdown(menu, rect, 200);
     $$('.ws-item', menu).forEach(item => { item.onclick = () => { close(); addWidget(item.dataset.act); }; });
   }
