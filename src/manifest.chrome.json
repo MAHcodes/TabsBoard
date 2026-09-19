@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TabsBoard",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "A rich, customizable new-tab dashboard for organizing bookmarks into collections and workspaces, with tab sessions and quick-add.",
   "icons": {
     "16": "icons/icon16.png",
@@ -9,9 +9,12 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "tabs", "contextMenus", "sessions", "notifications"],
+  "permissions": ["storage", "tabs", "alarms", "contextMenus", "sessions", "notifications", "bookmarks", "search", "topSites", "omnibox", "downloads", "downloads.open", "history"],
   "host_permissions": ["https://geocoding-api.open-meteo.com/*", "https://api.open-meteo.com/*"],
   "optional_host_permissions": ["<all_urls>"],
+  "omnibox": {
+    "keyword": "tb"
+  },
   "background": {
     "service_worker": "background/background.js"
   },

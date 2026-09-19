@@ -116,13 +116,17 @@
       <button id="settings-close-x" class="icon-btn small"></button>
     </div>
     <div class="settings-layout">
-      <nav class="settings-tabs" id="settings-tabs">
-        <button class="settings-tab active" data-tab="appearance"><span class="stab-ic" data-icon="palette"></span><span class="stab-label">Appearance</span></button>
-        <button class="settings-tab" data-tab="themes"><span class="stab-ic" data-icon="grid"></span><span class="stab-label">Themes</span></button>
-        <button class="settings-tab" data-tab="layout"><span class="stab-ic" data-icon="columns"></span><span class="stab-label">Layout</span></button>
-        <button class="settings-tab" data-tab="behavior"><span class="stab-ic" data-icon="settings"></span><span class="stab-label">Behavior</span></button>
-        <button class="settings-tab" data-tab="data"><span class="stab-ic" data-icon="save"></span><span class="stab-label">Data</span></button>
-      </nav>
+      <div class="settings-nav-col">
+        <nav class="settings-tabs" id="settings-tabs">
+          <button class="settings-tab active" data-tab="appearance"><span class="stab-ic" data-icon="palette"></span><span class="stab-label">Appearance</span></button>
+          <button class="settings-tab" data-tab="themes"><span class="stab-ic" data-icon="grid"></span><span class="stab-label">Themes</span></button>
+          <button class="settings-tab" data-tab="layout"><span class="stab-ic" data-icon="columns"></span><span class="stab-label">Layout</span></button>
+          <button class="settings-tab" data-tab="behavior"><span class="stab-ic" data-icon="settings"></span><span class="stab-label">Behavior</span></button>
+          <button class="settings-tab" data-tab="widgets"><span class="stab-ic" data-icon="widget"></span><span class="stab-label">Widgets</span></button>
+          <button class="settings-tab" data-tab="data"><span class="stab-ic" data-icon="save"></span><span class="stab-label">Data</span></button>
+        </nav>
+        <div class="settings-footer">TabsBoard <span id="app-version"></span></div>
+      </div>
       <div class="settings-panels">
 
         <div class="settings-panel active" id="panel-appearance">
@@ -307,6 +311,59 @@
           </div>
           <div class="settings-group">
             <div class="settings-group-head">
+              <h3>Sessions</h3>
+              <p>How saved sessions are handled.</p>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Confirm before restoring</span><span class="switch-desc">Ask before a session's tabs are reopened.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-confirm-restore-session"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-panel" id="panel-widgets">
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Browser-data widgets</h3>
+              <p>How History and Most visited collections mirror your browsing.</p>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Show visit time</span><span class="switch-desc">Show how long ago each history entry was visited.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-history-times"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label for="history-count-custom">History tabs shown</label>
+              <div class="count-picker">
+                <div class="segmented" id="history-count">
+                  <button data-val="5">5</button>
+                  <button data-val="10">10</button>
+                  <button data-val="20">20</button>
+                  <button data-val="40">40</button>
+                </div>
+                <input type="number" id="history-count-custom" min="0" max="200" step="1" aria-label="Custom history count">
+              </div>
+              <div class="hint-text">How many history entries each new History collection snapshots. Type any number to set a custom amount.</div>
+            </div>
+            <div class="settings-row">
+              <label for="top-sites-count-custom">Most visited sites shown</label>
+              <div class="count-picker">
+                <div class="segmented" id="top-sites-count">
+                  <button data-val="6">6</button>
+                  <button data-val="12">12</button>
+                  <button data-val="24">24</button>
+                  <button data-val="48">48</button>
+                </div>
+                <input type="number" id="top-sites-count-custom" min="0" max="200" step="1" aria-label="Custom top sites count">
+              </div>
+              <div class="hint-text">How many top sites each Most visited collection syncs from the browser.</div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-head">
               <h3>Widget defaults</h3>
               <p>Defaults applied to newly added widgets — existing widgets keep their own values.</p>
             </div>
@@ -326,15 +383,17 @@
             </div>
             <div class="settings-row">
               <label>Pomodoro focus / break (min)</label>
-              <div class="num-inline">
-                <input type="number" id="widget-pomodoro-focus" min="1" max="180" step="1">
-                <span class="num-sep">/</span>
-                <input type="number" id="widget-pomodoro-break" min="1" max="60" step="1">
+              <div class="count-picker count-picker-split">
+                <input type="number" id="widget-pomodoro-focus" min="1" max="180" step="1" aria-label="Focus minutes">
+                <span class="chip-sep">/</span>
+                <input type="number" id="widget-pomodoro-break" min="1" max="60" step="1" aria-label="Break minutes">
               </div>
             </div>
             <div class="settings-row">
-              <label>Countdown default (days)</label>
-              <div class="num-inline"><input type="number" id="widget-countdown-days" min="1" max="365" step="1"></div>
+              <label for="widget-countdown-days">Countdown default (days)</label>
+              <div class="count-picker count-picker-single">
+                <input type="number" id="widget-countdown-days" min="1" max="365" step="1" aria-label="Countdown days">
+              </div>
               <div class="hint-text">New Countdown widgets start this many days out from today.</div>
             </div>
             <div class="settings-row">
@@ -344,18 +403,6 @@
                 <button data-val="15">15 m</button>
                 <button data-val="30">30 m</button>
                 <button data-val="60">60 m</button>
-              </div>
-            </div>
-          </div>
-          <div class="settings-group">
-            <div class="settings-group-head">
-              <h3>Sessions</h3>
-              <p>How saved sessions are handled.</p>
-            </div>
-            <div class="settings-row">
-              <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Confirm before restoring</span><span class="switch-desc">Ask before a session's tabs are reopened.</span></span>
-                <label class="switch"><input type="checkbox" id="setting-confirm-restore-session"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
             </div>
           </div>
@@ -388,14 +435,18 @@
               <p>How long deleted bookmarks stick around and how much history the sidebar keeps.</p>
             </div>
             <div class="settings-row">
-              <label>Recently closed tabs shown</label>
-              <div class="segmented" id="recently-closed-limit">
-                <button data-val="5">5</button>
-                <button data-val="10">10</button>
-                <button data-val="20">20</button>
-                <button data-val="40">40</button>
+              <label for="recently-closed-custom">Recently closed tabs shown</label>
+              <div class="count-picker">
+                <div class="segmented" id="recently-closed-limit">
+                  <button data-val="0">All</button>
+                  <button data-val="5">5</button>
+                  <button data-val="10">10</button>
+                  <button data-val="20">20</button>
+                  <button data-val="40">40</button>
+                </div>
+                <input type="number" id="recently-closed-custom" min="0" max="500" step="1" aria-label="Custom recently closed count">
               </div>
-              <div class="hint-text">How many recently-closed tabs appear in the sidebar.</div>
+              <div class="hint-text">How many recently-closed tabs appear in the sidebar. Type any number to set a custom amount.</div>
             </div>
             <div class="settings-row">
               <label>Keep deleted bookmarks for</label>
@@ -424,7 +475,6 @@
     </div>
     <ul class="shortcut-list-big">
       <li><span>Command palette</span><kbd>Ctrl K / /</kbd></li>
-      <li><span>Quick-add current tab</span><kbd>Ctrl Shift A</kbd></li>
       <li><span>Toggle sidebar</span><kbd>T</kbd></li>
       <li><span>Toggle grid / list view</span><kbd>V</kbd></li>
       <li><span>Next board</span><kbd>B</kbd></li>
@@ -435,6 +485,10 @@
       <li><span>Show shortcuts</span><kbd>?</kbd></li>
       <li><span>Close dialogs / clear selection</span><kbd>Esc</kbd></li>
     </ul>
+    <div class="commands-list-wrap hidden" id="commands-list-wrap">
+      <div class="commands-list-title">Global commands <span class="hint-text">(remappable)</span></div>
+      <ul class="shortcut-list-big" id="commands-list"></ul>
+    </div>
     <div class="hint-text">Global shortcuts (open dashboard, quick-add, toggle sidebar) can be remapped at <code>chrome://extensions/shortcuts</code> (or the Firefox add-on shortcuts page).</div>
   </div>
 </div>

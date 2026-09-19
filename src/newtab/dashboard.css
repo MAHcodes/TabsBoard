@@ -148,6 +148,7 @@ svg { width: 100%; height: 100%; }
   cursor: pointer; line-height: 1.3; white-space: nowrap;
 }
 .dropdown-menu .ws-item:hover { background: var(--sub-alt-color); color: var(--text-color); }
+.dropdown-menu .ws-item.disabled { color: var(--sub-color); opacity: .5; pointer-events: none; }
 .dropdown-menu .ws-item.active { background: var(--sub-alt-color); color: var(--main-color); font-weight: 700; }
 .dropdown-menu .ws-item .mi-ic {
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
@@ -251,6 +252,9 @@ svg { width: 100%; height: 100%; }
 .tab-row .tab-icons button svg { width: 13px; height: 13px; }
 .tab-row .tab-icons button:hover { background: var(--bg-color); color: var(--text-color); }
 .tab-row .tab-icons button.tab-close:hover { background: var(--error-color); color: var(--bg-color); }
+.tab-row .rc-time { font-size: 10.5px; color: var(--sub-color); flex-shrink: 0; opacity: .8; }
+.tab-window-row .window-favicons { display: flex; gap: 2px; flex-shrink: 0; }
+.tab-window-row .window-favicons .favicon { width: 14px; height: 14px; }
 
 /* ---------- Dashboard board & widgets ---------- */
 .board { display: grid; grid-template-columns: repeat(var(--board-cols, 4), minmax(0, 1fr)); gap: var(--gap); align-items: stretch; grid-auto-rows: minmax(var(--board-row-min, 200px), auto); grid-auto-flow: row dense; }
@@ -269,6 +273,8 @@ svg { width: 100%; height: 100%; }
 .widget[data-rowspan="4"] { grid-row: span 4; }
 .widget.pinned { border-color: var(--main-color); }
 .widget.drag-over { outline: 2px dashed var(--main-color); outline-offset: -2px; }
+.widget.flash { animation: widget-flash 1.6s ease; }
+@keyframes widget-flash { 0% { box-shadow: 0 0 0 3px var(--main-color); } 100% { box-shadow: 0 0 0 0 transparent; } }
 .widget.resizing { outline: 2px solid var(--main-color); outline-offset: -2px; user-select: none; }
 .widget-drop-marker {
   position: relative; z-index: 20; pointer-events: none; border-radius: var(--radius);
@@ -414,6 +420,8 @@ body.dragging-tab .widget-ghost { display: flex; }
 .bookmark-item.selected { background: var(--bg-color); box-shadow: inset 2px 0 0 0 var(--main-color); }
 .bookmark-item.dragging { opacity: .35; }
 .bookmark-item .bm-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-item .bm-meta { flex-shrink: 0; font-size: 10.5px; color: var(--sub-color); padding: 0 6px 0 0; }
+.bookmark-tile .bm-meta { width: 100%; font-size: 10px; color: var(--sub-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -3px; }
 .bookmark-item .bm-select { width: 15px; height: 15px; flex-shrink: 0; }
 .bookmark-item .bm-pin-ic, .bookmark-tile .bm-pin-ic { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; color: var(--main-color); flex-shrink: 0; }
 .bm-menu-btn { background: none; border: none; color: var(--sub-color); width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 0; transition: opacity .12s ease; }
@@ -427,7 +435,7 @@ body.dragging-tab .widget-ghost { display: flex; }
 .bookmark-tile:hover { border-color: var(--border-color); }
 .bookmark-tile.selected { background: var(--sub-alt-color); outline: 2px solid var(--main-color); }
 .bookmark-tile .bm-favicon { width: 28px; height: 28px; border-radius: 7px; }
-.bookmark-tile .bm-title { font-size: 11px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.bookmark-tile .bm-title { width: 100%; font-size: 11px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bookmark-tile .bm-menu-btn { position: absolute; top: 3px; right: 3px; background: transparent; box-shadow: none; }
 .bookmark-tile .bm-pin-ic { position: absolute; top: 4px; left: 4px; }
 
@@ -510,11 +518,13 @@ body.dragging-tab .widget-ghost { display: flex; }
   display: flex; flex-direction: column; overflow: hidden;
 }
 .settings-modal .modal-header-row { flex-shrink: 0; padding-bottom: 14px; border-bottom: 1px solid var(--border-color); margin-bottom: 0; }
+.settings-footer { flex-shrink: 0; padding-top: 10px; font-size: 11.5px; color: var(--sub-color); }
 /* Command palette sits higher on screen rather than dead-center, like a
    launcher — the backdrop still blurs behind it. */
 #palette-overlay { align-items: flex-start; padding-top: 15vh; }
 .settings-layout { display: flex; flex: 1; min-height: 0; padding-top: 16px; }
-.settings-tabs { display: flex; flex-direction: column; gap: 2px; width: 196px; flex-shrink: 0; overflow-y: auto; padding-right: 14px; }
+.settings-nav-col { display: flex; flex-direction: column; width: 196px; flex-shrink: 0; }
+.settings-tabs { display: flex; flex-direction: column; gap: 2px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 14px; }
 .settings-tab {
   width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
   background: none; border: none; padding: 10px 12px; border-radius: 10px;
@@ -595,15 +605,46 @@ body.dragging-tab .widget-ghost { display: flex; }
 .segmented button.active { background: var(--bg-color); color: var(--text-color); box-shadow: 0 1px 3px rgba(0,0,0,.14); }
 .checkbox-row { font-size: 13px; margin-bottom: 4px; }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.num-inline { display: flex; align-items: center; gap: 8px; }
-.num-inline input { width: 86px; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); font-size: 13px; font-weight: 700; outline: none; text-align: center; }
-.num-inline input:focus { border-color: var(--main-color); }
-.num-inline .num-sep { color: var(--sub-color); font-weight: 700; font-size: 13px; }
+
+/* Count pickers: a preset segmented control merged with an always-editable
+   numeric chip into ONE pill, so a custom value doesn't float below the
+   presets. The chip reuses the active-segment look, so it reads as "the
+   current value you can also type into". Native spinner arrows are hidden
+   for a cleaner chip. */
+.count-picker { display: flex; align-items: center; gap: 6px; background: var(--sub-alt-color); border-radius: 10px; padding: 3px; }
+.count-picker .segmented { flex: 1; background: none; padding: 0; gap: 3px; }
+.count-picker .segmented button { padding: 7px 8px; border-radius: 7px; }
+.count-picker input[type=number] {
+  flex: 0 0 auto; width: 82px; padding: 7px 8px; border: none; border-radius: 7px;
+  background: var(--bg-color); color: var(--text-color); font-size: 12px; font-weight: 700;
+  text-align: center; outline: none; box-shadow: 0 1px 3px rgba(0,0,0,.14);
+  -moz-appearance: textfield; appearance: textfield;
+}
+.count-picker input[type=number]::-webkit-outer-spin-button,
+.count-picker input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.count-picker input[type=number]:focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--main-color) 40%, transparent); }
+.count-picker-split { justify-content: stretch; }
+.count-picker-split input[type=number] { flex: 1 1 0; width: auto; }
+.count-picker-single { display: inline-flex; }
+.count-picker-single input[type=number] { width: 110px; }
+.chip-sep { color: var(--sub-color); font-weight: 700; font-size: 12px; }
 
 .shortcuts-modal { width: min(440px, 92vw); }
 .shortcut-list-big { list-style: none; padding: 0; margin: 14px 0; display: flex; flex-direction: column; gap: 10px; }
 .shortcut-list-big li { display: flex; align-items: center; justify-content: space-between; font-size: 13px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
 .shortcut-list-big li:last-child { border-bottom: none; }
+.commands-list-wrap { margin-top: 4px; }
+.commands-list-title { font-size: 12px; color: var(--sub-color); margin-bottom: -4px; }
+#commands-list { margin-top: 10px; }
+
+/* Downloads widget (browser-data list) */
+.bs-body { padding: 8px; flex: 1; }
+.bs-list { display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.bs-item { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 8px; font-size: 12.5px; cursor: pointer; }
+.bs-item:hover { background: var(--bg-color); }
+.bs-item .favicon { width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0; object-fit: contain; }
+.bs-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bs-meta { font-size: 10.5px; color: var(--sub-color); flex-shrink: 0; }
 
 .trash-modal { width: min(560px, 92vw); }
 .trash-list { display: flex; flex-direction: column; gap: 6px; margin: 14px 0; max-height: 50vh; overflow-y: auto; }

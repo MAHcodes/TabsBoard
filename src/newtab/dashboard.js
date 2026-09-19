@@ -180,9 +180,15 @@
     injectStaticIcons();
     applySettings();
     await refreshOpenTabs();
-    await refreshRecentlyClosed();
     renderAll();
+    // Recently-closed is off-screen (sidebar) and only rendered once the user
+    // switches to it, so don't let a slow fetch delay the first paint.
+    refreshRecentlyClosed().then(() => { if (sidebarShowingClosed) renderSidebar(); });
+    migrateLegacyBrowserWidgets();
     wireGlobalEvents();
+    const verEl = $('#app-version');
+    if (verEl && chrome.runtime && chrome.runtime.getManifest) verEl.textContent = 'v' + (chrome.runtime.getManifest().version || '');
+    handleDeepLink();
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === 'local' && changes.tdb_data) {
         STATE = changes.tdb_data.newValue;
@@ -202,6 +208,13 @@
           renderSidebar();
         })();
       }
+      // Background pushes this whenever the browser's download list changes,
+      // so the downloads widget mirrors it live without any polling timer. We
+      // re-render only when a downloads card is actually on the active board.
+      if (msg && msg.type === 'DOWNLOADS_CHANGED' && currentNav === 'collections' &&
+        widgetsForActiveWS().some(w => w.type === 'downloads')) {
+        renderBoard();
+      }
     });
     // When the theme is "auto", follow the OS light/dark switch live —
     // no reload needed.
@@ -219,6 +232,26 @@
 
   async function reload() { STATE = await DB.getState(); renderAll(); }
 
+  /* Deep links from the omnibox (and elsewhere): "#view=sessions" jumps to
+     the Sessions view; "#col=<id>" jumps to the board tab for that
+     collection widget and flashes it. */
+  function handleDeepLink() {
+    const hash = location.hash || '';
+    if (hash.indexOf('view=sessions') !== -1) switchNav('sessions');
+    const colId = (hash.match(/col=([^&]+)/) || [])[1];
+    if (!colId) return;
+    const wid = Object.values(STATE.widgets).filter(w => w.type === 'collection' && w.collectionId === colId)[0];
+    if (!wid) return;
+    switchNav('collections');
+    requestAnimationFrame(() => {
+      const card = document.querySelector(`.widget[data-widget-id="${wid.id}"]`);
+      if (!card) return;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('flash');
+      setTimeout(() => card.classList.remove('flash'), 1600);
+    });
+  }
+
   async function refreshOpenTabs() {
     const res = await sendMsg('GET_OPEN_TABS');
     OPEN_TABS = (res && res.tabs) || [];
@@ -226,9 +259,16 @@
 
   let RECENTLY_CLOSED = [];
   async function refreshRecentlyClosed() {
-    const res = await sendMsg('GET_RECENTLY_CLOSED');
-    const limit = Number((STATE.meta.settings && STATE.meta.settings.recentlyClosedLimit) || 20);
-    RECENTLY_CLOSED = ((res && res.items) || []).slice(0, limit);
+    const limit = Number((STATE.meta.settings && STATE.meta.settings.recentlyClosedLimit) || 0);
+    // A slow/stuck sessions API must never block the sidebar — bail out.
+    // (10s: Firefox can be slow walking a large session backlog, and the
+    // background now always answers, so only a dead background gets dropped.)
+    const res = await Promise.race([
+      sendMsg('GET_RECENTLY_CLOSED', { limit }),
+      new Promise(resolve => setTimeout(() => resolve(null), 10000))
+    ]);
+    RECENTLY_CLOSED = ((res && res.items) || []);
+    if (limit > 0) RECENTLY_CLOSED = RECENTLY_CLOSED.slice(0, limit);
   }
 
   function renderAll() {
@@ -445,6 +485,12 @@
       renderSidebar();
     };
     row.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openTabMenu(tab, e.currentTarget); };
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const x = e.clientX, y = e.clientY;
+      openTabMenu(tab, { getBoundingClientRect: () => ({ left: x, top: y, bottom: y, right: x, width: 0, height: 0 }) });
+    });
     return row;
   }
 
@@ -462,6 +508,9 @@
       <div class="ws-item" data-act="pin"><span class="mi-ic">${ICONS.pin}</span>${pinned ? 'Unpin from tab strip' : 'Keep pinned in tab strip'}</div>
       <div class="ws-item" data-act="mute"><span class="mi-ic">${muted ? ICONS.unmute : ICONS.mute}</span>${muted ? 'Let it play sound again' : 'Silence this tab'}</div>
       <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.duplicate}</span>Open a copy of this tab</div>
+      <div class="ws-item" data-act="reload"><span class="mi-ic">${ICONS.refresh}</span>Reload this tab</div>
+      <div class="ws-item${tab.canGoBack === false ? ' disabled' : ''}" data-act="back"><span class="mi-ic">${ICONS.arrowLeft}</span>Go back</div>
+      <div class="ws-item${tab.canGoForward === false ? ' disabled' : ''}" data-act="forward"><span class="mi-ic">${ICONS.arrowRight}</span>Go forward</div>
       <div class="ws-item" data-act="movewin"><span class="mi-ic">${ICONS.externalWindow}</span>Pop out to its own window</div>
       ${canUnload ? `<div class="ws-item" data-act="unload"><span class="mi-ic">${ICONS.archive}</span>Unload this tab</div>` : ''}
       <hr>
@@ -472,13 +521,26 @@
     menu.querySelector('[data-act=pin]').onclick = async () => { close(); await sendMsg('TOGGLE_PIN_TAB', { tabId: tab.id, pinned: !pinned }); await refreshOpenTabs(); renderSidebar(); };
     menu.querySelector('[data-act=mute]').onclick = async () => { close(); await sendMsg('TOGGLE_MUTE_TAB', { tabId: tab.id, muted: !muted }); await refreshOpenTabs(); renderSidebar(); };
     menu.querySelector('[data-act=dup]').onclick = async () => { close(); await sendMsg('DUPLICATE_TAB', { tabId: tab.id }); await refreshOpenTabs(); renderSidebar(); };
+    menu.querySelector('[data-act=reload]').onclick = async () => { close(); await sendMsg('RELOAD_TAB', { tabId: tab.id }); };
+    menu.querySelector('[data-act=back]').onclick = async () => {
+      if (tab.canGoBack === false) return;
+      close();
+      await sendMsg('GO_BACK_TAB', { tabId: tab.id });
+      await refreshOpenTabs(); renderSidebar();
+    };
+    menu.querySelector('[data-act=forward]').onclick = async () => {
+      if (tab.canGoForward === false) return;
+      close();
+      await sendMsg('GO_FORWARD_TAB', { tabId: tab.id });
+      await refreshOpenTabs(); renderSidebar();
+    };
     menu.querySelector('[data-act=movewin]').onclick = async () => { close(); await sendMsg('MOVE_TAB_NEW_WINDOW', { tabId: tab.id }); await refreshOpenTabs(); renderSidebar(); };
     const unloadBtn = menu.querySelector('[data-act=unload]');
     if (unloadBtn) unloadBtn.onclick = async () => {
       close();
       const res = await sendMsg('DISCARD_TAB', { tabId: tab.id });
       if (res && res.ok) toast('Tab unloaded');
-      else toast("Couldn't unload that tab");
+      else toast("Couldn't unload that tab" + ((res && res.error) ? ': ' + res.error : ''));
       await refreshOpenTabs(); renderSidebar();
     };
     menu.querySelector('[data-act=close]').onclick = async () => {
@@ -509,13 +571,27 @@
 
   function renderRecentlyClosedRows(wrap) {
     RECENTLY_CLOSED.forEach(item => {
-      const row = el('div', 'tab-row');
-      row.innerHTML = `
-        <img class="favicon" src="${item.favIconUrl || faviconFor(item.url)}" onerror="this.style.visibility='hidden'">
-        <span class="tab-title" title="${escapeHtml(item.url)}">${escapeHtml(item.title || item.url)}</span>
-        <span class="tab-icons">
-          <button data-act="reopen" title="Reopen this tab">${ICONS.refresh}</button>
-        </span>`;
+      const row = el('div', 'tab-row' + (item.isWindow ? ' tab-window-row' : ''));
+      if (item.isWindow) {
+        const favs = (item.tabs || []).slice(0, 4).map(u =>
+          `<img class="favicon" src="${u.favIconUrl || faviconFor(u.url)}" title="${escapeHtml(u.title || u.url)}" onerror="this.style.visibility='hidden'">`
+        ).join('');
+        row.innerHTML = `
+          <span class="window-favicons">${favs}</span>
+          <span class="tab-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</span>
+          <span class="rc-time">${formatRelTime(item.closedAt)}</span>
+          <span class="tab-icons">
+            <button data-act="reopen" title="Restore window">${ICONS.refresh}</button>
+          </span>`;
+      } else {
+        row.innerHTML = `
+          <img class="favicon" src="${item.favIconUrl || faviconFor(item.url)}" onerror="this.style.visibility='hidden'">
+          <span class="tab-title" title="${escapeHtml(item.url)}">${escapeHtml(item.title || item.url)}</span>
+          <span class="rc-time">${formatRelTime(item.closedAt)}</span>
+          <span class="tab-icons">
+            <button data-act="reopen" title="Reopen this tab">${ICONS.refresh}</button>
+          </span>`;
+      }
       row.addEventListener('click', async () => {
         await sendMsg('REOPEN_CLOSED_SESSION', { sessionId: item.sessionId });
         await refreshOpenTabs();
@@ -624,6 +700,9 @@
     if (w.type === 'stopwatch') return renderStopwatchWidget(w);
     if (w.type === 'weather') return renderWeatherWidget(w);
     if (w.type === 'rss') return renderRssWidget(w);
+    if (w.type === 'topSites') return renderTopSitesWidget(w);
+    if (w.type === 'downloads') return renderDownloadsWidget(w);
+    if (w.type === 'history') return renderHistoryWidget(w);
     return el('div');
   }
 
@@ -906,6 +985,43 @@
     return card;
   }
 
+  function renderBrowserDataWidget(w, opts) {
+    /* Renders live browser data (Most visited / History) in the exact same
+       card + bookmark list/tile layout a real collection uses, so they read
+       and behave like ordinary collection widgets. opts.fetch(done) supplies
+       [{title, url, favicon, _i}]; items honor the global view mode and the
+       widget's row count. */
+    const viewMode = STATE.meta.settings.viewMode || 'grid';
+    const shownCount = opts.count || w.count || 8;
+    const metaFor = opts.meta || (() => '');
+    const listEl = el('div', 'bookmarks-list is-empty');
+    listEl.appendChild(el('div', 'empty-collection-hint', 'Loading…'));
+    const titleHtml = `<span class="widget-title">${escapeHtml(opts.title || '')}</span>`;
+    const { card, header } = widgetShell(w, opts.icon || ICONS.grid, titleHtml);
+    header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
+    const body = el('div', 'widget-body');
+    body.appendChild(listEl);
+    card.appendChild(body);
+    opts.fetch((items) => {
+      items = (items || []).slice(0, shownCount);
+      listEl.innerHTML = '';
+      listEl.classList.toggle('view-grid', viewMode === 'grid' && items.length > 0);
+      listEl.classList.toggle('is-empty', !items.length);
+      if (!items.length) {
+        listEl.appendChild(el('div', 'empty-collection-hint', opts.emptyText || 'Nothing here yet'));
+        return;
+      }
+      items.forEach(item => listEl.appendChild(renderVirtualBookmark({
+        id: 'vbm-' + w.id + (item._i !== undefined ? '-' + item._i : '-' + Math.random().toString(36).slice(2)),
+        title: item.title || hostnameOf(item.url) || item.url,
+        url: item.url,
+        favicon: item.favicon || '',
+        meta: metaFor(item)
+      }, viewMode)));
+    });
+    return card;
+  }
+
   function renderNotesWidget(w) {
     const titleHtml = `<span class="widget-title">Notes</span>`;
     const { card, header } = widgetShell(w, ICONS.notes, titleHtml);
@@ -1062,6 +1178,101 @@
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
     card.appendChild(body);
     return card;
+  }
+
+  /* ---- Most visited: chrome.topSites hits the browser's most-visited list.
+     Rendered as a normal collection widget (shared bookmark layout, open /
+     copy / drag-to-save behavior). ---- */
+  function renderTopSitesWidget(w) {
+    return renderBrowserDataWidget(w, {
+      title: 'Most visited', icon: ICONS.grid, emptyText: 'No top sites available',
+      fetch: (done) => {
+        const finish = (sites) => done((sites || []).map((s, i) => ({ title: s.title || hostnameOf(s.url) || s.url, url: s.url, favicon: s.favicon || '', _i: i })));
+        const api = chrome.topSites;
+        if (!api || !api.get) { done([]); return; }
+        try {
+          // Firefox: pass {newtab:true} so the list matches the real
+          // new-tab page (its default can come back empty). Chrome's
+          // topSites.get is callback-only and takes no options.
+          const isFx = (chrome.runtime && chrome.runtime.getURL('t').indexOf('moz-extension://') === 0);
+          const opts = isFx ? { newtab: true, limit: Math.max(w.count || 8, 12) } : undefined;
+          const p = api.get(opts);
+          if (p && typeof p.then === 'function') p.then(finish, () => done([]));
+          else api.get(finish);
+        } catch (e) { done([]); }
+      }
+    });
+  }
+
+  function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0, v = bytes;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return (i === 0 ? Math.round(v) : v.toFixed(1)) + ' ' + units[i];
+  }
+  function formatRelTime(ts) {
+    if (!ts) return '';
+    const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+  }
+
+  /* ---- Recent downloads: chrome.downloads lists the browser's recent
+     completed downloads. Rows open the file (or reveal it in the download
+     manager via the folder button). Fresh data on each render, like the
+     Most visited widget. ---- */
+  function renderDownloadsWidget(w) {
+    const titleHtml = `<span class="widget-title">Downloads</span>`;
+    const { card, header } = widgetShell(w, ICONS.download, titleHtml);
+    header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
+    const body = el('div', 'widget-body bs-body');
+    const list = el('div', 'bs-list');
+    body.appendChild(list);
+    const fill = (data) => {
+      list.innerHTML = '';
+      const items = (data && data.downloads) || [];
+      if (!items.length) { body.appendChild(el('div', 'empty-collection-hint', 'No recent downloads')); return; }
+      items.forEach(d => {
+        const name = d.filename ? d.filename.split('/').pop() : hostnameOf(d.url);
+        const row = el('div', 'bs-item');
+        row.innerHTML = `
+          <img class="favicon" src="${faviconFor(d.url)}" onerror="this.style.visibility='hidden'">
+          <span class="bs-title" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+          <span class="bs-meta">${formatBytes(d.size)}${d.endTime ? ' · ' + formatRelTime(new Date(d.endTime).getTime()) : ''}</span>`;
+        row.addEventListener('click', (e) => {
+          e.preventDefault();
+          sendMsg('SHOW_DOWNLOAD', { id: d.id });
+        });
+        list.appendChild(row);
+      });
+    };
+    sendMsg('GET_DOWNLOADS', { count: w.count || 8 }).then(fill, () => fill({ downloads: [] }));
+    card.appendChild(body);
+    return card;
+  }
+
+  /* ---- Browsing history: chrome.history shows pages visited recently,
+     rendered as a normal collection widget. Each entry's visit time is shown
+     (unless the user turns it off) and the per-widget count comes from the
+     global "History tabs shown" setting. ---- */
+  function renderHistoryWidget(w) {
+    const s = STATE.meta.settings;
+    const count = Math.max(1, Number(w.count || s.historyCount) || 10);
+    const showTimes = s.historyShowTimes !== false;
+    return renderBrowserDataWidget(w, {
+      title: 'History', icon: ICONS.clock, emptyText: 'No browsing history yet',
+      count,
+      meta: (item) => (showTimes && item._t ? formatRelTime(item._t) : ''),
+      fetch: (done) => {
+        sendMsg('GET_HISTORY', { count: Math.max(count, 20), days: w.days || 1 }).then(
+          (data) => done(((data && data.history) || []).map((h, i) => ({ title: h.title, url: h.url, favicon: '', _i: i, _t: h.lastVisitTime }))),
+          () => done([])
+        );
+      }
+    });
   }
 
   /* ---- Countdown: days remaining until a date ---- */
@@ -1455,6 +1666,19 @@
   function originPatternFor(url) {
     try { return new URL(url).origin + '/*'; } catch { return null; }
   }
+  function revokeFeedPermission(url, excludeWidgetId) {
+    // Tidy up when an RSS widget goes away: drop the host-origin grant it
+    // requested, unless another RSS widget still needs the same origin.
+    const pattern = originPatternFor(url);
+    if (!pattern || !chrome.permissions || !chrome.permissions.remove) return;
+    const stillNeeded = Object.values(STATE.widgets || {}).some(o =>
+      o.id !== excludeWidgetId && o.type === 'rss' && o.feedUrl && originPatternFor(o.feedUrl) === pattern);
+    if (stillNeeded) return;
+    try {
+      const p = chrome.permissions.remove({ origins: [pattern] });
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch (e) { /* non-fatal */ }
+  }
   function ensureFeedPermission(url) {
     // chrome.permissions.request() only works when it's called (essentially)
     // synchronously in response to a user gesture. The previous version
@@ -1570,7 +1794,7 @@
   function openGenericWidgetMenu(w, anchorBtn) {
     const rect = anchorBtn.getBoundingClientRect();
     const menu = el('div', 'dropdown-menu');
-    const removeLabel = w.type === 'notes' ? 'Remove Notes widget' : w.type === 'todo' ? 'Remove To-Do widget' : w.type === 'clock' ? 'Remove Clock widget' : w.type === 'search' ? 'Remove Search widget' : w.type === 'countdown' ? 'Remove Countdown widget' : w.type === 'pomodoro' ? 'Remove Pomodoro widget' : w.type === 'timer' ? 'Remove Timer widget' : w.type === 'stopwatch' ? 'Remove Stopwatch widget' : w.type === 'weather' ? 'Remove Weather widget' : w.type === 'rss' ? 'Remove RSS widget' : 'Remove widget';
+    const removeLabel = w.type === 'notes' ? 'Remove Notes widget' : w.type === 'todo' ? 'Remove To-Do widget' : w.type === 'clock' ? 'Remove Clock widget' : w.type === 'search' ? 'Remove Search widget' : w.type === 'countdown' ? 'Remove Countdown widget' : w.type === 'pomodoro' ? 'Remove Pomodoro widget' : w.type === 'timer' ? 'Remove Timer widget' : w.type === 'stopwatch' ? 'Remove Stopwatch widget' : w.type === 'weather' ? 'Remove Weather widget' : w.type === 'rss' ? 'Remove RSS widget' : w.type === 'topSites' ? 'Remove Most visited widget' : w.type === 'downloads' ? 'Remove Downloads widget' : w.type === 'history' ? 'Remove History widget' : 'Remove widget';
     let extra = '';
     if (w.type === 'clock') {
       extra = `<div class="ws-item" data-act="fmt"><span class="mi-ic">${ICONS.clock}</span>${(w.format || '24') === '24' ? 'Switch to 12-hour' : 'Switch to 24-hour'}</div><div class="ws-item" data-act="edittz"><span class="mi-ic">${ICONS.globe}</span>Change timezone…</div><hr>`;
@@ -1592,6 +1816,8 @@
       extra = `<div class="ws-item" data-act="editstopwatch"><span class="mi-ic">${ICONS.edit}</span>Options</div><hr>`;
     } else if (w.type === 'rss') {
       extra = `<div class="ws-item" data-act="editrss"><span class="mi-ic">${ICONS.edit}</span>Edit feed</div><div class="ws-item" data-act="refreshrss"><span class="mi-ic">${ICONS.refresh}</span>Refresh now</div><hr>`;
+    } else if (w.type === 'downloads' || w.type === 'history') {
+      extra = `<div class="ws-item" data-act="refreshlist"><span class="mi-ic">${ICONS.refresh}</span>Refresh list</div><hr>`;
     }
     menu.innerHTML = `${extra.replace(/<hr>\s*$/, '')}${tintMenuItemHtml()}<hr>${widthMenuItemsHtml(w)}${heightMenuItemsHtml(w)}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash2}</span>${removeLabel}</div>`;
     const close = showDropdown(menu, rect, 200);
@@ -1616,10 +1842,17 @@
     if (editRssBtn) editRssBtn.onclick = () => { close(); openRssEditModal(w); };
     const refreshRssBtn = menu.querySelector('[data-act=refreshrss]');
     if (refreshRssBtn) refreshRssBtn.onclick = async () => { close(); await refreshRssWidget(w); };
+    const refreshListBtn = menu.querySelector('[data-act=refreshlist]');
+    if (refreshListBtn) refreshListBtn.onclick = async () => { close(); await reload(); };
     wireWidthMenuItems(menu, w, close);
     wireHeightMenuItems(menu, w, close);
     wireTintMenuItem(menu, w, close);
-    menu.querySelector('[data-act=remove]').onclick = async () => { close(); await DB.deleteWidget(w.id); await reload(); };
+    menu.querySelector('[data-act=remove]').onclick = async () => {
+      close();
+      if (w.type === 'rss' && w.feedUrl) revokeFeedPermission(w.feedUrl, w.id);
+      await DB.deleteWidget(w.id);
+      await reload();
+    };
   }
 
   /* ---- ghost "drop a tab here to create a collection" tile ---- */
@@ -1750,6 +1983,88 @@
   /* ============ BOOKMARKS ============ */
   function openBookmarkUrl(bm) { sendMsg('OPEN_URL', { url: bm.url }); }
 
+  /* Virtual bookmarks: live browser data (Most visited, History) rendered
+     through the same bookmark-item/tile look and open/copy behavior as a
+     real collection, but with no store operations behind them. */
+  async function copyTextToClipboard(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) { /* fall through */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch (e) {
+      return false;
+    }
+  }
+  function openVirtualBookmarkMenu(bm, rect, titleEl) {
+    const menu = el('div', 'dropdown-menu');
+    menu.innerHTML = `
+      <div class="ws-item" data-act="open"><span class="mi-ic">${ICONS.openAll}</span>Open</div>
+      <div class="ws-item" data-act="opennew"><span class="mi-ic">${ICONS.externalWindow}</span>Open in a new tab</div>
+      <div class="ws-item" data-act="copy"><span class="mi-ic">${ICONS.copy}</span>Copy link</div>`;
+    const close = showDropdown(menu, rect, 200);
+    menu.querySelector('[data-act=open]').onclick = () => { close(); openBookmarkUrl(bm); };
+    menu.querySelector('[data-act=opennew]').onclick = () => { close(); sendMsg('OPEN_URL', { url: bm.url, forceNewTab: true }); };
+    menu.querySelector('[data-act=copy]').onclick = async () => { close(); if (await copyTextToClipboard(bm.url)) toast('Link copied'); else toast("Couldn't copy"); };
+  }
+  function renderVirtualBookmark(bm, viewMode) {
+    const isTile = viewMode === 'grid';
+    const item = el('div', (isTile ? 'bookmark-tile' : 'bookmark-item'));
+    item.dataset.bookmarkId = bm.id;
+    item.draggable = true;
+    const fav = bm.favicon || faviconFor(bm.url);
+    const metaHtml = bm.meta ? (isTile
+      ? `<div class="bm-meta" title="${escapeHtml(bm.meta)}">${escapeHtml(bm.meta)}</div>`
+      : `<span class="bm-meta" title="${escapeHtml(bm.meta)}">${escapeHtml(bm.meta)}</span>`) : '';
+    if (isTile) {
+      item.innerHTML = `
+        <button class="bm-menu-btn" data-act="menu" title="Bookmark actions">${ICONS.dots}</button>
+        <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
+        <div class="bm-title" title="${escapeHtml(bm.title)}">${escapeHtml(bm.title)}</div>
+        ${metaHtml}`;
+    } else {
+      item.innerHTML = `
+        <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
+        <span class="bm-title" title="${escapeHtml(bm.url)}">${escapeHtml(bm.title)}</span>
+        ${metaHtml}
+        <button class="bm-menu-btn" data-act="menu" title="Bookmark actions">${ICONS.dots}</button>`;
+    }
+    item.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('application/x-tdb-tab', JSON.stringify({ title: bm.title, url: bm.url, favIconUrl: fav }));
+      item.classList.add('dragging');
+      document.body.classList.add('dragging-tab');
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      document.body.classList.remove('dragging-tab');
+    });
+    item.addEventListener('click', (e) => {
+      const menuBtn = e.target.closest('[data-act=menu]');
+      if (menuBtn) {
+        e.preventDefault(); e.stopPropagation();
+        openVirtualBookmarkMenu(bm, menuBtn.getBoundingClientRect(), item.querySelector('.bm-title'));
+        return;
+      }
+      openBookmarkUrl(bm);
+    });
+    item.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openVirtualBookmarkMenu(bm, { left: e.clientX, top: e.clientY, bottom: e.clientY, height: 0, width: 0 }, item.querySelector('.bm-title'));
+    });
+    return item;
+  }
+
   function renderBookmark(bm, viewMode, colBg, col, listWrap) {
     const isTile = viewMode === 'grid';
     const item = el('div', (isTile ? 'bookmark-tile' : 'bookmark-item') + (SELECTED.has(bm.id) ? ' selected' : ''));
@@ -1767,19 +2082,28 @@
     }
     const fav = bm.favicon || faviconFor(bm.url);
     const tagsHtml = (bm.tags || []).slice(0, 2).map(t => `<span class="bm-tag">${escapeHtml(t)}</span>`).join('');
+    // Browser-synced collections store each entry's visit time; show it as a
+    // small relative badge (honoring the "Show visit time" setting).
+    const timeHtml = (bm.visitTime && STATE.meta.settings.historyShowTimes !== false)
+      ? (isTile
+        ? `<div class="bm-meta" title="${escapeHtml(formatRelTime(bm.visitTime))}">${escapeHtml(formatRelTime(bm.visitTime))}</div>`
+        : `<span class="bm-meta" title="${escapeHtml(formatRelTime(bm.visitTime))}">${escapeHtml(formatRelTime(bm.visitTime))}</span>`)
+      : '';
 
     if (isTile) {
       item.innerHTML = `
         ${bm.pinned ? `<span class="bm-pin-ic">${ICONS.pin}</span>` : ''}
         <button class="bm-menu-btn" data-act="menu" title="Bookmark actions">${ICONS.dots}</button>
         <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
-        <div class="bm-title" title="${escapeHtml(bm.title)}">${escapeHtml(bm.title)}</div>`;
+        <div class="bm-title" title="${escapeHtml(bm.title)}">${escapeHtml(bm.title)}</div>
+        ${timeHtml}`;
     } else {
       item.innerHTML = `
         ${selectMode ? `<input type="checkbox" class="bm-select checkbox" ${SELECTED.has(bm.id) ? 'checked' : ''}>` : ''}
         ${bm.pinned ? `<span class="bm-pin-ic">${ICONS.pin}</span>` : ''}
         <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
         <span class="bm-title" title="${escapeHtml(bm.url)}">${escapeHtml(bm.title)}</span>
+        ${timeHtml}
         ${tagsHtml}
         <button class="bm-menu-btn" data-act="menu" title="Bookmark actions">${ICONS.dots}</button>`;
     }
@@ -1941,6 +2265,7 @@
       <div class="ws-item" data-act="add"><span class="mi-ic">${ICONS.plus}</span>New bookmark here</div>
       <div class="ws-item" data-act="edit"><span class="mi-ic">${ICONS.edit}</span>Rename</div>
       ${w ? tintMenuItemHtml() : ''}
+      ${col.syncSource ? `<div class="ws-item" data-act="sync"><span class="mi-ic">${ICONS.refresh}</span>Sync from browser now</div>` : ''}
       <hr>
       <div class="ws-item" data-act="openall"><span class="mi-ic">${ICONS.openAll}</span>Open all bookmarks</div>
       <div class="ws-item" data-act="openallwin"><span class="mi-ic">${ICONS.externalWindow}</span>Open all in new window</div>
@@ -1965,6 +2290,14 @@
     menu.querySelector('[data-act=add]').onclick = () => { close(); openBookmarkModal(null, col.id); };
     menu.querySelector('[data-act=edit]').onclick = () => { close(); openRenameCollectionModal(col); };
     menu.querySelector('[data-act=select]').onclick = () => { close(); selectMode = true; renderBoard(); };
+    const syncItem = menu.querySelector('[data-act=sync]');
+    if (syncItem) syncItem.onclick = async () => {
+      close();
+      toast('Syncing from browser…');
+      const res = await sendMsg('SYNC_BROWSER_COLLECTIONS', {});
+      await reload();
+      toast((res && res.changed) ? `Synced ${res.changed} collection${res.changed === 1 ? '' : 's'}` : 'Collections are up to date');
+    };
     menu.querySelector('[data-act=dup]').onclick = async () => { close(); await DB.duplicateCollection(col.id); await reload(); toast('Collection duplicated'); };
     menu.querySelector('[data-act=movews]').onclick = () => { close(); openMoveCollectionPicker(col); };
     menu.querySelector('[data-act=openall]').onclick = () => { close(); openAllInCollection(col, false); };
@@ -2396,8 +2729,14 @@
       { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
     { id: 'fontLarge', label: 'Larger interface font', get: s => s.interfaceFontLarge === true, set: v => ({ interfaceFontLarge: v }), options: [
       { label: 'Off', value: false }, { label: 'On', value: true } ] },
-    { id: 'recentlyClosedLimit', label: 'Recently closed tabs shown', get: s => s.recentlyClosedLimit || 20, set: v => ({ recentlyClosedLimit: v }), options: [
+    { id: 'recentlyClosedLimit', label: 'Recently closed tabs shown', get: s => s.recentlyClosedLimit || 0, set: v => ({ recentlyClosedLimit: v }), options: [
+      { label: 'All', value: 0 }, { label: '5', value: 5 }, { label: '10', value: 10 }, { label: '20', value: 20 }, { label: '40', value: 40 } ] },
+    { id: 'historyShowTimes', label: 'Show visit time in History widgets', get: s => s.historyShowTimes !== false, set: v => ({ historyShowTimes: v }), options: [
+      { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
+    { id: 'historyCount', label: 'History tabs shown per widget', get: s => s.historyCount || 10, set: v => ({ historyCount: v }), options: [
       { label: '5', value: 5 }, { label: '10', value: 10 }, { label: '20', value: 20 }, { label: '40', value: 40 } ] },
+    { id: 'topSitesCount', label: 'Most visited sites shown per widget', get: s => s.topSitesCount || 12, set: v => ({ topSitesCount: v }), options: [
+      { label: '6', value: 6 }, { label: '12', value: 12 }, { label: '24', value: 24 }, { label: '48', value: 48 } ] },
     { id: 'trashRetentionDays', label: 'Keep deleted bookmarks for', get: s => s.trashRetentionDays || 0, set: v => ({ trashRetentionDays: v }), options: [
       { label: 'Forever', value: 0 }, { label: '7 days', value: 7 }, { label: '30 days', value: 30 }, { label: '90 days', value: 90 } ] }
   ];
@@ -2409,7 +2748,7 @@
     { name: 'Appearance', keys: ['density', 'animations', 'fontLarge'] },
     { name: 'Layout', keys: ['viewMode', 'columns', 'sidebarCollapsed', 'sidebarCompact', 'showTopbarSearch', 'showTopbarButtons'] },
     { name: 'Behavior', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'clockFormat', 'weatherUnits', 'pomodoroFocus', 'pomodoroBreak', 'countdownDays', 'rssRefreshInterval', 'confirmRestoreSession'] },
-    { name: 'Data', keys: ['recentlyClosedLimit', 'trashRetentionDays'] }
+    { name: 'Data', keys: ['recentlyClosedLimit', 'historyShowTimes', 'historyCount', 'topSitesCount', 'trashRetentionDays'] }
   ];
 
   function themeChipColors(t) { return [t.bg, t.main, t.caret, t.sub, t.subAlt, t.text]; }
@@ -2465,6 +2804,11 @@
       { kind: 'action', label: 'Add Stopwatch widget', run: () => addWidget('stopwatch') },
       { kind: 'action', label: 'Add Weather widget', run: () => addWidget('weather') },
       { kind: 'action', label: 'Add RSS feeds widget', run: () => addWidget('rss') },
+      { kind: 'action', label: 'Create Most visited collection', run: () => addWidget('topSites') },
+      { kind: 'action', label: 'Add Recent downloads widget', run: () => addWidget('downloads') },
+      { kind: 'action', label: 'Create History collection', run: () => addWidget('history') },
+      { kind: 'action', label: 'Search the web…', run: searchTheWeb },
+      { kind: 'action', label: 'Import browser bookmarks…', run: importBrowserBookmarks },
       { kind: 'action', label: 'New Workspace', run: () => openWorkspaceModal() },
       { kind: 'action', label: 'New Board', run: () => newBoardFromPalette() },
       { kind: 'action', label: 'Save current tabs as session', run: saveWindowSession },
@@ -2687,12 +3031,64 @@
   const WIDGET_TYPE_LABELS = {
     notes: 'Notes', todo: 'To-Do', clock: 'Clock',
     search: 'Search box', countdown: 'Countdown', pomodoro: 'Pomodoro', timer: 'Timer', stopwatch: 'Stopwatch',
-    weather: 'Weather', rss: 'RSS Feed'
+    weather: 'Weather', rss: 'RSS Feed', topSites: 'Most visited', downloads: 'Recent downloads', history: 'Browsing history'
   };
   async function addWidget(type) {
+    // Most visited / History are snapshotted into a *real* collection
+    // (stored bookmarks + a normal collection widget), not rendered as a
+    // live browser-data view.
+    if (type === 'topSites' || type === 'history') {
+      await addBrowserDataCollection(type);
+      return;
+    }
     await DB.createWidget(activeWorkspaceId(), type);
     await reload();
     toast(`${WIDGET_TYPE_LABELS[type] || 'Widget'} added`);
+  }
+
+  async function addBrowserDataCollection(kind) {
+    const s = STATE.meta.settings;
+    const msg = { kind, workspaceId: activeWorkspaceId() };
+    if (kind === 'history') msg.count = Math.max(1, Number(s.historyCount) || 10);
+    else msg.count = Math.max(1, Number(s.topSitesCount) || 12);
+    const res = await sendMsg('ADD_BROWSER_COLLECTION', msg);
+    if (!res || !res.ok) {
+      const err = res && res.error;
+      toast(err === 'not supported' ? 'Not supported in this browser' : err === 'empty' ? 'Nothing to copy from the browser yet' : 'Could not create the collection');
+      return;
+    }
+    await reload();
+    toast(`Created "${res.name}" collection with ${res.count} item${res.count === 1 ? '' : 's'} — it stays in sync with the browser`);
+  }
+
+  /* Widgets of the old live-preview era (type topSites/history) are one-time
+     converted into real collections on load — that's the behavior the user
+     asked for, and it also removes their stale "No top sites available" /
+     "No browsing history yet" empty states. Runs once per session, off to
+     the side so it never delays first paint. */
+  let migratedBrowserWidgets = false;
+  async function migrateLegacyBrowserWidgets() {
+    if (migratedBrowserWidgets) return;
+    migratedBrowserWidgets = true;
+    const legacy = widgetsForActiveWS().filter(w => w.type === 'topSites' || w.type === 'history');
+    if (!legacy.length) return;
+    let converted = 0;
+    for (const w of legacy) {
+      const kind = w.type === 'topSites' ? 'topSites' : 'history';
+      const s = STATE.meta.settings || {};
+      const count = kind === 'history'
+        ? Math.max(1, Number(s.historyCount) || 10)
+        : Math.max(1, Number(s.topSitesCount) || 12);
+      const res = await sendMsg('ADD_BROWSER_COLLECTION', { kind, workspaceId: activeWorkspaceId(), count });
+      if (res && res.ok) {
+        await DB.deleteWidget(w.id);
+        converted++;
+      }
+    }
+    if (converted) {
+      await reload();
+      toast(`Converted ${converted} browser widget${converted === 1 ? '' : 's'} into real collection${converted === 1 ? '' : 's'}`);
+    }
   }
   function openAddWidgetMenu(anchorBtn) {
     const rect = anchorBtn.getBoundingClientRect();
@@ -2707,9 +3103,39 @@
       <div class="ws-item" data-act="timer"><span class="mi-ic">${ICONS.timer}</span>Timer</div>
       <div class="ws-item" data-act="stopwatch"><span class="mi-ic">${ICONS.stopwatch}</span>Stopwatch</div>
       <div class="ws-item" data-act="weather"><span class="mi-ic">${ICONS.cloudSun}</span>Weather</div>
-      <div class="ws-item" data-act="rss"><span class="mi-ic">${ICONS.rss}</span>RSS Feed</div>`;
+      <div class="ws-item" data-act="rss"><span class="mi-ic">${ICONS.rss}</span>RSS Feed</div>
+      <div class="ws-item" data-act="topSites"><span class="mi-ic">${ICONS.grid}</span>Most visited collection</div>
+      <div class="ws-item" data-act="downloads"><span class="mi-ic">${ICONS.download}</span>Recent downloads</div>
+      <div class="ws-item" data-act="history"><span class="mi-ic">${ICONS.clock}</span>History collection</div>`;
     const close = showDropdown(menu, rect, 200);
     $$('.ws-item', menu).forEach(item => { item.onclick = () => { close(); addWidget(item.dataset.act); }; });
+  }
+
+  /* Uses the browser's own search engine via chrome.search (a new tab
+     keeps focus on the dashboard). Falls back to a Google search URL when
+     the API isn't available. */
+  async function searchTheWeb() {
+    const q = prompt('Search the web', '');
+    if (q === null || !q.trim()) return;
+    const res = await sendMsg('SEARCH_WEB', { text: q.trim() });
+    if (!res || !res.ok) {
+      sendMsg('OPEN_URL', { url: 'https://www.google.com/search?q=' + encodeURIComponent(q.trim()), forceNewTab: true });
+    }
+  }
+
+  /* Pulls the browser's own bookmarks (chrome.bookmarks) into the active
+     workspace as collections. Runs in the background so the tree walk and
+     the bulk write happen outside the dashboard, and the context menus
+     rebuild once instead of per bookmark. */
+  async function importBrowserBookmarks() {
+    if (!confirm('Import browser bookmarks into this workspace? New collections will be created for your bookmark folders.')) return;
+    const res = await sendMsg('IMPORT_BOOKMARKS');
+    if (!res || !res.ok) {
+      toast((res && res.error) === 'not supported' ? 'Bookmarks API unavailable in this browser' : 'Bookmark import failed');
+      return;
+    }
+    await reload();
+    toast(`Imported ${res.bookmarks} bookmark${res.bookmarks === 1 ? '' : 's'} into ${res.collections} collection${res.collections === 1 ? '' : 's'}`);
   }
 
   /* ============ SETTINGS PANEL ============ */
@@ -2797,6 +3223,22 @@
 
     $$('#recently-closed-limit button').forEach(b => b.onclick = async () => { await DB.updateSettings({ recentlyClosedLimit: parseInt(b.dataset.val, 10) }); await reload(); syncSettingsUI(); });
     $$('#trash-retention button').forEach(b => b.onclick = async () => { await DB.updateSettings({ trashRetentionDays: parseInt(b.dataset.val, 10) }); await reload(); syncSettingsUI(); });
+
+    $('#setting-history-times').onchange = async (e) => { await DB.updateSettings({ historyShowTimes: e.target.checked }); await reload(); };
+    $$('#history-count button').forEach(b => b.onclick = async () => { await DB.updateSettings({ historyCount: parseInt(b.dataset.val, 10) }); await reload(); syncSettingsUI(); });
+    $$('#history-count-custom').forEach(inp => inp.onchange = async (e) => {
+      const v = parseInt(e.target.value, 10);
+      if (!isNaN(v) && v >= 1 && v <= 200) { await DB.updateSettings({ historyCount: v }); await reload(); } else syncSettingsUI();
+    });
+    $$('#top-sites-count button').forEach(b => b.onclick = async () => { await DB.updateSettings({ topSitesCount: parseInt(b.dataset.val, 10) }); await reload(); syncSettingsUI(); });
+    $$('#top-sites-count-custom').forEach(inp => inp.onchange = async (e) => {
+      const v = parseInt(e.target.value, 10);
+      if (!isNaN(v) && v >= 1 && v <= 200) { await DB.updateSettings({ topSitesCount: v }); await reload(); } else syncSettingsUI();
+    });
+    $$('#recently-closed-custom').forEach(inp => inp.onchange = async (e) => {
+      const v = parseInt(e.target.value, 10);
+      if (!isNaN(v) && v >= 0 && v <= 500) { await DB.updateSettings({ recentlyClosedLimit: v }); await reload(); } else syncSettingsUI();
+    });
 
     $('#export-json-btn').onclick = async () => downloadFile('tabsboard-export.json', await DB.exportJSON(), 'application/json');
     $('#export-html-btn').onclick = () => {
@@ -2949,8 +3391,14 @@
 
     $('#setting-confirm-restore-session').checked = s.confirmRestoreSession === true;
 
-    $$('#recently-closed-limit button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (s.recentlyClosedLimit || 20)));
+    $$('#recently-closed-limit button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (s.recentlyClosedLimit ?? 20)));
+    $$('#recently-closed-custom').forEach(inp => inp.value = (s.recentlyClosedLimit ?? 20));
     $$('#trash-retention button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (s.trashRetentionDays || 0)));
+    $('#setting-history-times').checked = s.historyShowTimes !== false;
+    $$('#history-count button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (s.historyCount || 10)));
+    $$('#history-count-custom').forEach(inp => inp.value = (s.historyCount || 10));
+    $$('#top-sites-count button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (s.topSitesCount || 12)));
+    $$('#top-sites-count-custom').forEach(inp => inp.value = (s.topSitesCount || 12));
   }
 
   function downloadFile(filename, content, mime) {
@@ -2962,7 +3410,24 @@
   }
 
   /* ============ SHORTCUTS POPUP ============ */
-  function openShortcuts() { $('#shortcuts-overlay').classList.remove('hidden'); }
+  function openShortcuts() {
+    $('#shortcuts-overlay').classList.remove('hidden');
+    // Show the actual, user-remapped globals reported by chrome.commands.
+    sendMsg('GET_COMMANDS').then((res) => {
+      const cmds = (res && res.commands) || [];
+      const wrap = $('#commands-list-wrap');
+      if (!wrap) return;
+      const ul = $('#commands-list');
+      if (!cmds.length) { wrap.classList.add('hidden'); return; }
+      ul.innerHTML = '';
+      cmds.forEach(c => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${escapeHtml(c.description || c.name)}</span><kbd>${escapeHtml(c.shortcut || '— not set —')}</kbd>`;
+        ul.appendChild(li);
+      });
+      wrap.classList.remove('hidden');
+    });
+  }
   function closeShortcuts() { $('#shortcuts-overlay').classList.add('hidden'); }
 
   /* ============ QUICK TOGGLES ============ */
@@ -3013,6 +3478,7 @@
 
     $('#recently-closed-toggle-btn').onclick = () => {
       sidebarShowingClosed = !sidebarShowingClosed;
+      if (sidebarShowingClosed) { refreshRecentlyClosed().then(() => renderSidebar()); return; }
       renderSidebar();
     };
     $('#refresh-tabs-btn').onclick = async () => { await refreshOpenTabs(); await refreshRecentlyClosed(); renderSidebar(); };
@@ -3125,12 +3591,10 @@
       else if (k === 'b' && e.shiftKey) cycleBoards(-1);      // prev board
     });
 
-    // Safety-net polls: the background now pushes a TABS_CHANGED broadcast
-    // on every tab/window/session event, so the live push keeps the lists
-    // current and these slower polls only catch anything that slipped past
-    // (e.g. events fired while no dashboard was open).
-    setInterval(async () => { await refreshOpenTabs(); renderSidebar(); }, 8000);
-    setInterval(async () => { await refreshRecentlyClosed(); if (sidebarShowingClosed) renderSidebar(); }, 12000);
+    // No polling intervals: the background pushes TABS_CHANGED on every
+    // tab/window/session event and DOWNLOADS_CHANGED when the browser's
+    // download list changes, so the sidebar and downloads widget stay live
+    // without timers.
 
     wireSettingsPanel();
   }

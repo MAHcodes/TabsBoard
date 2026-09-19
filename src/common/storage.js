@@ -5,7 +5,7 @@
  */
 
 const STORAGE_KEY = 'tdb_data';
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 15;
 
 const DEFAULT_COLLECTION_COLORS = (typeof self !== 'undefined' && self.Themes) ? self.Themes.COLLECTION_COLORS : [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -213,6 +213,9 @@ function defaultState() {
         countdownDays: 7,          // default target (days out) for new Countdown widgets
         rssRefreshInterval: 0,     // minutes between automatic RSS refreshes; 0 = manual only
         recentlyClosedLimit: 20,   // how many recently-closed tabs the sidebar shows
+        historyShowTimes: true,    // show a relative visit time on History widget entries
+        historyCount: 10,          // how many entries each History widget lists
+        topSitesCount: 12,         // how many top sites each Most visited collection syncs
         trashRetentionDays: 0,     // days to keep trash items before auto-purge; 0 = keep forever
         confirmRestoreSession: false, // ask before restoring a saved session
         showTopbarSearch: true,    // show the "Jump to…" search bar in the header
@@ -387,6 +390,32 @@ function migrate(data) {
     if (s.lightThemeId === undefined) s.lightThemeId = 'serika';
     if (s.darkThemeId === undefined) s.darkThemeId = 'serika_dark';
     data.version = 12;
+  }
+  if (data.version < 13) {
+    // v13: history widget options — visit times and how many entries each
+    // History widget lists.
+    const s = data.meta.settings;
+    if (s.historyShowTimes === undefined) s.historyShowTimes = true;
+    if (s.historyCount === undefined) s.historyCount = 10;
+    data.version = 13;
+  }
+  if (data.version < 14) {
+    // v14: History / Most visited collections become live-synced mirrors of
+    // browser data. Collections created by the browser-data add flow are named
+    // exactly "History" / "Most visited", so tag those as synced so the
+    // background sync keeps them fresh.
+    for (const c of Object.values(data.collections || {})) {
+      if (!c || c.syncSource) continue;
+      if (c.name === 'History') c.syncSource = 'history';
+      else if (c.name === 'Most visited') c.syncSource = 'topSites';
+    }
+    data.version = 14;
+  }
+  if (data.version < 15) {
+    // v15: "Most visited" collections size follows a dedicated setting.
+    const s = data.meta.settings;
+    if (s.topSitesCount === undefined) s.topSitesCount = 12;
+    data.version = 15;
   }
   return data;
 }
@@ -715,6 +744,9 @@ function widgetDefaults(type, settings) {
   if (type === 'stopwatch') return { ...base, running: false, startedAt: null, accumMs: 0, showMs: false };
   if (type === 'weather') return { ...base, query: '', label: '', lat: null, lon: null, units: s.weatherUnits || 'c' };
   if (type === 'rss') return { ...base, feedUrl: '', label: '', items: [], lastFetched: null };
+  if (type === 'topSites') return { ...base, count: 8 };
+  if (type === 'downloads') return { ...base, count: 8 };
+  if (type === 'history') return { ...base, count: 10, days: 1 };
   return base;
 }
 
@@ -1003,6 +1035,155 @@ async function importJSON(jsonString, mode = 'merge') {
   });
 }
 
+/* Imports browser bookmarks in bulk: one atomic storage write (so context
+   menus don't rebuild per bookmark). `items` is a flat list of
+   { collection, title, url } where `collection` names group bookmarks —
+   each distinct name becomes a collection (plus a collection widget, like
+   createCollection does) and its bookmarks go underneath it. */
+async function addBrowserCollection(wsId, name, bookmarks, syncSource) {
+  /* Snapshots live browser data (top sites / history) into a real collection:
+     one atomic write creates the collection, its bookmarks, and the
+     collection widget that shows it. When `syncSource` is given ('topSites'
+     or 'history') the background sync keeps the collection mirrored against
+     the browser's current data. */
+  return setState((d) => {
+    const colId = uid();
+    const existing = Object.values(d.collections).filter(c => c.workspaceId === wsId);
+    d.collections[colId] = {
+      id: colId, workspaceId: wsId,
+      name: name || 'Collection',
+      color: DEFAULT_COLLECTION_COLORS[existing.length % DEFAULT_COLLECTION_COLORS.length],
+      order: existing.length, pinned: false, description: '', sortMode: 'manual', viewMode: null, createdAt: now(),
+      ...(syncSource ? { syncSource } : {})
+    };
+    const boardId = activeBoardIdFor(d, wsId);
+    let order = 0;
+    (bookmarks || []).slice(0, 200).forEach((b) => {
+      if (!b || !b.url) return;
+      const id = uid();
+      d.bookmarks[id] = {
+        id, collectionId: colId, workspaceId: wsId,
+        title: b.title || b.url, url: b.url,
+        favicon: b.favicon || '', tags: [], notes: '', pinned: false, tintColor: null,
+        order: order++, createdAt: now(),
+        ...((b.visitTime || b.lastVisitTime) ? { visitTime: b.visitTime || b.lastVisitTime } : {})
+      };
+    });
+    const widgetOrder = Object.values(d.widgets).filter(w => w.boardId === boardId).length;
+    const wid = uid();
+    d.widgets[wid] = { id: wid, workspaceId: wsId, boardId, type: 'collection', collectionId: colId, span: 1, rowSpan: 1, tintColor: null, order: widgetOrder, createdAt: now() };
+    assignWidgetPosition(d, wid);
+    return { collectionId: colId, widgetId: wid, name: name || 'Collection', count: order };
+  });
+}
+
+/* Keeps a browser-synced collection mirrored against the current browser
+   data: adds entries that appeared, updates titles/favicons/times, and
+   removes entries that left the visible window. Returns what changed so the
+   caller can decide whether context menus need rebuilding. */
+async function syncBrowserCollection(colId, items, syncSource, max) {
+  /* Mirrors the collection against the browser in one pass, but does a no-op
+     (no storage write) when nothing actually changed. That matters because the
+     background syncs on every tab close; a write would fire storage.onChanged
+     in every open dashboard and force a full re-render even when the URL set
+     is identical. The plan is computed against a read first, then applied in
+     a single atomic write only if entries were added/removed/updated. */
+  const state = await getState();
+  const col = state.collections[colId];
+  if (!col || (col.syncSource && col.syncSource !== syncSource)) return { added: 0, removed: 0, updated: 0, changed: false };
+  const list = (items || []).slice(0, max);
+  const byUrl = new Map();
+  list.forEach(it => byUrl.set(it.url, it));
+  const existing = Object.values(state.bookmarks).filter(b => b.collectionId === colId);
+  const alive = new Set();
+  const removedIds = [];
+  const updatedBms = [];
+  existing.forEach((b) => {
+    const src = byUrl.get(b.url);
+    if (!src) { removedIds.push(b.id); return; }
+    alive.add(b.url);
+    if ((src.title && b.title !== src.title) || (src.favicon && b.favicon !== src.favicon) || (src.visitTime && b.visitTime !== src.visitTime)) updatedBms.push(b);
+  });
+  const addedItems = [];
+  list.forEach((it) => {
+    if (alive.has(it.url)) return;
+    addedItems.push(it);
+    alive.add(it.url);
+  });
+  if (!addedItems.length && !removedIds.length && !updatedBms.length) return { added: 0, removed: 0, updated: 0, changed: false };
+
+  return setState((d) => {
+    let added = 0, removed = 0, updated = 0;
+    removedIds.forEach((id) => { if (d.bookmarks[id]) { delete d.bookmarks[id]; removed++; } });
+    updatedBms.forEach((b) => {
+      const db = d.bookmarks[b.id];
+      const src = byUrl.get(b.url);
+      if (!db || !src) return;
+      if (src.title && db.title !== src.title) { db.title = src.title; updated++; }
+      if (src.favicon && db.favicon !== src.favicon) { db.favicon = src.favicon; updated++; }
+      if (src.visitTime && db.visitTime !== src.visitTime) { db.visitTime = src.visitTime; updated++; }
+    });
+    addedItems.forEach((it) => {
+      if (Object.values(d.bookmarks).some(x => x.collectionId === colId && x.url === it.url)) return;
+      const id = uid();
+      const siblings = Object.values(d.bookmarks).filter(x => x.collectionId === colId);
+      d.bookmarks[id] = {
+        id, collectionId: colId, workspaceId: col.workspaceId,
+        title: it.title || it.url, url: it.url,
+        favicon: it.favicon || '', tags: [], notes: '', pinned: false, tintColor: null,
+        order: siblings.length, createdAt: now(),
+        ...(it.visitTime ? { visitTime: it.visitTime } : {})
+      };
+      added++;
+    });
+    return { added, removed, updated, changed: true };
+  });
+}
+
+async function importBrowserBookmarks(items, wsIdOverride) {
+  return setState((d) => {
+    const wsId = wsIdOverride || d.meta.activeWorkspaceId;
+    const MAX_BOOKMARKS = 250;
+    const MAX_COLLECTIONS = 6;
+    const created = { collections: 0, bookmarks: 0, skippedBookmarks: 0 };
+    const colIds = {};
+    (items || []).forEach(it => {
+      if (!it || !it.url) return;
+      if (created.bookmarks >= MAX_BOOKMARKS) { created.skippedBookmarks++; return; }
+      let colId = colIds[it.collection];
+      if (!colId) {
+        if (created.collections >= MAX_COLLECTIONS) return;
+        colId = uid();
+        const existing = Object.values(d.collections).filter(c => c.workspaceId === wsId);
+        d.collections[colId] = {
+          id: colId, workspaceId: wsId,
+          name: it.collection || 'Imported bookmarks',
+          color: DEFAULT_COLLECTION_COLORS[existing.length % DEFAULT_COLLECTION_COLORS.length],
+          order: existing.length, pinned: false, description: '', sortMode: 'manual', viewMode: null, createdAt: now()
+        };
+        const boardId = activeBoardIdFor(d, wsId);
+        const widgetOrder = Object.values(d.widgets).filter(w => w.boardId === boardId).length;
+        const wid = uid();
+        d.widgets[wid] = { id: wid, workspaceId: wsId, boardId, type: 'collection', collectionId: colId, span: 1, rowSpan: 1, tintColor: null, order: widgetOrder, createdAt: now() };
+        assignWidgetPosition(d, wid);
+        colIds[it.collection] = colId;
+        colOrder[colId] = 0;
+        created.collections++;
+      }
+      const id = uid();
+      const siblings = Object.values(d.bookmarks).filter(b => b.collectionId === colId);
+      d.bookmarks[id] = {
+        id, collectionId: colId, workspaceId: wsId,
+        title: it.title || it.url, url: it.url,
+        favicon: '', tags: [], notes: '', pinned: false, tintColor: null,
+        order: siblings.length, createdAt: now()
+      };
+      created.bookmarks++;
+    });
+    return created;
+  });
+}
+
 function bookmarksHTMLExport(collections, bookmarksByCollection) {
   let html = '<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n<DL><p>\n';
   for (const col of collections) {
@@ -1034,7 +1215,9 @@ const TabsDB = {
   createBoard, renameBoard, deleteBoard, setActiveBoard,
   swapWidgetPositions, moveWidgetTo,
   occupiedCellsOfBoard, firstEmptyCell, assignWidgetPosition, repackBoardWidgets,
-  exportJSON, importJSON, bookmarksHTMLExport
+  exportJSON, importJSON, bookmarksHTMLExport,
+  importBrowserBookmarks,
+  addBrowserCollection, syncBrowserCollection
 };
 
 if (typeof module !== 'undefined') module.exports = TabsDB;
