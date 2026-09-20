@@ -453,6 +453,14 @@ async function getState() {
   return data;
 }
 
+/* Factory reset: wipes every workspace, board, collection, bookmark, widget,
+   session, and setting back to a pristine install. Returns the fresh state. */
+async function clearAll() {
+  const fresh = defaultState();
+  await storageSet(fresh);
+  return fresh;
+}
+
 async function setState(mutatorFn) {
   const data = await getState();
   const result = mutatorFn(data);
@@ -1198,12 +1206,12 @@ function bookmarksHTMLExport(collections, bookmarksByCollection) {
 }
 
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 const TabsDB = {
   uid, DEFAULT_COLLECTION_COLORS,
-  init, getState, setState,
+  init, getState, setState, clearAll,
   createWorkspace, updateWorkspace, deleteWorkspace, setActiveWorkspace, moveCollectionToNewWorkspace, moveCollectionToWorkspace,
   createCollection, updateCollection, reorderCollections, softDeleteCollection,
   toggleCollectionPin, duplicateCollection, setCollectionSortMode, setCollectionViewMode,

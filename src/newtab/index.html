@@ -39,7 +39,7 @@
 
   <div class="topbar-right">
     <button id="shortcuts-btn" class="icon-btn" title="Keyboard shortcuts"></button>
-    <button id="trash-btn" class="icon-btn" title="Trash">
+    <button id="trash-btn" class="icon-btn" title="Open trash (G)">
       <span id="trash-badge" class="badge hidden">0</span>
     </button>
     <button id="settings-btn" class="icon-btn" title="Settings"></button>
@@ -92,21 +92,21 @@
 </div>
 
 <!-- Command palette -->
-<div id="palette-overlay" class="overlay hidden">
+<div id="palette-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Command palette">
   <div class="palette">
-    <input id="palette-input" type="text" placeholder="Search bookmarks, tabs, settings, themes, and commands…" autocomplete="off" />
+    <input id="palette-input" type="text" placeholder="Search bookmarks, tabs, settings, themes, and commands…" autocomplete="off" aria-label="Command palette search" />
     <div id="palette-crumb" class="palette-crumb hidden"></div>
     <div id="palette-results" class="palette-results"></div>
   </div>
 </div>
 
 <!-- Generic modal (bookmark edit, collection edit, workspace edit) -->
-<div id="modal-overlay" class="overlay hidden">
+<div id="modal-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Dialog">
   <div class="modal" id="modal-box"></div>
 </div>
 
 <!-- Settings panel -->
-<div id="settings-overlay" class="overlay hidden">
+<div id="settings-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Settings">
   <div class="modal settings-modal">
     <div class="modal-header-row">
       <div class="modal-heading">
@@ -459,6 +459,19 @@
               <div class="hint-text">Items older than this are purged automatically. Forever keeps everything until you empty the trash manually.</div>
             </div>
           </div>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Danger zone</h3>
+              <p>Reset the whole dashboard back to a fresh install.</p>
+            </div>
+            <div class="settings-row danger-row">
+              <div class="danger-row-text">
+                <div class="switch-title">Clear all data</div>
+                <div class="switch-desc">Permanently deletes every workspace, board, collection, bookmark, session, widget, and setting.</div>
+              </div>
+              <button id="danger-clear-all-btn" class="mini-btn danger">Clear all data…</button>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -467,7 +480,7 @@
 </div>
 
 <!-- Keyboard shortcuts popup -->
-<div id="shortcuts-overlay" class="overlay hidden">
+<div id="shortcuts-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
   <div class="modal shortcuts-modal">
     <div class="modal-header-row">
       <h2>Keyboard Shortcuts</h2>
@@ -482,6 +495,7 @@
       <li><span>Next workspace</span><kbd>W</kbd></li>
       <li><span>Previous workspace</span><kbd>Shift W</kbd></li>
       <li><span>Open settings</span><kbd>S</kbd></li>
+      <li><span>Open trash</span><kbd>G</kbd></li>
       <li><span>Show shortcuts</span><kbd>?</kbd></li>
       <li><span>Close dialogs / clear selection</span><kbd>Esc</kbd></li>
     </ul>
@@ -494,14 +508,19 @@
 </div>
 
 <!-- Trash panel -->
-<div id="trash-overlay" class="overlay hidden">
+<div id="trash-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Trash">
   <div class="modal trash-modal">
     <div class="modal-header-row">
-      <h2>Trash</h2>
-      <button id="empty-trash-btn" class="mini-btn danger">Empty trash</button>
+      <div class="modal-heading">
+        <div class="modal-title-line"><h2>Trash</h2><span class="count-pill" id="trash-count-pill" hidden>0</span></div>
+        <p class="modal-subtitle" id="trash-summary">Deleted collections and bookmarks land here.</p>
+      </div>
+      <button id="empty-trash-btn" class="mini-btn danger" title="Permanently delete everything in trash">Empty</button>
     </div>
     <div id="trash-list" class="trash-list"></div>
-    <button id="trash-close-btn" class="primary-btn">Done</button>
+    <div class="modal-actions">
+      <button id="trash-close-btn" class="primary-btn">Done</button>
+    </div>
   </div>
 </div>
 
@@ -509,6 +528,11 @@
 <script src="../common/themes.js"></script>
 <script src="../common/icons.js"></script>
 <script src="../common/storage.js"></script>
+<script src="../common/search.js"></script>
+<script src="widgets.js"></script>
+<script src="bookmarks.js"></script>
+<script src="palette.js"></script>
+<script src="settings.js"></script>
 <script src="dashboard.js"></script>
 </body>
 </html>
