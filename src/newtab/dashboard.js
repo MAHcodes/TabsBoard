@@ -339,6 +339,8 @@
     r.setProperty('--inactive-tab-opacity', String(opacity));
     r.setProperty('--inactive-tab-filter', grayscale);
     document.documentElement.classList.toggle('density-compact', s.density === 'compact');
+    ['radius-sharp', 'radius-rounded', 'radius-extra', 'radius-none'].forEach(c => document.documentElement.classList.toggle(c, s.radius === c.slice(7)));
+    document.documentElement.classList.toggle('no-borders', s.borders === false);
     document.documentElement.classList.toggle('no-anim', s.animations === false);
     document.documentElement.classList.toggle('font-large', s.interfaceFontLarge === true);
     ['#search-trigger', '#shortcuts-btn', '#trash-btn'].forEach(sel => {
@@ -346,6 +348,9 @@
       if (!elNode) return;
       elNode.classList.toggle('hidden', sel === '#search-trigger' ? s.showTopbarSearch === false : s.showTopbarButtons === false);
     });
+    const rcBtn = $('#recently-closed-toggle-btn');
+    if (rcBtn) rcBtn.classList.toggle('hidden', s.showRecentlyClosed === false);
+    if (s.showRecentlyClosed === false && sidebarShowingClosed) sidebarShowingClosed = false;
     $('#sidebar').classList.toggle('collapsed', !!s.sidebarCollapsed);
     $('#sidebar').classList.toggle('compact', !!s.sidebarCompact);
     $('#sidebar-toggle-btn .icon').style.transform = s.sidebarCollapsed ? 'rotate(180deg)' : 'none';
@@ -420,13 +425,13 @@
     $('#bulk-delete-btn').onclick = () => { if (SELECTED.size) deleteBookmarksWithUndo(Array.from(SELECTED)); };
     $('#bulk-clear-btn').onclick = () => { SELECTED.clear(); selectMode = false; renderBoard(); };
 
-    ['modal-overlay', 'palette-overlay', 'settings-overlay', 'trash-overlay', 'shortcuts-overlay'].forEach(id => {
-      $('#' + id).addEventListener('click', (e) => {
-        if (e.target.id !== id) return;
-        if (id === 'palette-overlay') endThemePreview();
-        hideOverlay(id);
-      });
-    });
+    /* Clicking the blurred backdrop closes any open popup, routing each one
+       through its own close function so state/theme previews clean up. */
+    registerOverlayCloser('modal-overlay', closeModal);
+    registerOverlayCloser('palette-overlay', closePalette);
+    registerOverlayCloser('settings-overlay', () => { endThemePreview(); closeSettings(); });
+    registerOverlayCloser('trash-overlay', () => hideOverlay('#trash-overlay'));
+    registerOverlayCloser('shortcuts-overlay', closeShortcuts);
 
     $('#palette-input').addEventListener('input', (e) => { paletteIndex = 0; renderPaletteResults(e.target.value); });
     $('#palette-input').addEventListener('keydown', (e) => {

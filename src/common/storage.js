@@ -197,12 +197,16 @@ function defaultState() {
       settings: {
         themeId: 'auto',           // preset id or 'auto' (follows the OS)
         density: 'comfortable',    // comfortable | compact
+        radius: 'default',         // shape scale: sharp | default | rounded
+        searchEngine: 'google',    // fallback engine for address-bar + palette web search
+        showRecentlyClosed: true,  // show the sidebar's open-tabs / recently-closed toggle
         viewMode: 'grid',          // grid | list — bookmark tiles vs rows *inside* a collection widget
         sidebarCollapsed: false,
         sidebarCompact: false,     // icon-only sidebar: favicons only, no titles
         confirmDelete: true,
         faviconSource: 'google',   // google | duckduckgo | none
         animations: true,
+        borders: true,              // show 1px outlines around cards, buttons, and inputs
         openBookmarksInNewTab: false, // false = open bookmarks in the current tab, true = open in a new tab
         lightThemeId: 'serika',    // used when themeId is 'auto' and the OS is in light mode
         darkThemeId: 'serika_dark', // used when themeId is 'auto' and the OS is in dark mode
@@ -739,7 +743,7 @@ function widgetDefaults(type, settings) {
   if (type === 'notes') return { ...base, text: '' };
   if (type === 'todo') return { ...base, items: [] };
   if (type === 'clock') return { ...base, format: s.clockFormat || '24', timezone: '' };
-  if (type === 'search') return { ...base, engine: 'google' };
+  if (type === 'search') return { ...base, engine: s.searchEngine || 'google' };
   if (type === 'countdown') {
     // Default target = a few days out, so a fresh Countdown widget means
     // something immediately instead of "no date set".

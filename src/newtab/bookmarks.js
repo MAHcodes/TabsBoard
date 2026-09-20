@@ -103,8 +103,8 @@
     }
     if (SELECTED.has(bm.id)) {
       item.style.background = isTile
-        ? `color-mix(in srgb, var(--main-color) 15%, var(--sub-alt-color))`
-        : `color-mix(in srgb, var(--main-color) 13%, var(--bg-color))`;
+        ? `color-mix(in srgb, var(--main-color) 20%, var(--sub-alt-color))`
+        : `color-mix(in srgb, var(--main-color) 20%, var(--bg-color))`;
     }
     const fav = bm.favicon || faviconFor(bm.url);
     const tagsHtml = (bm.tags || []).slice(0, 2).map(t => `<span class="bm-tag">${escapeHtml(t)}</span>`).join('');
@@ -840,14 +840,20 @@
   }
 
   /* Uses the browser's own search engine via chrome.search (a new tab
-     keeps focus on the dashboard). Falls back to a Google search URL when
-     the API isn't available. */
+     keeps focus on the dashboard). Falls back to the saved web engine's
+     URL when the API isn't available. */
+  const SEARCH_URLS = {
+    google: 'https://www.google.com/search?q=',
+    duckduckgo: 'https://duckduckgo.com/?q=',
+    bing: 'https://www.bing.com/search?q='
+  };
   async function searchTheWeb() {
     const q = prompt('Search the web', '');
     if (q === null || !q.trim()) return;
     const res = await sendMsg('SEARCH_WEB', { text: q.trim() });
     if (!res || !res.ok) {
-      sendMsg('OPEN_URL', { url: 'https://www.google.com/search?q=' + encodeURIComponent(q.trim()), forceNewTab: true });
+      const engine = STATE.meta.settings.searchEngine || 'google';
+      sendMsg('OPEN_URL', { url: (SEARCH_URLS[engine] || SEARCH_URLS.google) + encodeURIComponent(q.trim()), forceNewTab: true });
     }
   }
 

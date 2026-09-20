@@ -133,7 +133,7 @@
           <div class="settings-group">
             <div class="settings-group-head">
               <h3>Appearance</h3>
-              <p>Control the overall density and motion of the interface.</p>
+              <p>Tune the shape, density, and motion of the interface.</p>
             </div>
             <div class="settings-row">
               <label>Density</label>
@@ -144,10 +144,44 @@
               <div class="hint-text">Compact tightens gaps and padding so more fits on screen.</div>
             </div>
             <div class="settings-row">
-              <label>Interface</label>
+              <label>Corner radius</label>
+              <div class="segmented" id="radius-toggle">
+                <button data-val="none">None</button>
+                <button data-val="sharp">Sharp</button>
+                <button data-val="default">Standard</button>
+                <button data-val="rounded">Rounded</button>
+                <button data-val="extra">Extra</button>
+              </div>
+              <div class="hint-text">How rounded buttons, menus, and cards are.</div>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Borders</span><span class="switch-desc">Outlines around cards, buttons, and inputs.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-borders"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
               <div class="switch-row">
                 <span class="switch-text"><span class="switch-title">Animations &amp; transitions</span><span class="switch-desc">Subtle motion when opening menus, modals, and reordering items.</span></span>
                 <label class="switch"><input type="checkbox" id="setting-animations"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Topbar</h3>
+              <p>What the header shows.</p>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Topbar search bar</span><span class="switch-desc">The "Jump to…" search next to the widgets.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-show-topbar-search"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Shortcuts &amp; trash buttons</span><span class="switch-desc">The keyboard-shortcuts and trash buttons in the header.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-show-topbar-buttons"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Larger interface font</span><span class="switch-desc">Slightly bigger text across the whole dashboard.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-font-large"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
             </div>
           </div>
@@ -230,52 +264,9 @@
                 <span class="switch-text"><span class="switch-title">Compact (icons only)</span><span class="switch-desc">Show favicons only, with no tab titles.</span></span>
                 <label class="switch"><input type="checkbox" id="setting-sidebar-compact"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
-            </div>
-          </div>
-          <div class="settings-group">
-            <div class="settings-group-head">
-              <h3>Dashboard chrome</h3>
-              <p>What the header and interface show.</p>
-            </div>
-            <div class="settings-row">
               <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Topbar search bar</span><span class="switch-desc">The "Jump to…" search next to the widgets.</span></span>
-                <label class="switch"><input type="checkbox" id="setting-show-topbar-search"><span class="switch-track"><span class="switch-thumb"></span></span></label>
-              </div>
-              <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Shortcuts &amp; trash buttons</span><span class="switch-desc">The keyboard-shortcuts and trash buttons in the header.</span></span>
-                <label class="switch"><input type="checkbox" id="setting-show-topbar-buttons"><span class="switch-track"><span class="switch-thumb"></span></span></label>
-              </div>
-              <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Larger interface font</span><span class="switch-desc">Slightly bigger text across the whole dashboard.</span></span>
-                <label class="switch"><input type="checkbox" id="setting-font-large"><span class="switch-track"><span class="switch-thumb"></span></span></label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-panel" id="panel-behavior">
-          <div class="settings-group">
-            <div class="settings-group-head">
-              <h3>General behavior</h3>
-              <p>Deleting, opening, and favicon preferences.</p>
-            </div>
-            <div class="settings-row">
-              <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Confirm before deleting permanently</span><span class="switch-desc">Ask for confirmation before emptying the trash.</span></span>
-                <label class="switch"><input type="checkbox" id="setting-confirm-delete"><span class="switch-track"><span class="switch-thumb"></span></span></label>
-              </div>
-              <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Open bookmarks in a new tab</span><span class="switch-desc">Off = open in the current tab.</span></span>
-                <label class="switch"><input type="checkbox" id="setting-open-in-new-tab"><span class="switch-track"><span class="switch-thumb"></span></span></label>
-              </div>
-            </div>
-            <div class="settings-row">
-              <label>Favicon source</label>
-              <div class="segmented" id="favicon-toggle">
-                <button data-val="google">Google</button>
-                <button data-val="duckduckgo">DuckDuckGo</button>
-                <button data-val="none">None</button>
+                <span class="switch-text"><span class="switch-title">Show recently closed</span><span class="switch-desc">Show the button that toggles the sidebar between open tabs and recently closed.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-show-recently-closed"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
             </div>
           </div>
@@ -307,6 +298,48 @@
                 <button data-val="75">Subtle</button>
                 <button data-val="100">Off</button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-panel" id="panel-behavior">
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Opening &amp; deleting</h3>
+              <p>How bookmarks open, delete, and show favicons.</p>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Confirm before deleting permanently</span><span class="switch-desc">Ask for confirmation before emptying the trash or purging an item.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-confirm-delete"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Open bookmarks in a new tab</span><span class="switch-desc">Off = open in the current tab.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-open-in-new-tab"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>Favicon source</label>
+              <div class="segmented" id="favicon-toggle">
+                <button data-val="google">Google</button>
+                <button data-val="duckduckgo">DuckDuckGo</button>
+                <button data-val="none">None</button>
+              </div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Search</h3>
+              <p>The engine used when a query isn't a match — from the address bar, the palette, or a plain search.</p>
+            </div>
+            <div class="settings-row">
+              <label>Web search engine</label>
+              <div class="segmented" id="search-engine-toggle">
+                <button data-val="google">Google</button>
+                <button data-val="duckduckgo">DuckDuckGo</button>
+                <button data-val="bing">Bing</button>
+              </div>
+              <div class="hint-text">"tb weather today" in the address bar and the Search the web command use this engine. New Search widgets start on it too.</div>
             </div>
           </div>
           <div class="settings-group">
@@ -515,11 +548,11 @@
         <div class="modal-title-line"><h2>Trash</h2><span class="count-pill" id="trash-count-pill" hidden>0</span></div>
         <p class="modal-subtitle" id="trash-summary">Deleted collections and bookmarks land here.</p>
       </div>
-      <button id="empty-trash-btn" class="mini-btn danger" title="Permanently delete everything in trash">Empty</button>
     </div>
     <div id="trash-list" class="trash-list"></div>
     <div class="modal-actions">
-      <button id="trash-close-btn" class="primary-btn">Done</button>
+      <button id="empty-trash-btn" class="btn-danger" title="Permanently delete everything in trash">Empty trash</button>
+      <button id="trash-close-btn" class="primary-btn">Close</button>
     </div>
   </div>
 </div>

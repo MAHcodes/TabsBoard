@@ -787,11 +787,23 @@ if (chrome.downloads && chrome.downloads.onChanged) {
 }
 
 /* Address-bar integration (chrome.omnibox). Type "tb <query>" in the
-   address bar to search collections, bookmarks, and sessions:
-   - Enter on a bookmark entry opens that URL.
-   - Enter on a collection opens the dashboard focused on that widget.
-   - Enter on a session opens the dashboard's Sessions view.
-   - Enter with a plain query searches the web. */
+   address bar to search collections, bookmarks, and sessions. Suggestions
+   carry real destination URLs, so the omnibox shows where each entry goes:
+   - bookmark entries open that URL,
+   - collection entries open the dashboard focused on that widget,
+   - session entries open the dashboard's Sessions view,
+   - a plain query is searched with the saved web engine. */
+const SEARCH_URLS = {
+  google: 'https://www.google.com/search?q=',
+  duckduckgo: 'https://duckduckgo.com/?q=',
+  bing: 'https://www.bing.com/search?q='
+};
+function openWebSearch(q) {
+  DB.getState().then((state) => {
+    const engine = (state.meta.settings && state.meta.settings.searchEngine) || 'google';
+    chrome.tabs.create({ url: (SEARCH_URLS[engine] || SEARCH_URLS.google) + encodeURIComponent(q) });
+  });
+}
 if (chrome.omnibox) {
   chrome.omnibox.setDefaultSuggestion({ description: 'TabsBoard — search collections, bookmarks & sessions' });
   chrome.omnibox.onInputChanged.addListener((text, suggest) => {
@@ -806,35 +818,33 @@ if (chrome.omnibox) {
       Object.values(state.collections)
         .filter(c => c.name.toLowerCase().includes(q))
         .slice(0, 4)
-        .forEach(c => push('tdbcol:' + c.id, 'Collection: ' + c.name));
+        .forEach(c => push(chrome.runtime.getURL('newtab/index.html#col=' + c.id), 'Collection: ' + c.name));
       Object.values(state.bookmarks)
         .filter(b => (b.title || '').toLowerCase().includes(q) || (b.url || '').toLowerCase().includes(q))
         .slice(0, 6)
-        .forEach(b => push('tdbbm:' + b.id, 'Bookmark: ' + (b.title || b.url)));
+        .forEach(b => push(b.url, 'Bookmark: ' + (b.title || b.url)));
       Object.values(state.sessions)
         .filter(s => (s.name || '').toLowerCase().includes(q))
         .slice(0, 5)
         .forEach(s => {
           const n = (s.tabs || []).length;
-          push('tdbses:' + s.id, `Session · ${n} tab${n === 1 ? '' : 's'} · ` + s.name);
+          push(chrome.runtime.getURL('newtab/index.html#view=sessions'), `Session · ${n} tab${n === 1 ? '' : 's'} · ` + s.name);
         });
       suggest(matches.slice(0, 8));
     });
   });
   chrome.omnibox.onInputEntered.addListener((content) => {
     content = content || '';
-    const stateQ = content.toLowerCase();
-    if (stateQ.startsWith('tdbcol:')) {
-      chrome.tabs.create({ url: chrome.runtime.getURL('newtab/index.html#col=' + content.slice(7)) });
-    } else if (stateQ.startsWith('tdbbm:')) {
-      DB.getState().then((state) => {
-        const bm = state.bookmarks[content.slice(6)];
-        chrome.tabs.create({ url: bm ? bm.url : 'about:blank' });
-      });
-    } else if (stateQ.startsWith('tdbses:')) {
-      chrome.tabs.create({ url: chrome.runtime.getURL('newtab/index.html#view=sessions') });
-    } else if (content) {
-      chrome.tabs.create({ url: 'https://www.google.com/search?q=' + encodeURIComponent(content) });
+    // Picked suggestions are already real destinations (a bookmark URL or a
+    // dashboard deep link); normal typing falls through to a web search.
+    const newtabBase = chrome.runtime.getURL('newtab/');
+    const isDirectUrl = content.indexOf(newtabBase) === 0 ||
+      content.includes('://') ||
+      /^(about|file|chrome|data|view-source|mailto|tel|javascript):/i.test(content);
+    if (isDirectUrl) {
+      chrome.tabs.create({ url: content });
+    } else if (content.trim()) {
+      openWebSearch(content.trim());
     } else {
       chrome.tabs.create({ url: chrome.runtime.getURL('newtab/index.html') });
     }

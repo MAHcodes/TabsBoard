@@ -12,10 +12,22 @@
      opened it. Keeps openPalette/openSettings/etc. one-liners while fixing
      the previous "focus leaks into the page behind the dialog" behavior. */
   const _overlayKeydowns = new Map();
+  const _overlayBackdrops = new Map();
+  const _overlayClosers = new Map(); // overlay id -> close fn (covers cleanup)
+  function registerOverlayCloser(id, fn) { _overlayClosers.set(id, fn); }
   function showOverlay(id) {
     const el = $(id);
     if (!el) return;
     el.classList.remove('hidden');
+    if (!_overlayBackdrops.has(id)) {
+      const onBackdrop = (e) => {
+        if (e.target !== el) return; // only clicks on the scrim itself close it
+        const closer = _overlayClosers.get(id);
+        if (closer) closer(); else hideOverlay(id);
+      };
+      _overlayBackdrops.set(id, onBackdrop);
+      el.addEventListener('click', onBackdrop);
+    }
     if (!_overlayKeydowns.has(id)) {
       _overlayKeydowns.set(id, document.activeElement);
       const onKey = (e) => {
@@ -37,6 +49,10 @@
     const el = $(id);
     if (!el) return;
     el.classList.add('hidden');
+    if (_overlayBackdrops.has(id)) {
+      el.removeEventListener('click', _overlayBackdrops.get(id));
+      _overlayBackdrops.delete(id);
+    }
     if (_overlayKeydowns.has(id)) {
       document.removeEventListener('keydown', el._tdbTrap, true);
       delete el._tdbTrap;
@@ -69,6 +85,10 @@
   const PALETTE_SETTINGS = [
     { id: 'density', label: 'Density', get: s => s.density, set: v => ({ density: v }), options: [
       { label: 'Comfortable', value: 'comfortable' }, { label: 'Compact', value: 'compact' } ] },
+    { id: 'radius', label: 'Corner radius', get: s => s.radius || 'default', set: v => ({ radius: v }), options: [
+      { label: 'None', value: 'none' }, { label: 'Sharp', value: 'sharp' }, { label: 'Standard', value: 'default' }, { label: 'Rounded', value: 'rounded' }, { label: 'Extra', value: 'extra' } ] },
+    { id: 'borders', label: 'Borders', get: s => s.borders !== false, set: v => ({ borders: v }), options: [
+      { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
     { id: 'viewMode', label: 'Bookmark view', get: s => s.viewMode, set: v => ({ viewMode: v }), options: [
       { label: 'Tiles', value: 'grid' }, { label: 'Rows', value: 'list' } ] },
     { id: 'columns', label: 'Board width', get: s => (s.dashboard && s.dashboard.columns) || 4, set: v => ({ dashboard: { columns: v } }), options: [
@@ -77,12 +97,16 @@
       { label: 'Expanded', value: false }, { label: 'Collapsed', value: true } ] },
     { id: 'sidebarCompact', label: 'Sidebar compact', get: s => !!s.sidebarCompact, set: v => ({ sidebarCompact: v }), options: [
       { label: 'Off', value: false }, { label: 'Icons only', value: true } ] },
+    { id: 'showRecentlyClosed', label: 'Recently closed toggle', get: s => s.showRecentlyClosed !== false, set: v => ({ showRecentlyClosed: v }), options: [
+      { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
     { id: 'animations', label: 'Animations', get: s => s.animations !== false, set: v => ({ animations: v }), options: [
       { label: 'On', value: true }, { label: 'Off', value: false } ] },
     { id: 'confirmDelete', label: 'Confirm before delete', get: s => s.confirmDelete !== false, set: v => ({ confirmDelete: v }), options: [
       { label: 'On', value: true }, { label: 'Off', value: false } ] },
     { id: 'openBookmarksInNewTab', label: 'Open bookmarks in new tab', get: s => !!s.openBookmarksInNewTab, set: v => ({ openBookmarksInNewTab: v }), options: [
       { label: 'Off (same tab)', value: false }, { label: 'On (new tab)', value: true } ] },
+    { id: 'searchEngine', label: 'Web search engine', get: s => s.searchEngine || 'google', set: v => ({ searchEngine: v }), options: [
+      { label: 'Google', value: 'google' }, { label: 'DuckDuckGo', value: 'duckduckgo' }, { label: 'Bing', value: 'bing' } ] },
     { id: 'faviconSource', label: 'Favicon source', get: s => s.faviconSource, set: v => ({ faviconSource: v }), options: [
       { label: 'Google', value: 'google' }, { label: 'DuckDuckGo', value: 'duckduckgo' }, { label: 'None', value: 'none' } ] },
     { id: 'groupPinned', label: 'Group pinned tabs', get: s => !(s.tabsList && s.tabsList.groupPinned === false), set: v => ({ tabsList: { groupPinned: v } }), options: [
@@ -129,9 +153,10 @@
   /* The palette is a navigable tree: root → Themes / Settings groups → options.
      Searching flattens every leaf so "change anything by typing" still works. */
   const PALETTE_SETTING_GROUPS = [
-    { name: 'Appearance', keys: ['density', 'animations', 'fontLarge'] },
-    { name: 'Layout', keys: ['viewMode', 'columns', 'sidebarCollapsed', 'sidebarCompact', 'showTopbarSearch', 'showTopbarButtons'] },
-    { name: 'Behavior', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'clockFormat', 'weatherUnits', 'pomodoroFocus', 'pomodoroBreak', 'countdownDays', 'rssRefreshInterval', 'confirmRestoreSession'] },
+    { name: 'Appearance', keys: ['density', 'radius', 'borders', 'animations', 'fontLarge', 'showTopbarSearch', 'showTopbarButtons'] },
+    { name: 'Layout', keys: ['viewMode', 'columns', 'sidebarCollapsed', 'sidebarCompact', 'showRecentlyClosed', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity'] },
+    { name: 'Behavior', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'searchEngine', 'confirmRestoreSession'] },
+    { name: 'Widgets', keys: ['clockFormat', 'weatherUnits', 'pomodoroFocus', 'pomodoroBreak', 'countdownDays', 'rssRefreshInterval'] },
     { name: 'Data', keys: ['recentlyClosedLimit', 'historyShowTimes', 'historyCount', 'topSitesCount', 'trashRetentionDays'] }
   ];
 
