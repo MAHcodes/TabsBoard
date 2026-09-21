@@ -230,7 +230,6 @@ svg { width: 100%; height: 100%; }
   cursor: pointer; line-height: 1.3; white-space: nowrap;
 }
 .dropdown-menu .ws-item:hover { background: var(--sub-alt-color); color: var(--text-color); }
-.dropdown-menu .ws-item + .ws-item { margin-top: 2px; }
 .dropdown-menu .ws-item.disabled { color: var(--sub-color); opacity: .5; pointer-events: none; }
 .dropdown-menu .ws-item.active { background: var(--sub-alt-color); color: var(--main-color); font-weight: 700; }
 .dropdown-menu .ws-item .mi-ic {
