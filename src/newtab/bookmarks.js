@@ -688,15 +688,16 @@
   }
 
   /* ============ TRASH ============ */
-  let trashBadgeSeenCount = null;
   function updateTrashBadge() {
     const badge = $('#trash-badge');
     if (!badge) return;
     const count = Object.keys(STATE.trash || {}).length;
+    const seen = Number(STATE.meta.settings.trashBadgeSeen || 0);
     badge.textContent = String(Math.min(count, 99));
     /* Mark-as-read: the badge hides once the trash panel has been opened for
-       the current count, and only reappears when new items are deleted. */
-    badge.classList.toggle('hidden', count === 0 || trashBadgeSeenCount === count);
+       the current count, and only reappears when new items are deleted. The
+       seen count is persisted so it stays dismissed across reloads. */
+    badge.classList.toggle('hidden', count === 0 || seen === count);
   }
 
   function openTrashPanel() {
@@ -706,7 +707,8 @@
     const emptyBtn = $('#empty-trash-btn');
     const items = Object.values(STATE.trash).sort((a, b) => b.deletedAt - a.deletedAt);
     const count = items.length;
-    trashBadgeSeenCount = count;
+    STATE.meta.settings.trashBadgeSeen = count;
+    DB.updateSettings({ trashBadgeSeen: count });
     updateTrashBadge();
     emptyBtn.disabled = !count;
     countPill.textContent = String(count);

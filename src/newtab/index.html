@@ -49,8 +49,10 @@
 <div class="app-body">
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-heading">
-      <span id="sidebar-list-heading">Open Tabs</span>
-      <button id="recently-closed-toggle-btn" class="icon-btn small" title="Show recently closed"></button>
+      <div class="segmented sidebar-view-toggle" id="sidebar-view-toggle">
+        <button data-view="tabs" title="Open tabs"><span class="seg-ic"></span><span class="seg-label">Tabs</span></button>
+        <button data-view="closed" title="Recently closed"><span class="seg-ic"></span><span class="seg-label">Closed</span></button>
+      </div>
       <button id="refresh-tabs-btn" class="icon-btn small" title="Refresh"></button>
     </div>
     <div id="open-tabs-list" class="open-tabs-list"></div>
@@ -265,7 +267,7 @@
                 <label class="switch"><input type="checkbox" id="setting-sidebar-compact"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
               <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Show recently closed</span><span class="switch-desc">Show the button that toggles the sidebar between open tabs and recently closed.</span></span>
+                <span class="switch-text"><span class="switch-title">Show recently closed</span><span class="switch-desc">Show the tabs switcher that toggles the sidebar between open tabs and recently closed.</span></span>
                 <label class="switch"><input type="checkbox" id="setting-show-recently-closed"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
             </div>

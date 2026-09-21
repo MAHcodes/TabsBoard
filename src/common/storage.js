@@ -5,7 +5,7 @@
  */
 
 const STORAGE_KEY = 'tdb_data';
-const SCHEMA_VERSION = 15;
+const SCHEMA_VERSION = 16;
 
 const DEFAULT_COLLECTION_COLORS = (typeof self !== 'undefined' && self.Themes) ? self.Themes.COLLECTION_COLORS : [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -222,6 +222,7 @@ function defaultState() {
         topSitesCount: 12,         // how many top sites each Most visited collection syncs
         trashRetentionDays: 0,     // days to keep trash items before auto-purge; 0 = keep forever
         confirmRestoreSession: false, // ask before restoring a saved session
+        trashBadgeSeen: 0,         // trash badge mark-as-read count; persisted so it stays dismissed
         showTopbarSearch: true,    // show the "Jump to…" search bar in the header
         showTopbarButtons: true,   // show the shortcuts + trash buttons in the header
         interfaceFontLarge: false, // bump up the base interface font size
@@ -420,6 +421,13 @@ function migrate(data) {
     const s = data.meta.settings;
     if (s.topSitesCount === undefined) s.topSitesCount = 12;
     data.version = 15;
+  }
+  if (data.version < 16) {
+    // v16: persist the trash badge's mark-as-read count so the badge stays
+    // dismissed across reloads instead of reappearing every time.
+    const s = data.meta.settings;
+    if (s.trashBadgeSeen === undefined) s.trashBadgeSeen = 0;
+    data.version = 16;
   }
   return data;
 }

@@ -92,11 +92,8 @@
     const list = $('#open-tabs-list');
     list.innerHTML = '';
 
-    $('#sidebar-list-heading').textContent = sidebarShowingClosed ? 'Recently Closed' : 'Open Tabs';
-    const toggleBtn = $('#recently-closed-toggle-btn');
-    toggleBtn.classList.toggle('active', sidebarShowingClosed);
-    toggleBtn.title = sidebarShowingClosed ? 'Back to open tabs' : 'Show recently closed';
-    toggleBtn.innerHTML = icon(sidebarShowingClosed ? 'layers' : 'clock');
+    $('#sidebar-view-toggle [data-view=tabs]').classList.toggle('active', !sidebarShowingClosed);
+    $('#sidebar-view-toggle [data-view=closed]').classList.toggle('active', sidebarShowingClosed);
 
     if (sidebarShowingClosed) {
       renderRecentlyClosedRows(list);
@@ -246,18 +243,12 @@
         row.innerHTML = `
           <span class="window-favicons">${favs}</span>
           <span class="tab-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</span>
-          <span class="rc-time">${formatRelTime(item.closedAt)}</span>
-          <span class="tab-icons">
-            <button data-act="reopen" title="Restore window">${ICONS.refresh}</button>
-          </span>`;
+          <span class="rc-time">${formatRelTime(item.closedAt)}</span>`;
       } else {
         row.innerHTML = `
           <img class="favicon" src="${item.favIconUrl || faviconFor(item.url)}" onerror="this.style.visibility='hidden'">
           <span class="tab-title" title="${escapeHtml(item.url)}">${escapeHtml(item.title || item.url)}</span>
-          <span class="rc-time">${formatRelTime(item.closedAt)}</span>
-          <span class="tab-icons">
-            <button data-act="reopen" title="Reopen this tab">${ICONS.refresh}</button>
-          </span>`;
+          <span class="rc-time">${formatRelTime(item.closedAt)}</span>`;
       }
       row.addEventListener('click', async () => {
         await sendMsg('REOPEN_CLOSED_SESSION', { sessionId: item.sessionId });

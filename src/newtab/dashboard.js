@@ -286,6 +286,8 @@
     $('#trash-btn').prepend(el('span', 'icon', ICONS.trash));
     $('#settings-btn').innerHTML = icon('settings');
     $('#refresh-tabs-btn').innerHTML = icon('refresh', 'sm');
+    $('#sidebar-view-toggle [data-view=tabs] .seg-ic').innerHTML = ICONS.layers;
+    $('#sidebar-view-toggle [data-view=closed] .seg-ic').innerHTML = ICONS.clock;
     $('#new-collection-btn .btn-ic').innerHTML = ICONS.plus;
     $('#add-widget-btn .btn-ic-sm').innerHTML = ICONS.widget;
     $('#save-window-session-btn .btn-ic').innerHTML = ICONS.save;
@@ -348,8 +350,8 @@
       if (!elNode) return;
       elNode.classList.toggle('hidden', sel === '#search-trigger' ? s.showTopbarSearch === false : s.showTopbarButtons === false);
     });
-    const rcBtn = $('#recently-closed-toggle-btn');
-    if (rcBtn) rcBtn.classList.toggle('hidden', s.showRecentlyClosed === false);
+    const viewToggle = $('#sidebar-view-toggle');
+    if (viewToggle) viewToggle.classList.toggle('hidden', s.showRecentlyClosed === false);
     if (s.showRecentlyClosed === false && sidebarShowingClosed) sidebarShowingClosed = false;
     $('#sidebar').classList.toggle('collapsed', !!s.sidebarCollapsed);
     $('#sidebar').classList.toggle('compact', !!s.sidebarCompact);
@@ -402,10 +404,15 @@
     $('#nav-collections-btn').onclick = () => switchNav('collections');
     $('#nav-sessions-btn').onclick = () => switchNav('sessions');
 
-    $('#recently-closed-toggle-btn').onclick = () => {
-      sidebarShowingClosed = !sidebarShowingClosed;
-      if (sidebarShowingClosed) { refreshRecentlyClosed().then(() => renderSidebar()); return; }
+    $('#sidebar-view-toggle [data-view=tabs]').onclick = () => {
+      if (!sidebarShowingClosed) return;
+      sidebarShowingClosed = false;
       renderSidebar();
+    };
+    $('#sidebar-view-toggle [data-view=closed]').onclick = () => {
+      if (sidebarShowingClosed) return;
+      sidebarShowingClosed = true;
+      refreshRecentlyClosed().then(() => renderSidebar());
     };
     $('#refresh-tabs-btn').onclick = async () => { await refreshOpenTabs(); await refreshRecentlyClosed(); renderSidebar(); };
 
