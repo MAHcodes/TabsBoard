@@ -69,6 +69,133 @@
   }
   function closeModal() { hideOverlay('#modal-overlay'); }
 
+  /* ============ CUSTOM CONFIRM / PROMPT / ALERT ============
+     Native confirm()/prompt()/alert() block the extension's background services
+     in Firefox, so every call site drives these styled dialogs instead. They
+     reuse the generic #modal-overlay and resolve as promises:
+     uiConfirm -> boolean, uiPrompt -> string | null, uiAlert -> undefined. */
+  function openDialog(opts) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const hasInput = opts.inputValue !== undefined;
+      const hasCancel = opts.cancelLabel !== null && !(opts.okOnly);
+      const html = `
+        ${opts.title ? `<h2>${escapeHtml(opts.title)}</h2>` : ''}
+        ${opts.message ? `<p class="dialog-message">${escapeHtml(opts.message)}</p>` : ''}
+        ${opts.details ? `<div class="dialog-details">${escapeHtml(opts.details)}</div>` : ''}
+        ${hasInput ? `<div class="field">${opts.label ? `<label for="dialog-input">${escapeHtml(opts.label)}</label>` : ''}<input type="text" id="dialog-input" value="${escapeHtml(opts.inputValue)}" placeholder="${escapeHtml(opts.placeholder || '')}"></div>` : ''}
+        <div class="modal-actions">
+          ${hasCancel ? `<button type="button" class="mini-btn" id="dialog-cancel">${escapeHtml(opts.cancelLabel || 'Cancel')}</button>` : ''}
+          <button type="button" class="mini-btn${opts.danger ? ' danger' : ''}" id="dialog-ok">${escapeHtml(opts.okLabel || 'OK')}</button>
+        </div>`;
+      const finish = (val) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener('keydown', onKey, true);
+        registerOverlayCloser('modal-overlay', closeModal);
+        hideOverlay('#modal-overlay');
+        resolve(val);
+      };
+      const onKey = (e) => { if (e.key === 'Escape') finish(hasInput ? null : false); };
+      $('#modal-box').innerHTML = html;
+      registerOverlayCloser('modal-overlay', () => finish(hasInput ? null : false));
+      showOverlay('#modal-overlay');
+      const okBtn = $('#dialog-ok');
+      okBtn.onclick = () => finish(hasInput ? $('#dialog-input').value : (opts.okOnly ? undefined : true));
+      if (hasInput) {
+        const input = $('#dialog-input');
+        input.focus(); input.select();
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); finish(input.value); } });
+      } else {
+        okBtn.focus();
+      }
+      if (hasCancel) $('#dialog-cancel').onclick = () => finish(hasInput ? null : false);
+      document.addEventListener('keydown', onKey, true);
+    });
+  }
+  function uiConfirm(message, opts) { return openDialog(Object.assign({ title: 'Are you sure?', message, okLabel: 'OK' }, opts || {})); }
+  function uiPrompt(message, inputValue, opts) {
+    const o = opts || {};
+    return openDialog({
+      title: o.title !== undefined ? o.title : (message || 'Enter a value'),
+      okLabel: o.okLabel || 'Save',
+      cancelLabel: o.cancelLabel !== undefined ? o.cancelLabel : 'Cancel',
+      message: o.message, // optional helper text under the heading (default: none)
+      details: o.details,
+      placeholder: o.placeholder,
+      label: o.label,
+      danger: o.danger,
+      inputValue
+    });
+  }
+  function uiAlert(message, opts) { return openDialog(Object.assign({ message, okLabel: 'OK', okOnly: true }, (opts || {}))); }
+
+  /* Searchable item picker: filter box + click/arrow-key-selectable list.
+     uiSearchablePicker(title, message, items[], opts) -> picked item id | null.
+     items: [{ id, label }]. */
+  function uiSearchablePicker(title, message, items, opts) {
+    return new Promise((resolve) => {
+      let settled = false;
+      let query = '';
+      let highlight = 0;
+      const o = opts || {};
+      const finish = (val) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener('keydown', onEscapeCapture, true);
+        registerOverlayCloser('modal-overlay', closeModal);
+        hideOverlay('#modal-overlay');
+        resolve(val);
+      };
+      const onEscapeCapture = (e) => { if (e.key === 'Escape') finish(null); };
+      $('#modal-box').innerHTML = `
+        ${title ? `<h2>${escapeHtml(title)}</h2>` : ''}
+        ${message ? `<p class="dialog-message">${escapeHtml(message)}</p>` : ''}
+        <div class="field"><input type="text" id="dialog-filter" class="filter-input" placeholder="${escapeHtml(o.placeholder || 'Search…')}" value="${escapeHtml(query)}" autocomplete="off"></div>
+        <div class="picker-list" id="dialog-picker-list"></div>
+        <div class="modal-actions">
+          <button type="button" class="mini-btn" id="dialog-cancel">${escapeHtml(o.cancelLabel || 'Cancel')}</button>
+          <button type="button" class="mini-btn" id="dialog-ok">${escapeHtml(o.okLabel || 'OK')}</button>
+        </div>`;
+      const listEl = $('#dialog-picker-list');
+      const filterEl = $('#dialog-filter');
+      const render = () => {
+        const q = query.trim().toLowerCase();
+        const shown = items.filter((it) => !q || it.label.toLowerCase().includes(q));
+        if (!shown.length) { listEl.innerHTML = '<div class="picker-empty">No matches</div>'; highlight = -1; return; }
+        highlight = Math.max(0, Math.min(highlight, shown.length - 1));
+        listEl.innerHTML = shown.map((it, i) =>
+          `<button type="button" class="picker-row${i === highlight ? ' active' : ''}" data-id="${escapeHtml(it.id)}"><span class="picker-ic">${ICONS.layers}</span><span class="picker-label">${escapeHtml(it.label)}</span></button>`
+        ).join('');
+        listEl.querySelectorAll('.picker-row').forEach((row) => { row.onclick = () => finish(row.dataset.id); });
+        listEl.scrollTop = 0;
+      };
+      const move = () => {
+        const rows = listEl.querySelectorAll('.picker-row');
+        if (rows.length) rows[highlight].click();
+      };
+      const onNav = (e) => {
+        const rows = listEl.querySelectorAll('.picker-row');
+        if (!rows.length) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); highlight = (highlight + 1) % rows.length; }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); highlight = (highlight - 1 + rows.length) % rows.length; }
+        else if (e.key === 'Enter') { e.preventDefault(); rows[highlight].click(); return; }
+        else return;
+        rows.forEach((r, i) => r.classList.toggle('active', i === highlight));
+      };
+      filterEl.addEventListener('input', () => { query = filterEl.value; highlight = 0; render(); });
+      filterEl.addEventListener('keydown', onNav);
+      listEl.addEventListener('keydown', onNav);
+      $('#dialog-cancel').onclick = () => finish(null);
+      $('#dialog-ok').onclick = () => move();
+      registerOverlayCloser('modal-overlay', () => finish(null));
+      showOverlay('#modal-overlay');
+      render();
+      filterEl.focus();
+      document.addEventListener('keydown', onEscapeCapture, true);
+    });
+  }
+
   function openPalette() {
     showOverlay('#palette-overlay');
     const input = $('#palette-input');
@@ -291,7 +418,7 @@
   }
 
   async function newBoardFromPalette() {
-    const name = prompt('New board name', `Board ${boardsForActiveWS().length + 1}`);
+    const name = await uiPrompt('New board name', `Board ${boardsForActiveWS().length + 1}`, { okLabel: 'Create', label: 'Name', placeholder: 'Board name' });
     if (!name) return;
     const created = await DB.createBoard(activeWorkspaceId(), name);
     await DB.setActiveBoard(activeWorkspaceId(), created.id);

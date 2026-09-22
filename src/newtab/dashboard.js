@@ -391,7 +391,7 @@
     $('#trash-btn').onclick = openTrashPanel;
     $('#trash-close-btn').onclick = () => hideOverlay('#trash-overlay');
     $('#empty-trash-btn').onclick = async () => {
-      if (!STATE.meta.settings.confirmDelete || confirm('Permanently delete all items in trash?')) {
+      if (!STATE.meta.settings.confirmDelete || await uiConfirm('Permanently delete all items in trash?', { title: 'Empty trash', okLabel: 'Empty trash', danger: true })) {
         await DB.emptyTrash(); await reload(); openTrashPanel();
       }
     };
@@ -441,12 +441,11 @@
     $('#collection-filter-input').addEventListener('input', (e) => { filterQueryFor.collections = e.target.value; renderBoard(); });
     $('#session-filter-input').addEventListener('input', (e) => { filterQueryFor.sessions = e.target.value; renderSessionsPage(); });
 
-    $('#bulk-move-btn').onclick = () => {
+    $('#bulk-move-btn').onclick = async () => {
       const cols = collectionsForActiveWS();
-      const names = cols.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
-      const pick = prompt(`Move ${SELECTED.size} bookmark(s) to which collection?\n${names}`);
-      const idx = parseInt(pick, 10) - 1;
-      if (cols[idx]) { DB.moveBookmarks(Array.from(SELECTED), cols[idx].id).then(async () => { SELECTED.clear(); selectMode = false; await reload(); }); }
+      const pickId = await uiSearchablePicker('Move bookmarks', `Move ${SELECTED.size} bookmark${SELECTED.size === 1 ? '' : 's'} to which collection?`, cols.map((c) => ({ id: c.id, label: c.name })), { okLabel: 'Move', placeholder: 'Search collections…' });
+      if (!pickId) return;
+      DB.moveBookmarks(Array.from(SELECTED), pickId).then(async () => { SELECTED.clear(); selectMode = false; await reload(); });
     };
     $('#bulk-delete-btn').onclick = () => { if (SELECTED.size) deleteBookmarksWithUndo(Array.from(SELECTED)); };
     $('#bulk-clear-btn').onclick = () => { SELECTED.clear(); selectMode = false; renderBoard(); };

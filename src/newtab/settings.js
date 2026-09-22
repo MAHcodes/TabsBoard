@@ -129,7 +129,7 @@
       e.target.value = '';
     };
     $('#danger-clear-all-btn').onclick = async () => {
-      if (!confirm('Clear ALL data? This permanently deletes every workspace, board, collection, bookmark, session, widget, and setting, and resets TabsBoard to a fresh install. This cannot be undone.')) return;
+      if (!(await uiConfirm('Clear ALL data? This permanently deletes every workspace, board, collection, bookmark, session, widget, and setting, and resets TabsBoard to a fresh install. This cannot be undone.', { title: 'Clear all data', okLabel: 'Clear all data', danger: true }))) return;
       await DB.clearAll();
       await reload();
       applySettings();

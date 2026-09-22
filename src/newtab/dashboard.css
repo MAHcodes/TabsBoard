@@ -374,7 +374,12 @@ html.density-compact .sidebar-heading .icon-btn.small { width: auto; height: aut
   transition: background-color .12s ease, color .12s ease, border-color .12s ease;
 }
 
-.bulk-bar { display: flex; align-items: center; gap: 8px; background: var(--sub-alt-color); border-radius: var(--r-ctrl); padding: 7px 11px; font-size: 12px; }
+.bulk-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 80;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-color); border: var(--border-w) solid var(--border-color);
+  border-radius: var(--radius); padding: 9px 12px; font-size: 12px; box-shadow: var(--shadow);
+}
 
 /* ---------- Open tabs ---------- */
 .open-tabs-list { display: flex; flex-direction: column; gap: 3px;  flex: 1; min-height: 0; }
@@ -657,6 +662,15 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 .field input[type=date] { color-scheme: light dark; }
 .field textarea { resize: vertical; min-height: 60px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.dialog-message { margin: 2px 0 10px; font-size: 12px; font-weight: 800; color: var(--sub-color); line-height: 1.5; }
+.dialog-details { color: var(--sub-color); font-size: 12px; line-height: 1.5; white-space: pre-wrap; margin: 8px 0 0; max-height: 40vh; overflow-y: auto; }
+.picker-list { margin-top: 10px; max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.picker-row { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; background: none; border: none; padding: 7px 10px; border-radius: var(--r-item, 6px); font-size: 13px; color: var(--text-color); cursor: pointer; }
+.picker-row:hover, .picker-row.active { background: var(--bg-color); }
+.picker-row .picker-ic { flex: 0 0 auto; display: inline-flex; width: 16px; height: 16px; color: var(--main-color); }
+.picker-row .picker-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-empty { padding: 12px 10px; color: var(--sub-color); font-size: 12px; text-align: center; }
+.filter-input { width: 100%; }
 /* Match the modal's primary action height so secondary buttons in a row
    (e.g. the background-color popup's "No tint" / "Cancel") line up with
    the Save button instead of sitting smaller beside it. */

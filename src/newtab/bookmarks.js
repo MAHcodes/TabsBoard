@@ -564,7 +564,7 @@
     $('#bulk-count').textContent = `${SELECTED.size} selected`;
   }
   async function deleteBookmarksWithUndo(ids) {
-    if (STATE.meta.settings.confirmDelete && !confirm(`Delete ${ids.length} bookmark${ids.length === 1 ? '' : 's'}?`)) return;
+    if (STATE.meta.settings.confirmDelete && !(await uiConfirm(`Delete ${ids.length} bookmark${ids.length === 1 ? '' : 's'}?`, { title: 'Delete bookmarks', danger: true }))) return;
     await DB.softDeleteBookmarks(ids);
     SELECTED.clear(); selectMode = false;
     toast(`Deleted ${ids.length} bookmark${ids.length === 1 ? '' : 's'}`, 'View trash', () => openTrashPanel());
@@ -586,7 +586,7 @@
     const res = await sendMsg('GET_OPEN_TABS');
     const tabs = (res && res.tabs) || [];
     if (!tabs.length) { toast('No tabs to save'); return; }
-    const name = prompt('Session name', `Session ${new Date().toLocaleString()}`);
+    const name = await uiPrompt('Session name', `Session ${new Date().toLocaleString()}`, { okLabel: 'Save', label: 'Name', placeholder: 'Session name' });
     if (name === null) return;
     await DB.createSession(activeWorkspaceId(), name, tabs, false);
     toast('Session saved');
@@ -597,7 +597,7 @@
     const tabs = (res && res.tabs) || [];
     if (!tabs.length) { toast('No tabs to save'); return; }
     const winCount = new Set(tabs.map(t => t.windowId)).size;
-    const name = prompt('Session name', `All windows — ${new Date().toLocaleString()}`);
+    const name = await uiPrompt('Session name', `All windows — ${new Date().toLocaleString()}`, { okLabel: 'Save', label: 'Name', placeholder: 'Session name' });
     if (name === null) return;
     await DB.createSession(activeWorkspaceId(), name, tabs, winCount > 1, winCount);
     toast('Session saved');
@@ -632,7 +632,7 @@
       const restoreNewBtn = card.querySelector('[data-act=restore-new]');
       const runRestore = async (btn, newWindow) => {
         if (btn.disabled) return;
-        if (STATE.meta.settings.confirmRestoreSession && !confirm(`Restore "${s.name}" (${s.tabs.length} tabs)${newWindow ? ' in a new window' : ''}?`)) return;
+        if (STATE.meta.settings.confirmRestoreSession && !(await uiConfirm(`Restore "${s.name}" (${s.tabs.length} tabs)${newWindow ? ' in a new window' : ''}?`, { title: 'Restore session', okLabel: 'Restore' }))) return;
         btn.disabled = true;
         const original = btn.innerHTML;
         btn.innerHTML = `${icon('refresh', 'sm')} Restoring…`;
@@ -665,13 +665,13 @@
     const close = showDropdown(menu, rect, 220);
     menu.querySelector('[data-act=rename]').onclick = async () => {
       close();
-      const name = prompt('Session name', s.name);
-      if (name) { await DB.renameSession(s.id, name); await reload(); }
+      const name = await uiPrompt('Rename session', s.name, { okLabel: 'Rename', label: 'Name', placeholder: 'Session name' });
+      if (name && name !== s.name) { await DB.renameSession(s.id, name); await reload(); }
     };
     menu.querySelector('[data-act=dup]').onclick = async () => { close(); await DB.duplicateSession(s.id); await reload(); };
     menu.querySelector('[data-act=tocol]').onclick = async () => {
       close();
-      const name = prompt('New collection name', s.name);
+      const name = await uiPrompt('New collection name', s.name, { okLabel: 'Create', label: 'Name', placeholder: 'Collection name' });
       if (name === null) return;
       await DB.convertSessionToCollection(s.id, name);
       toast(`Created collection "${name}"`);
@@ -684,7 +684,7 @@
     };
     menu.querySelector('[data-act=delete]').onclick = async () => {
       close();
-      if (!confirm(`Delete session "${s.name}"?`)) return;
+      if (!(await uiConfirm(`Delete session "${s.name}"?`, { title: 'Delete session', danger: true }))) return;
       await DB.deleteSession(s.id);
       await reload();
     };
@@ -744,7 +744,7 @@
         openTrashPanel();
       };
       row.querySelector('[data-act=purge]').onclick = async () => {
-        if (STATE.meta.settings.confirmDelete && !confirm('Permanently delete this item? This cannot be undone.')) return;
+        if (STATE.meta.settings.confirmDelete && !(await uiConfirm('Permanently delete this item? This cannot be undone.', { title: 'Delete permanently', danger: true }))) return;
         await DB.purgeTrashItem(item.id);
         await reload();
         openTrashPanel();
@@ -852,12 +852,13 @@
     duckduckgo: 'https://duckduckgo.com/?q=',
     bing: 'https://www.bing.com/search?q='
   };
+  const SEARCH_ENGINE_LABELS = { google: 'Google', duckduckgo: 'DuckDuckGo', bing: 'Bing' };
   async function searchTheWeb() {
-    const q = prompt('Search the web', '');
+    const engine = STATE.meta.settings.searchEngine || 'google';
+    const q = await uiPrompt('Search the web', '', { okLabel: 'Search', placeholder: 'Search query…', message: `Engine: ${SEARCH_ENGINE_LABELS[engine] || 'Google'}` });
     if (q === null || !q.trim()) return;
     const res = await sendMsg('SEARCH_WEB', { text: q.trim() });
     if (!res || !res.ok) {
-      const engine = STATE.meta.settings.searchEngine || 'google';
       sendMsg('OPEN_URL', { url: (SEARCH_URLS[engine] || SEARCH_URLS.google) + encodeURIComponent(q.trim()), forceNewTab: true });
     }
   }
@@ -867,7 +868,7 @@
      the bulk write happen outside the dashboard, and the context menus
      rebuild once instead of per bookmark. */
   async function importBrowserBookmarksViaFilePicker() {
-    if (!confirm('Import browser bookmarks into this workspace? New collections will be created for your bookmark folders.')) return;
+    if (!(await uiConfirm('Import browser bookmarks into this workspace? New collections will be created for your bookmark folders.', { title: 'Import bookmarks', okLabel: 'Import' }))) return;
     const res = await sendMsg('IMPORT_BOOKMARKS');
     if (!res || !res.ok) {
       toast((res && res.error) === 'not supported' ? 'Bookmarks API unavailable in this browser' : 'Bookmark import failed');

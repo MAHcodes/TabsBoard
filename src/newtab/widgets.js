@@ -32,7 +32,7 @@
       btn.onclick = async (e) => {
         e.stopPropagation(); menu.classList.add('hidden');
         const w = STATE.workspaces[btn.dataset.rename];
-        const name = prompt('Workspace name', w ? w.name : '');
+        const name = await uiPrompt('Workspace name', w ? w.name : '', { okLabel: 'Save', label: 'Name', placeholder: 'Workspace name' });
         if (name) { await DB.updateWorkspace(btn.dataset.rename, { name }); await reload(); }
       };
     });
@@ -40,7 +40,7 @@
       btn.onclick = async (e) => {
         e.stopPropagation(); menu.classList.add('hidden');
         const w = STATE.workspaces[btn.dataset.delete];
-        if (confirm(`Delete workspace "${w ? w.name : ''}" and everything in it? This can't be undone.`)) {
+        if (await uiConfirm(`Delete workspace "${w ? w.name : ''}" and everything in it? This can't be undone.`, { title: 'Delete workspace', danger: true })) {
           await DB.deleteWorkspace(btn.dataset.delete);
           await reload();
         }
@@ -350,6 +350,7 @@
       for (const b of bookmarksForCollection(col.id)) {
         mix(b.id); mix(b.title); mix(b.url); mix(b.order);
         mix(b.pinned); mix(b.tintColor); mix(b.visitTime || 0);
+        mix(SELECTED.has(b.id) ? 1 : 0);
       }
       return 'col:' + w.id + ':' + h + ':' + bookmarksForCollection(col.id).length;
     }
@@ -452,7 +453,7 @@
       btn.onclick = async (e) => {
         e.stopPropagation(); close();
         const board = STATE.boards[btn.dataset.rename];
-        const name = prompt('Board name', board ? board.name : '');
+        const name = await uiPrompt('Board name', board ? board.name : '', { okLabel: 'Save', label: 'Name', placeholder: 'Board name' });
         if (name) { await DB.renameBoard(btn.dataset.rename, name); await reload(); }
       };
     });
@@ -460,7 +461,7 @@
       btn.onclick = async (e) => {
         e.stopPropagation(); close();
         const board = STATE.boards[btn.dataset.delete];
-        if (!confirm(`Delete board "${board ? board.name : ''}"? Its widgets move to another board — nothing is deleted.`)) return;
+        if (!(await uiConfirm(`Delete board "${board ? board.name : ''}"? Its widgets move to another board — nothing is deleted.`, { title: 'Delete board', danger: true }))) return;
         const res = await DB.deleteBoard(btn.dataset.delete);
         if (res && res.ok) toast(`Moved ${res.movedCount} widget${res.movedCount === 1 ? '' : 's'} to "${res.movedTo}"`);
         await reload();
@@ -468,7 +469,7 @@
     });
     menu.querySelector('[data-act=new]').onclick = async () => {
       close();
-      const name = prompt('New board name', `Board ${boardsForActiveWS().length + 1}`);
+      const name = await uiPrompt('New board name', `Board ${boardsForActiveWS().length + 1}`, { okLabel: 'Create', label: 'Name', placeholder: 'Board name' });
       if (name === null) return;
       await DB.createBoard(activeWorkspaceId(), name);
       await reload();
@@ -750,7 +751,7 @@
       <span class="widget-title" title="${escapeHtml(col.name)}">${escapeHtml(col.name)}</span>
       ${col.pinned ? `<span class="collection-pin-ic">${ICONS.pin}</span>` : ''}
       <button class="widget-add-btn" data-act="add" title="Add a bookmark">${ICONS.plus}</button>`;
-    const { card, header } = widgetShell(w, ICONS.rotateCcwClock, titleHtml);
+    const { card, header } = widgetShell(w, ICONS.layers, titleHtml);
     card.classList.toggle('pinned', !!col.pinned);
     header.querySelector('[data-act=add]').onclick = (e) => { e.stopPropagation(); openBookmarkModal(null, col.id); };
     header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openCollectionMenu(col, e.currentTarget.getBoundingClientRect()); };
