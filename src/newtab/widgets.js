@@ -750,7 +750,7 @@
       <span class="widget-title" title="${escapeHtml(col.name)}">${escapeHtml(col.name)}</span>
       ${col.pinned ? `<span class="collection-pin-ic">${ICONS.pin}</span>` : ''}
       <button class="widget-add-btn" data-act="add" title="Add a bookmark">${ICONS.plus}</button>`;
-    const { card, header } = widgetShell(w, ICONS.layers, titleHtml);
+    const { card, header } = widgetShell(w, ICONS.rotateCcwClock, titleHtml);
     card.classList.toggle('pinned', !!col.pinned);
     header.querySelector('[data-act=add]').onclick = (e) => { e.stopPropagation(); openBookmarkModal(null, col.id); };
     header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openCollectionMenu(col, e.currentTarget.getBoundingClientRect()); };

@@ -188,7 +188,7 @@ svg { width: 100%; height: 100%; }
 }
 .top-nav-btn .nav-ic { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 17px; height: 17px; }
 .top-nav-btn:hover { color: var(--text-color); }
-.top-nav-btn.active { background: var(--bg-color); color: var(--text-color); box-shadow: var(--shadow); }
+.top-nav-btn.active { background: var(--bg-color); color: var(--text-color); }
 
 .topbar-center { flex: 1; display: flex; justify-content: center; }
 .search-trigger {
