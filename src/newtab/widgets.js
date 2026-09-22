@@ -92,8 +92,9 @@
     const list = $('#open-tabs-list');
     list.innerHTML = '';
 
-    $('#sidebar-view-toggle [data-view=tabs]').classList.toggle('active', !sidebarShowingClosed);
-    $('#sidebar-view-toggle [data-view=closed]').classList.toggle('active', sidebarShowingClosed);
+    $('#sidebar-closed-toggle').classList.toggle('active', sidebarShowingClosed);
+    const titleEl = $('#sidebar-heading-title');
+    if (titleEl) titleEl.textContent = sidebarShowingClosed ? 'Recently closed' : 'Open tabs';
 
     if (sidebarShowingClosed) {
       renderRecentlyClosedRows(list);
@@ -1049,7 +1050,7 @@
     const count = Math.max(1, Number(w.count || s.historyCount) || 10);
     const showTimes = s.historyShowTimes !== false;
     return renderBrowserDataWidget(w, {
-      title: 'History', icon: ICONS.clock, emptyText: 'No browsing history yet',
+      title: 'History', icon: ICONS.rotateCcwClock, emptyText: 'No browsing history yet',
       count,
       meta: (item) => (showTimes && item._t ? formatRelTime(item._t) : ''),
       fetch: (done) => {

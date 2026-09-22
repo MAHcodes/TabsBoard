@@ -49,12 +49,12 @@
     $$('#radius-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ radius: b.dataset.val }); await reload(); syncSettingsUI(); });
     $('#setting-borders').onchange = async (e) => { await DB.updateSettings({ borders: e.target.checked }); await reload(); };
     $('#setting-animations').onchange = async (e) => { await DB.updateSettings({ animations: e.target.checked }); await reload(); };
+    $('#setting-popup-blur').onchange = async (e) => { await DB.updateSettings({ popupBlur: e.target.checked }); await reload(); };
 
     $$('#viewmode-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ viewMode: b.dataset.val }); await reload(); syncSettingsUI(); });
     $$('#boardcols-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ dashboard: { columns: parseInt(b.dataset.val, 10) } }); await reload(); syncSettingsUI(); });
     $('#setting-sidebar-collapsed').onchange = async (e) => { await DB.updateSettings({ sidebarCollapsed: e.target.checked }); await reload(); };
     $('#setting-sidebar-compact').onchange = async (e) => { await DB.updateSettings({ sidebarCompact: e.target.checked }); await reload(); };
-    $('#setting-show-recently-closed').onchange = async (e) => { await DB.updateSettings({ showRecentlyClosed: e.target.checked }); await reload(); };
 
     $('#setting-confirm-delete').onchange = async (e) => { await DB.updateSettings({ confirmDelete: e.target.checked }); await reload(); };
     $('#setting-open-in-new-tab').onchange = async (e) => { await DB.updateSettings({ openBookmarksInNewTab: e.target.checked }); await reload(); };
@@ -240,12 +240,12 @@
     $$('#radius-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === (s.radius || 'default')));
     $('#setting-borders').checked = s.borders !== false;
     $('#setting-animations').checked = s.animations !== false;
+    $('#setting-popup-blur').checked = s.popupBlur !== false;
 
     $$('#viewmode-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.viewMode));
     $$('#boardcols-toggle button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === ((s.dashboard && s.dashboard.columns) || 4)));
     $('#setting-sidebar-collapsed').checked = !!s.sidebarCollapsed;
     $('#setting-sidebar-compact').checked = !!s.sidebarCompact;
-    $('#setting-show-recently-closed').checked = s.showRecentlyClosed !== false;
 
     $('#setting-confirm-delete').checked = s.confirmDelete !== false;
     $('#setting-open-in-new-tab').checked = !!s.openBookmarksInNewTab;

@@ -89,6 +89,8 @@
       { label: 'None', value: 'none' }, { label: 'Sharp', value: 'sharp' }, { label: 'Standard', value: 'default' }, { label: 'Rounded', value: 'rounded' }, { label: 'Extra', value: 'extra' } ] },
     { id: 'borders', label: 'Borders', get: s => s.borders !== false, set: v => ({ borders: v }), options: [
       { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
+    { id: 'popupBlur', label: 'Blur behind popups', get: s => s.popupBlur !== false, set: v => ({ popupBlur: v }), options: [
+      { label: 'On', value: true }, { label: 'Off', value: false } ] },
     { id: 'viewMode', label: 'Bookmark view', get: s => s.viewMode, set: v => ({ viewMode: v }), options: [
       { label: 'Tiles', value: 'grid' }, { label: 'Rows', value: 'list' } ] },
     { id: 'columns', label: 'Board width', get: s => (s.dashboard && s.dashboard.columns) || 4, set: v => ({ dashboard: { columns: v } }), options: [
@@ -97,8 +99,6 @@
       { label: 'Expanded', value: false }, { label: 'Collapsed', value: true } ] },
     { id: 'sidebarCompact', label: 'Sidebar compact', get: s => !!s.sidebarCompact, set: v => ({ sidebarCompact: v }), options: [
       { label: 'Off', value: false }, { label: 'Icons only', value: true } ] },
-    { id: 'showRecentlyClosed', label: 'Recently closed toggle', get: s => s.showRecentlyClosed !== false, set: v => ({ showRecentlyClosed: v }), options: [
-      { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
     { id: 'animations', label: 'Animations', get: s => s.animations !== false, set: v => ({ animations: v }), options: [
       { label: 'On', value: true }, { label: 'Off', value: false } ] },
     { id: 'confirmDelete', label: 'Confirm before delete', get: s => s.confirmDelete !== false, set: v => ({ confirmDelete: v }), options: [
@@ -153,11 +153,12 @@
   /* The palette is a navigable tree: root → Themes / Settings groups → options.
      Searching flattens every leaf so "change anything by typing" still works. */
   const PALETTE_SETTING_GROUPS = [
-    { name: 'Appearance', keys: ['density', 'radius', 'borders', 'animations', 'fontLarge', 'showTopbarSearch', 'showTopbarButtons'] },
-    { name: 'Layout', keys: ['viewMode', 'columns', 'sidebarCollapsed', 'sidebarCompact', 'showRecentlyClosed', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity'] },
+    { name: 'Appearance', keys: ['density', 'radius', 'borders', 'animations', 'popupBlur', 'fontLarge'] },
+    { name: 'Layout', keys: ['viewMode', 'columns', 'showTopbarSearch', 'showTopbarButtons'] },
+    { name: 'Sidebar', keys: ['sidebarCollapsed', 'sidebarCompact', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'recentlyClosedLimit'] },
     { name: 'Behavior', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'searchEngine', 'confirmRestoreSession'] },
-    { name: 'Widgets', keys: ['clockFormat', 'weatherUnits', 'pomodoroFocus', 'pomodoroBreak', 'countdownDays', 'rssRefreshInterval'] },
-    { name: 'Data', keys: ['recentlyClosedLimit', 'historyShowTimes', 'historyCount', 'topSitesCount', 'trashRetentionDays'] }
+    { name: 'Widgets', keys: ['clockFormat', 'weatherUnits', 'pomodoroFocus', 'pomodoroBreak', 'countdownDays', 'rssRefreshInterval', 'historyShowTimes', 'historyCount', 'topSitesCount'] },
+    { name: 'Data', keys: ['trashRetentionDays'] }
   ];
 
   function themeChipColors(t) { return [t.bg, t.main, t.caret, t.sub, t.subAlt, t.text]; }

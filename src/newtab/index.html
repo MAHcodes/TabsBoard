@@ -49,16 +49,14 @@
 <div class="app-body">
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-heading">
-      <div class="segmented sidebar-view-toggle" id="sidebar-view-toggle">
-        <button data-view="tabs" title="Open tabs"><span class="seg-ic"></span><span class="seg-label">Tabs</span></button>
-        <button data-view="closed" title="Recently closed"><span class="seg-ic"></span><span class="seg-label">Closed</span></button>
-      </div>
+      <button id="sidebar-compact-btn" class="icon-btn small" title="Toggle compact sidebar"></button>
+      <span class="sidebar-heading-title" id="sidebar-heading-title">Open tabs</span>
+      <button id="sidebar-closed-toggle" class="icon-btn small" title="Toggle recently closed view"></button>
       <button id="refresh-tabs-btn" class="icon-btn small" title="Refresh"></button>
     </div>
     <div id="open-tabs-list" class="open-tabs-list"></div>
   </aside>
-
-  <main class="main" id="main">
+    <main class="main" id="main">
 
     <!-- Collections view -->
     <div id="view-collections">
@@ -123,8 +121,9 @@
           <button class="settings-tab active" data-tab="appearance"><span class="stab-ic" data-icon="palette"></span><span class="stab-label">Appearance</span></button>
           <button class="settings-tab" data-tab="themes"><span class="stab-ic" data-icon="grid"></span><span class="stab-label">Themes</span></button>
           <button class="settings-tab" data-tab="layout"><span class="stab-ic" data-icon="columns"></span><span class="stab-label">Layout</span></button>
-          <button class="settings-tab" data-tab="behavior"><span class="stab-ic" data-icon="settings"></span><span class="stab-label">Behavior</span></button>
+          <button class="settings-tab" data-tab="sidebar"><span class="stab-ic" data-icon="layers"></span><span class="stab-label">Sidebar</span></button>
           <button class="settings-tab" data-tab="widgets"><span class="stab-ic" data-icon="widget"></span><span class="stab-label">Widgets</span></button>
+          <button class="settings-tab" data-tab="behavior"><span class="stab-ic" data-icon="settings"></span><span class="stab-label">Behavior</span></button>
           <button class="settings-tab" data-tab="data"><span class="stab-ic" data-icon="save"></span><span class="stab-label">Data</span></button>
         </nav>
         <div class="settings-footer">TabsBoard <span id="app-version"></span></div>
@@ -134,8 +133,8 @@
         <div class="settings-panel active" id="panel-appearance">
           <div class="settings-group">
             <div class="settings-group-head">
-              <h3>Appearance</h3>
-              <p>Tune the shape, density, and motion of the interface.</p>
+              <h3>Interface</h3>
+              <p>Tune the shape, density, and motion of the whole app.</p>
             </div>
             <div class="settings-row">
               <label>Density</label>
@@ -165,21 +164,9 @@
                 <span class="switch-text"><span class="switch-title">Animations &amp; transitions</span><span class="switch-desc">Subtle motion when opening menus, modals, and reordering items.</span></span>
                 <label class="switch"><input type="checkbox" id="setting-animations"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
-            </div>
-          </div>
-          <div class="settings-group">
-            <div class="settings-group-head">
-              <h3>Topbar</h3>
-              <p>What the header shows.</p>
-            </div>
-            <div class="settings-row">
               <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Topbar search bar</span><span class="switch-desc">The "Jump to…" search next to the widgets.</span></span>
-                <label class="switch"><input type="checkbox" id="setting-show-topbar-search"><span class="switch-track"><span class="switch-thumb"></span></span></label>
-              </div>
-              <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Shortcuts &amp; trash buttons</span><span class="switch-desc">The keyboard-shortcuts and trash buttons in the header.</span></span>
-                <label class="switch"><input type="checkbox" id="setting-show-topbar-buttons"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+                <span class="switch-text"><span class="switch-title">Blur behind popups</span><span class="switch-desc">Frosted-glass backdrop behind modals, the command palette, and settings.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-popup-blur"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
               <div class="switch-row">
                 <span class="switch-text"><span class="switch-title">Larger interface font</span><span class="switch-desc">Slightly bigger text across the whole dashboard.</span></span>
@@ -254,8 +241,27 @@
           </div>
           <div class="settings-group">
             <div class="settings-group-head">
+              <h3>Topbar</h3>
+              <p>What the header shows.</p>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Topbar search bar</span><span class="switch-desc">The "Jump to…" search in the header.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-show-topbar-search"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Shortcuts &amp; trash buttons</span><span class="switch-desc">The keyboard-shortcuts and trash buttons in the header.</span></span>
+                <label class="switch"><input type="checkbox" id="setting-show-topbar-buttons"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-panel" id="panel-sidebar">
+          <div class="settings-group">
+            <div class="settings-group-head">
               <h3>Sidebar</h3>
-              <p>How the open-tabs rail behaves.</p>
+              <p>How the open-tabs rail looks and behaves.</p>
             </div>
             <div class="settings-row">
               <div class="switch-row">
@@ -263,12 +269,8 @@
                 <label class="switch"><input type="checkbox" id="setting-sidebar-collapsed"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
               <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Compact (icons only)</span><span class="switch-desc">Show favicons only, with no tab titles.</span></span>
+                <span class="switch-text"><span class="switch-title">Compact (icons only)</span><span class="switch-desc">Show favicons only, with no tab titles or per-tab buttons.</span></span>
                 <label class="switch"><input type="checkbox" id="setting-sidebar-compact"><span class="switch-track"><span class="switch-thumb"></span></span></label>
-              </div>
-              <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Show recently closed</span><span class="switch-desc">Show the tabs switcher that toggles the sidebar between open tabs and recently closed.</span></span>
-                <label class="switch"><input type="checkbox" id="setting-show-recently-closed"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
             </div>
           </div>
@@ -300,6 +302,26 @@
                 <button data-val="75">Subtle</button>
                 <button data-val="100">Off</button>
               </div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Recently closed</h3>
+              <p>How much closed-tab history the sidebar keeps.</p>
+            </div>
+            <div class="settings-row">
+              <label for="recently-closed-custom">Recently closed tabs shown</label>
+              <div class="count-picker">
+                <div class="segmented" id="recently-closed-limit">
+                  <button data-val="0">All</button>
+                  <button data-val="5">5</button>
+                  <button data-val="10">10</button>
+                  <button data-val="20">20</button>
+                  <button data-val="40">40</button>
+                </div>
+                <input type="number" id="recently-closed-custom" min="0" max="500" step="1" aria-label="Custom recently closed count">
+              </div>
+              <div class="hint-text">How many recently-closed tabs appear in the sidebar. Type any number to set a custom amount.</div>
             </div>
           </div>
         </div>
@@ -466,22 +488,8 @@
           </div>
           <div class="settings-group">
             <div class="settings-group-head">
-              <h3>Trash &amp; history</h3>
-              <p>How long deleted bookmarks stick around and how much history the sidebar keeps.</p>
-            </div>
-            <div class="settings-row">
-              <label for="recently-closed-custom">Recently closed tabs shown</label>
-              <div class="count-picker">
-                <div class="segmented" id="recently-closed-limit">
-                  <button data-val="0">All</button>
-                  <button data-val="5">5</button>
-                  <button data-val="10">10</button>
-                  <button data-val="20">20</button>
-                  <button data-val="40">40</button>
-                </div>
-                <input type="number" id="recently-closed-custom" min="0" max="500" step="1" aria-label="Custom recently closed count">
-              </div>
-              <div class="hint-text">How many recently-closed tabs appear in the sidebar. Type any number to set a custom amount.</div>
+              <h3>Trash</h3>
+              <p>How long deleted bookmarks stick around before being purged.</p>
             </div>
             <div class="settings-row">
               <label>Keep deleted bookmarks for</label>
@@ -524,6 +532,7 @@
     <ul class="shortcut-list-big">
       <li><span>Command palette</span><kbd>Ctrl K / /</kbd></li>
       <li><span>Toggle sidebar</span><kbd>T</kbd></li>
+      <li><span>Toggle compact sidebar</span><kbd>Shift C</kbd></li>
       <li><span>Toggle grid / list view</span><kbd>V</kbd></li>
       <li><span>Next board</span><kbd>B</kbd></li>
       <li><span>Previous board</span><kbd>Shift B</kbd></li>

@@ -5,7 +5,7 @@
  */
 
 const STORAGE_KEY = 'tdb_data';
-const SCHEMA_VERSION = 16;
+const SCHEMA_VERSION = 17;
 
 const DEFAULT_COLLECTION_COLORS = (typeof self !== 'undefined' && self.Themes) ? self.Themes.COLLECTION_COLORS : [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -199,7 +199,6 @@ function defaultState() {
         density: 'comfortable',    // comfortable | compact
         radius: 'default',         // shape scale: sharp | default | rounded
         searchEngine: 'google',    // fallback engine for address-bar + palette web search
-        showRecentlyClosed: true,  // show the sidebar's open-tabs / recently-closed toggle
         viewMode: 'grid',          // grid | list — bookmark tiles vs rows *inside* a collection widget
         sidebarCollapsed: false,
         sidebarCompact: false,     // icon-only sidebar: favicons only, no titles
@@ -207,6 +206,7 @@ function defaultState() {
         faviconSource: 'google',   // google | duckduckgo | none
         animations: true,
         borders: true,              // show 1px outlines around cards, buttons, and inputs
+        popupBlur: true,            // blur the page behind modals, the palette, and settings
         openBookmarksInNewTab: false, // false = open bookmarks in the current tab, true = open in a new tab
         lightThemeId: 'serika',    // used when themeId is 'auto' and the OS is in light mode
         darkThemeId: 'serika_dark', // used when themeId is 'auto' and the OS is in dark mode
@@ -428,6 +428,13 @@ function migrate(data) {
     const s = data.meta.settings;
     if (s.trashBadgeSeen === undefined) s.trashBadgeSeen = 0;
     data.version = 16;
+  }
+    if (data.version < 17) {
+    // v17: blur on popups can be turned off — defaults on so nothing changes
+    // for existing installs.
+    const s = data.meta.settings;
+    if (s.popupBlur === undefined) s.popupBlur = true;
+    data.version = 17;
   }
   return data;
 }

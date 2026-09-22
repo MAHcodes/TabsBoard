@@ -117,8 +117,11 @@
       : '';
 
     if (isTile) {
+      const selectHtml = selectMode
+        ? `<input type="checkbox" class="bm-select checkbox bm-select-tile" ${SELECTED.has(bm.id) ? 'checked' : ''}>`
+        : (bm.pinned ? `<span class="bm-pin-ic">${ICONS.pin}</span>` : '');
       item.innerHTML = `
-        ${bm.pinned ? `<span class="bm-pin-ic">${ICONS.pin}</span>` : ''}
+        ${selectHtml}
         <button class="bm-menu-btn" data-act="menu" title="Bookmark actions">${ICONS.dots}</button>
         <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
         <div class="bm-title" title="${escapeHtml(bm.title)}">${escapeHtml(bm.title)}</div>
@@ -836,7 +839,7 @@
       <div class="ws-item" data-act="rss"><span class="mi-ic">${ICONS.rss}</span>RSS Feed</div>
       <div class="ws-item" data-act="topSites"><span class="mi-ic">${ICONS.grid}</span>Most visited collection</div>
       <div class="ws-item" data-act="downloads"><span class="mi-ic">${ICONS.download}</span>Recent downloads</div>
-      <div class="ws-item" data-act="history"><span class="mi-ic">${ICONS.clock}</span>History collection</div>`;
+      <div class="ws-item" data-act="history"><span class="mi-ic">${ICONS.rotateCcwClock}</span>History collection</div>`;
     const close = showDropdown(menu, rect, 200);
     $$('.ws-item', menu).forEach(item => { item.onclick = () => { close(); addWidget(item.dataset.act); }; });
   }

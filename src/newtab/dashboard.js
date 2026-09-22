@@ -36,13 +36,14 @@
     const region = $('#toast-region');
     const t = el('div', 'toast');
     t.innerHTML = `<span>${text}</span>`;
+    const dismiss = () => { t.classList.add('toast-out'); setTimeout(() => t.remove(), 160); };
+    const auto = setTimeout(dismiss, 5000);
     if (actionLabel) {
       const b = el('button', '', actionLabel);
-      b.onclick = () => { actionFn && actionFn(); t.remove(); };
+      b.onclick = () => { clearTimeout(auto); actionFn && actionFn(); t.remove(); };
       t.appendChild(b);
     }
     region.appendChild(t);
-    setTimeout(() => t.remove(), 5000);
   }
 
   /* Appends a dropdown-menu (like a .dropdown-menu built by el()) to the
@@ -278,7 +279,7 @@
 
   /* ============ STATIC ICON INJECTION (buttons whose icon never changes) ============ */
   function injectStaticIcons() {
-    $('#sidebar-toggle-btn').innerHTML = icon('chevronLeft');
+    $('#sidebar-toggle-btn').innerHTML = icon('panelLeftClose');
     $('#nav-collections-btn .nav-ic').innerHTML = ICONS.layers;
     $('#nav-sessions-btn .nav-ic').innerHTML = ICONS.briefcase;
     $('#search-trigger .search-ic').innerHTML = ICONS.search;
@@ -286,8 +287,8 @@
     $('#trash-btn').prepend(el('span', 'icon', ICONS.trash));
     $('#settings-btn').innerHTML = icon('settings');
     $('#refresh-tabs-btn').innerHTML = icon('refresh', 'sm');
-    $('#sidebar-view-toggle [data-view=tabs] .seg-ic').innerHTML = ICONS.layers;
-    $('#sidebar-view-toggle [data-view=closed] .seg-ic').innerHTML = ICONS.clock;
+    $('#sidebar-compact-btn').innerHTML = icon('panelLeftClose', 'sm');
+    $('#sidebar-closed-toggle').innerHTML = icon('rotateCcwClock', 'sm');
     $('#new-collection-btn .btn-ic').innerHTML = ICONS.plus;
     $('#add-widget-btn .btn-ic-sm').innerHTML = ICONS.widget;
     $('#save-window-session-btn .btn-ic').innerHTML = ICONS.save;
@@ -344,24 +345,30 @@
     ['radius-sharp', 'radius-rounded', 'radius-extra', 'radius-none'].forEach(c => document.documentElement.classList.toggle(c, s.radius === c.slice(7)));
     document.documentElement.classList.toggle('no-borders', s.borders === false);
     document.documentElement.classList.toggle('no-anim', s.animations === false);
+    document.documentElement.classList.toggle('no-popup-blur', s.popupBlur === false);
     document.documentElement.classList.toggle('font-large', s.interfaceFontLarge === true);
     ['#search-trigger', '#shortcuts-btn', '#trash-btn'].forEach(sel => {
       const elNode = $(sel);
       if (!elNode) return;
       elNode.classList.toggle('hidden', sel === '#search-trigger' ? s.showTopbarSearch === false : s.showTopbarButtons === false);
     });
-    const viewToggle = $('#sidebar-view-toggle');
-    if (viewToggle) viewToggle.classList.toggle('hidden', s.showRecentlyClosed === false);
-    if (s.showRecentlyClosed === false && sidebarShowingClosed) sidebarShowingClosed = false;
     $('#sidebar').classList.toggle('collapsed', !!s.sidebarCollapsed);
     $('#sidebar').classList.toggle('compact', !!s.sidebarCompact);
-    $('#sidebar-toggle-btn .icon').style.transform = s.sidebarCollapsed ? 'rotate(180deg)' : 'none';
+    // The sidebar toggle shows the collapse/expand panel icon for the state it
+    // switches INTO: panel-left-close while visible, panel-left-open once fully
+    // collapsed, while the compact toggle uses plain chevrons for the narrow rail.
+    $('#sidebar-toggle-btn').innerHTML = icon(s.sidebarCollapsed ? 'panelLeftOpen' : 'panelLeftClose');
+    $('#sidebar-compact-btn').innerHTML = icon(s.sidebarCompact ? 'chevronRight' : 'chevronLeft', 'sm');
     document.documentElement.classList.add('theme-ready'); // reveal now that real colors are set — avoids a flash of the light default
   }
   /* ============ QUICK TOGGLES ============ */
   async function toggleSidebar() {
     const collapsed = !STATE.meta.settings.sidebarCollapsed;
     await DB.updateSettings({ sidebarCollapsed: collapsed });
+    await reload();
+  }
+  async function toggleSidebarCompact() {
+    await DB.updateSettings({ sidebarCompact: !STATE.meta.settings.sidebarCompact });
     await reload();
   }
   async function toggleViewMode() {
@@ -377,6 +384,7 @@
     $('#board-switcher-btn').onclick = (e) => openBoardSwitcherMenu(e.currentTarget);
     $('#search-trigger').onclick = openPalette;
     $('#sidebar-toggle-btn').onclick = toggleSidebar;
+    $('#sidebar-compact-btn').onclick = toggleSidebarCompact;
     $('#shortcuts-btn').onclick = openShortcuts;
     $('#shortcuts-close-x').onclick = closeShortcuts;
 
@@ -404,17 +412,28 @@
     $('#nav-collections-btn').onclick = () => switchNav('collections');
     $('#nav-sessions-btn').onclick = () => switchNav('sessions');
 
-    $('#sidebar-view-toggle [data-view=tabs]').onclick = () => {
-      if (!sidebarShowingClosed) return;
-      sidebarShowingClosed = false;
-      renderSidebar();
+    $('#sidebar-closed-toggle').onclick = () => {
+      if (sidebarShowingClosed) {
+        sidebarShowingClosed = false;
+        renderSidebar();
+      } else {
+        sidebarShowingClosed = true;
+        refreshRecentlyClosed().then(() => renderSidebar());
+      }
     };
-    $('#sidebar-view-toggle [data-view=closed]').onclick = () => {
-      if (sidebarShowingClosed) return;
-      sidebarShowingClosed = true;
-      refreshRecentlyClosed().then(() => renderSidebar());
+    const refreshTabsBtn = $('#refresh-tabs-btn');
+    refreshTabsBtn.onclick = async () => {
+      const svg = refreshTabsBtn.querySelector('.icon svg');
+      if (svg) {
+        svg.classList.remove('spinning');
+        void svg.offsetWidth; // reflow so a rapid second click restarts the spin
+        svg.classList.add('spinning');
+      }
+      await refreshOpenTabs(); await refreshRecentlyClosed(); renderSidebar();
     };
-    $('#refresh-tabs-btn').onclick = async () => { await refreshOpenTabs(); await refreshRecentlyClosed(); renderSidebar(); };
+    refreshTabsBtn.addEventListener('animationend', (e) => {
+      if (e.target && e.target.classList) e.target.classList.remove('spinning');
+    });
 
     $('#save-window-session-btn').onclick = saveWindowSession;
     $('#save-all-session-btn').onclick = saveAllWindowsSession;
@@ -512,6 +531,7 @@
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (document.activeElement && document.activeElement.isContentEditable)) return;
       const k = e.key.toLowerCase();
 
+      if (e.shiftKey && k === 'c') { toggleSidebarCompact(); return; }
       if (k === 'c') openCollectionModal();
       else if (k === 'v') toggleViewMode();
       else if (k === 't') toggleSidebar();
