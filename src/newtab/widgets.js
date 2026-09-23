@@ -51,7 +51,7 @@
 
   function openWorkspaceModal() {
     const body = `
-      <h2>New Workspace</h2>
+      <h2>New workspace</h2>
       <div class="field"><label>Name</label><input type="text" id="mws-name" value=""></div>
       <div class="modal-actions">
         <button id="mws-cancel" class="mini-btn">Cancel</button>
@@ -172,7 +172,7 @@
       <hr>
       <div class="ws-item" data-act="pin"><span class="mi-ic">${ICONS.pin}</span>${pinned ? 'Unpin from tab strip' : 'Keep pinned in tab strip'}</div>
       <div class="ws-item" data-act="mute"><span class="mi-ic">${muted ? ICONS.unmute : ICONS.mute}</span>${muted ? 'Let it play sound again' : 'Silence this tab'}</div>
-      <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.duplicate}</span>Open a copy of this tab</div>
+      <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Open a copy of this tab</div>
       <div class="ws-item" data-act="reload"><span class="mi-ic">${ICONS.refresh}</span>Reload this tab</div>
       <div class="ws-item${tab.canGoBack === false ? ' disabled' : ''}" data-act="back"><span class="mi-ic">${ICONS.arrowLeft}</span>Go back</div>
       <div class="ws-item${tab.canGoForward === false ? ' disabled' : ''}" data-act="forward"><span class="mi-ic">${ICONS.arrowRight}</span>Go forward</div>
@@ -544,7 +544,7 @@
   function openTintPickerModal(currentColor, onSet) {
     const body = `
       <h2>Background color</h2>
-      <p style="color:var(--sub-color);font-size:13px;margin-top:-6px">Leave unset to use the normal background.</p>
+      <p class="modal-subtitle">Leave unset to use the normal background.</p>
       <div class="field"><label>Color</label><div class="color-picker" id="mtc-colors"></div></div>
       <div class="modal-actions">
         <button id="mtc-none" class="mini-btn">No tint (default)</button>
@@ -840,7 +840,7 @@
       row.innerHTML = `
         <input type="checkbox" class="checkbox" ${item.done ? 'checked' : ''}>
         <span class="todo-text">${escapeHtml(item.text)}</span>
-        <button type="button" class="todo-del">${ICONS.close}</button>`;
+        <button type="button" class="todo-del" title="Delete to-do item">${ICONS.trash}</button>`;
       row.querySelector('input').onchange = async (e) => {
         const next = items.map(it => it.id === item.id ? { ...it, done: e.target.checked } : it);
         await DB.updateWidget(w.id, { items: next });
@@ -973,7 +973,7 @@
      copy / drag-to-save behavior). ---- */
   function renderTopSitesWidget(w) {
     return renderBrowserDataWidget(w, {
-      title: 'Most visited', icon: ICONS.grid, emptyText: 'No top sites available',
+      title: 'Most visited', icon: ICONS.grid, emptyText: 'No top sites yet',
       fetch: (done) => {
         const finish = (sites) => done((sites || []).map((s, i) => ({ title: s.title || hostnameOf(s.url) || s.url, url: s.url, favicon: s.favicon || '', _i: i })));
         const api = chrome.topSites;
@@ -1022,7 +1022,7 @@
     const fill = (data) => {
       list.innerHTML = '';
       const items = (data && data.downloads) || [];
-      if (!items.length) { body.appendChild(el('div', 'empty-collection-hint', 'No recent downloads')); return; }
+      if (!items.length) { body.appendChild(el('div', 'empty-collection-hint', 'No downloads yet')); return; }
       items.forEach(d => {
         const name = d.filename ? d.filename.split('/').pop() : hostnameOf(d.url);
         const row = el('div', 'bs-item');
@@ -1088,7 +1088,7 @@
 
   function openCountdownEditModal(w) {
     const body = `
-      <h2>Edit Countdown</h2>
+      <h2>Edit countdown</h2>
       <div class="field"><label>Label</label><input type="text" id="mcd-label" value="${escapeHtml(w.label || '')}"></div>
       <div class="field"><label>Target date</label><input type="date" id="mcd-date" value="${w.targetDate || ''}"></div>
       <div class="modal-actions">
@@ -1302,7 +1302,7 @@
   }
   function openTimerEditModal(w) {
     const body = `
-      <h2>Edit Timer</h2>
+      <h2>Edit timer</h2>
       <div class="field"><label>Duration (minutes)</label><div class="search-widget-row timer-duration-row"><input type="number" min="1" max="600" id="mt-duration" class="search-widget-input" value="${Math.max(1, Math.round((w.durationSec || 60) / 60))}"></div></div>
       <div class="switch-row"><span>Show milliseconds</span><label class="switch"><input type="checkbox" id="mt-ms" ${w.showMs ? 'checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
       <div class="modal-actions">
@@ -1325,7 +1325,7 @@
   }
   function openStopwatchEditModal(w) {
     const body = `
-      <h2>Edit Stopwatch</h2>
+      <h2>Edit stopwatch</h2>
       <div class="switch-row"><span>Show milliseconds</span><label class="switch"><input type="checkbox" id="ms-ms" ${w.showMs ? 'checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
       <div class="modal-actions">
         <button id="ms-cancel" class="mini-btn">Cancel</button>
@@ -1389,7 +1389,7 @@
   }
   function openWeatherEditModal(w) {
     const body = `
-      <h2>Set Weather location</h2>
+      <h2>Set weather location</h2>
       <div class="field"><label>City</label><input type="text" id="mwe-city" placeholder="e.g. Beirut" value="${escapeHtml(w.query || '')}"></div>
       <div class="modal-actions">
         <button id="mwe-cancel" class="mini-btn">Cancel</button>
@@ -1569,7 +1569,9 @@
   function openGenericWidgetMenu(w, anchorBtn) {
     const rect = anchorBtn.getBoundingClientRect();
     const menu = el('div', 'dropdown-menu');
-    const removeLabel = w.type === 'notes' ? 'Remove Notes widget' : w.type === 'todo' ? 'Remove To-Do widget' : w.type === 'clock' ? 'Remove Clock widget' : w.type === 'search' ? 'Remove Search widget' : w.type === 'countdown' ? 'Remove Countdown widget' : w.type === 'pomodoro' ? 'Remove Pomodoro widget' : w.type === 'timer' ? 'Remove Timer widget' : w.type === 'stopwatch' ? 'Remove Stopwatch widget' : w.type === 'weather' ? 'Remove Weather widget' : w.type === 'rss' ? 'Remove RSS widget' : w.type === 'topSites' ? 'Remove Most visited widget' : w.type === 'downloads' ? 'Remove Downloads widget' : w.type === 'history' ? 'Remove History widget' : 'Remove widget';
+    const WIDGET_LABELS = { notes: 'Notes', todo: 'To-Do', clock: 'Clock', search: 'Search', countdown: 'Countdown', pomodoro: 'Pomodoro', timer: 'Timer', stopwatch: 'Stopwatch', weather: 'Weather', rss: 'RSS Feed', topSites: 'Most visited', downloads: 'Downloads', history: 'History' };
+    const wl = WIDGET_LABELS[w.type];
+    const removeLabel = wl ? `Delete ${wl} widget` : 'Delete widget';
     let extra = '';
     if (w.type === 'clock') {
       extra = `<div class="ws-item" data-act="fmt"><span class="mi-ic">${ICONS.clock}</span>${(w.format || '24') === '24' ? 'Switch to 12-hour' : 'Switch to 24-hour'}</div><div class="ws-item" data-act="edittz"><span class="mi-ic">${ICONS.globe}</span>Change timezone…</div><hr>`;
@@ -1594,7 +1596,7 @@
     } else if (w.type === 'downloads' || w.type === 'history') {
       extra = `<div class="ws-item" data-act="refreshlist"><span class="mi-ic">${ICONS.refresh}</span>Refresh list</div><hr>`;
     }
-    menu.innerHTML = `${extra.replace(/<hr>\s*$/, '')}${tintMenuItemHtml()}<hr>${widthMenuItemsHtml(w)}${heightMenuItemsHtml(w)}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash2}</span>${removeLabel}</div>`;
+    menu.innerHTML = `${extra.replace(/<hr>\s*$/, '')}${tintMenuItemHtml()}<hr>${widthMenuItemsHtml(w)}${heightMenuItemsHtml(w)}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash}</span>${removeLabel}</div>`;
     const close = showDropdown(menu, rect, 200);
     const fmtBtn = menu.querySelector('[data-act=fmt]');
     if (fmtBtn) fmtBtn.onclick = async () => { close(); await DB.updateWidget(w.id, { format: (w.format || '24') === '24' ? '12' : '24' }); await reload(); };

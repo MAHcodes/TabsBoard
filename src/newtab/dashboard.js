@@ -392,7 +392,10 @@
     $('#trash-close-btn').onclick = () => hideOverlay('#trash-overlay');
     $('#empty-trash-btn').onclick = async () => {
       if (!STATE.meta.settings.confirmDelete || await uiConfirm('Permanently delete all items in trash?', { title: 'Empty trash', okLabel: 'Empty trash', danger: true })) {
-        await DB.emptyTrash(); await reload(); openTrashPanel();
+        await DB.emptyTrash();
+        await reload();
+        hideOverlay('#trash-overlay');
+        toast('Trash emptied');
       }
     };
 

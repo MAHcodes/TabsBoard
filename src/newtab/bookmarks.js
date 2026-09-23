@@ -179,12 +179,12 @@
       <div class="ws-item" data-act="tint"><span class="mi-ic">${ICONS.palette}</span>Background color…</div>
       <hr>
       <div class="ws-item" data-act="rename"><span class="mi-ic">${ICONS.edit}</span>Rename</div>
-      <div class="ws-item" data-act="editdetails"><span class="mi-ic">${ICONS.folder}</span>Edit details…</div>
+      <div class="ws-item" data-act="editdetails"><span class="mi-ic">${ICONS.edit}</span>Edit details…</div>
       <div class="ws-item" data-act="pin"><span class="mi-ic">${ICONS.pin}</span>${bm.pinned ? 'Unpin' : 'Pin to top'}</div>
       <hr>
-      <div class="ws-item" data-act="copy"><span class="mi-ic">${ICONS.link}</span>Copy link</div>
+      <div class="ws-item" data-act="copy"><span class="mi-ic">${ICONS.copy}</span>Copy link</div>
       <div class="ws-item" data-act="newwin"><span class="mi-ic">${ICONS.externalWindow}</span>Open in new window</div>
-      <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.duplicate}</span>Duplicate</div>
+      <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate</div>
       <hr>
       <div class="ws-item" data-act="delete" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete</div>`;
     const close = showDropdown(menu, rect, 210);
@@ -299,11 +299,11 @@
       <div class="ws-item" data-act="openall"><span class="mi-ic">${ICONS.openAll}</span>Open all bookmarks</div>
       <div class="ws-item" data-act="openallwin"><span class="mi-ic">${ICONS.externalWindow}</span>Open all in new window</div>
       <div class="ws-item" data-act="copylinks"><span class="mi-ic">${ICONS.copy}</span>Copy all links</div>
-      <div class="ws-item" data-act="copymd"><span class="mi-ic">${ICONS.folder}</span>Copy as Markdown list</div>
+      <div class="ws-item" data-act="copymd"><span class="mi-ic">${ICONS.clipboard}</span>Copy as Markdown list</div>
       <hr>
       <div class="ws-item" data-act="sort"><span class="mi-ic">${ICONS.sort}</span>Sort: ${sortModeLabel(col.sortMode)}</div>
-      <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.duplicate}</span>Duplicate collection</div>
-      <div class="ws-item" data-act="movews"><span class="mi-ic">${ICONS.externalWindow}</span>Move to workspace…</div>
+      <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate collection</div>
+      <div class="ws-item" data-act="movews"><span class="mi-ic">${ICONS.folderInput}</span>Move to workspace…</div>
       <div class="ws-item" data-act="merge"><span class="mi-ic">${ICONS.layers}</span>Merge into…</div>
       <div class="ws-item" data-act="select"><span class="mi-ic">${ICONS.checkSquare}</span>Select bookmarks</div>
       <hr>
@@ -369,7 +369,7 @@
     }).join('');
     const body = `
       <h2>Move "${escapeHtml(sourceCol.name)}"</h2>
-      <p style="color:var(--sub-color);font-size:13px;margin-top:-6px">
+      <p class="modal-subtitle">
         The collection and its bookmarks move to the workspace's board, and the dashboard switches to it.
       </p>
       <div class="field"><label>Move to</label>
@@ -412,7 +412,7 @@
     if (!targets.length) { toast('No other collection to merge into'); return; }
     const body = `
       <h2>Merge "${escapeHtml(sourceCol.name)}"</h2>
-      <p style="color:var(--sub-color);font-size:13px;margin-top:-6px">
+      <p class="modal-subtitle">
         All bookmarks move into the collection you pick, then "${escapeHtml(sourceCol.name)}" is deleted.
       </p>
       <div class="field"><label>Merge into</label>
@@ -441,7 +441,7 @@
   function openCollectionModal(existing) {
     const existingWidget = existing ? widgetForCollection(existing.id) : null;
     const body = `
-      <h2>${existing ? 'Rename / recolor' : 'New Collection'}</h2>
+      <h2>${existing ? 'Rename / recolor' : 'New collection'}</h2>
       <div class="field"><label>Name</label><input type="text" id="mc-name" value="${existing ? escapeHtml(existing.name) : ''}"></div>
       <div class="field"><label>Color</label><div class="color-picker" id="mc-colors"></div></div>
       <div class="modal-actions">
@@ -501,7 +501,7 @@
     const cols = collectionsForActiveWS();
     const options = cols.map(c => `<option value="${c.id}" ${((existing ? existing.collectionId : defaultCollectionId) === c.id) ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
     const body = `
-      <h2>${existing ? 'Edit Bookmark' : 'Add Bookmark'}</h2>
+      <h2>${existing ? 'Edit bookmark' : 'Add bookmark'}</h2>
       <div class="field"><label>URL</label><input type="url" id="mb-url" placeholder="https://example.com" value="${existing ? escapeHtml(existing.url) : ''}"></div>
       <div class="field"><label>Title</label><input type="text" id="mb-title" value="${existing ? escapeHtml(existing.title) : ''}"></div>
       <div class="field"><label>Collection</label><select id="mb-collection">${options}</select></div>
@@ -625,8 +625,8 @@
         <div class="session-favicons">${favs}</div>
         <div class="session-tab-preview">${preview}${s.tabs.length > 4 ? `<br>+${s.tabs.length - 4} more…` : ''}</div>
         <div class="session-card-actions">
-          <button class="mini-btn" data-act="restore-here">${icon('save', 'sm')} This window</button>
-          <button class="mini-btn" data-act="restore-new">${icon('externalWindow', 'sm')} New window</button>
+          <button class="mini-btn" data-act="restore-here"><span class="btn-ic-sm">${ICONS.save}</span> This window</button>
+          <button class="mini-btn" data-act="restore-new"><span class="btn-ic-sm">${ICONS.externalWindow}</span> New window</button>
         </div>`;
       const restoreHereBtn = card.querySelector('[data-act=restore-here]');
       const restoreNewBtn = card.querySelector('[data-act=restore-new]');
@@ -635,7 +635,7 @@
         if (STATE.meta.settings.confirmRestoreSession && !(await uiConfirm(`Restore "${s.name}" (${s.tabs.length} tabs)${newWindow ? ' in a new window' : ''}?`, { title: 'Restore session', okLabel: 'Restore' }))) return;
         btn.disabled = true;
         const original = btn.innerHTML;
-        btn.innerHTML = `${icon('refresh', 'sm')} Restoring…`;
+        btn.innerHTML = `<span class="btn-ic-sm">${ICONS.refresh}</span> Restoring…`;
         const res = await sendMsg('RESTORE_SESSION', { tabs: s.tabs, newWindow });
         btn.disabled = false;
         btn.innerHTML = original;
@@ -657,7 +657,7 @@
     const menu = el('div', 'dropdown-menu');
     menu.innerHTML = `
       <div class="ws-item" data-act="rename"><span class="mi-ic">${ICONS.edit}</span>Rename</div>
-      <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.duplicate}</span>Duplicate</div>
+      <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate</div>
       <div class="ws-item" data-act="tocol"><span class="mi-ic">${ICONS.layers}</span>Convert to collection</div>
       <div class="ws-item" data-act="copylinks"><span class="mi-ic">${ICONS.copy}</span>Copy all links</div>
       <hr>
@@ -828,18 +828,18 @@
     const menu = el('div', 'dropdown-menu');
     menu.innerHTML = `
       <div class="ws-item" data-act="notes"><span class="mi-ic">${ICONS.notes}</span>Notes</div>
-      <div class="ws-item" data-act="todo"><span class="mi-ic">${ICONS.checkSquare}</span>To-Do checklist</div>
-      <div class="ws-item" data-act="clock"><span class="mi-ic">${ICONS.clock}</span>Clock &amp; date</div>
-      <div class="ws-item" data-act="search"><span class="mi-ic">${ICONS.search}</span>Search box</div>
+      <div class="ws-item" data-act="todo"><span class="mi-ic">${ICONS.checkSquare}</span>To-Do</div>
+      <div class="ws-item" data-act="clock"><span class="mi-ic">${ICONS.clock}</span>Clock</div>
+      <div class="ws-item" data-act="search"><span class="mi-ic">${ICONS.search}</span>Search</div>
       <div class="ws-item" data-act="countdown"><span class="mi-ic">${ICONS.hourglass}</span>Countdown</div>
-      <div class="ws-item" data-act="pomodoro"><span class="mi-ic">${ICONS.target}</span>Pomodoro timer</div>
+      <div class="ws-item" data-act="pomodoro"><span class="mi-ic">${ICONS.target}</span>Pomodoro</div>
       <div class="ws-item" data-act="timer"><span class="mi-ic">${ICONS.timer}</span>Timer</div>
       <div class="ws-item" data-act="stopwatch"><span class="mi-ic">${ICONS.stopwatch}</span>Stopwatch</div>
       <div class="ws-item" data-act="weather"><span class="mi-ic">${ICONS.cloudSun}</span>Weather</div>
       <div class="ws-item" data-act="rss"><span class="mi-ic">${ICONS.rss}</span>RSS Feed</div>
-      <div class="ws-item" data-act="topSites"><span class="mi-ic">${ICONS.grid}</span>Most visited collection</div>
-      <div class="ws-item" data-act="downloads"><span class="mi-ic">${ICONS.download}</span>Recent downloads</div>
-      <div class="ws-item" data-act="history"><span class="mi-ic">${ICONS.rotateCcwClock}</span>History collection</div>`;
+      <div class="ws-item" data-act="topSites"><span class="mi-ic">${ICONS.grid}</span>Most visited</div>
+      <div class="ws-item" data-act="downloads"><span class="mi-ic">${ICONS.download}</span>Downloads</div>
+      <div class="ws-item" data-act="history"><span class="mi-ic">${ICONS.rotateCcwClock}</span>History</div>`;
     const close = showDropdown(menu, rect, 200);
     $$('.ws-item', menu).forEach(item => { item.onclick = () => { close(); addWidget(item.dataset.act); }; });
   }

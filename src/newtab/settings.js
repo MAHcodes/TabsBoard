@@ -33,7 +33,7 @@
     };
     const themeSearchInput = $('#theme-search-input');
     const themeSearchClear = $('#theme-search-clear');
-    themeSearchClear.innerHTML = ICONS.x;
+    themeSearchClear.innerHTML = ICONS.close;
     const updateSearchClear = () => themeSearchClear.classList.toggle('hidden', !themeSearchInput.value.trim());
     themeSearchInput.addEventListener('input', (e) => { renderThemeGrids(); syncSettingsUI(); updateSearchClear(); });
     themeSearchClear.onclick = () => {

@@ -26,11 +26,13 @@
        --r-item  list rows & items (tabs, bookmarks, palette, trash, todo)
        --r-xs    small square buttons & icon tiles
        --r-chip  text chips, badges, tags, kbd
+       --r-tiny  tiny square corners (favicons, swatches, dots)
      --ctrl-h  is the standard button height (icon-btn = same; mini-btn = sm). */
   --r-ctrl: 10px;
   --r-item: 9px;
   --r-xs: 8px;
   --r-chip: 6px;
+  --r-tiny: 4px;
   --ctrl-h: 40px;
   --ctrl-h-sm: 30px;
   --shadow: 0 1px 2px rgba(20,20,40,.05), 0 10px 30px rgba(20,20,40,.08);
@@ -82,10 +84,10 @@ html.density-compact .main-toolbar { margin-bottom: 14px; gap: 10px; }
 html.density-compact .main-toolbar .primary-btn, html.density-compact .main-toolbar .mini-btn,
 html.density-compact .main-toolbar .filter-input { height: 34px; padding: 0 13px; font-size: 12.5px; border-radius: var(--r-xs); }
 html.density-compact .main-toolbar .filter-input { padding: 0 11px; }
-html.density-compact .sidebar { padding: 12px 10px; }
-html.density-compact .sidebar-heading { padding: 0 4px 7px; font-size: 10.5px; }
-html.density-compact .tab-group-label { padding: 7px 6px 3px; }
-html.density-compact .tab-row { padding: 6px 6px; font-size: 12px; }
+html.density-compact .sidebar { padding: 10px 8px; }
+html.density-compact .sidebar-heading { padding: 0 4px 6px; margin-bottom: 8px; font-size: 10.5px; }
+html.density-compact .tab-group-label { padding: 5px 5px 2px; }
+html.density-compact .tab-row { padding: 5px 6px; font-size: 12px; }
 html.density-compact .widget-header { padding: 8px 12px; }
 html.density-compact .widget-title { font-size: 14px; }
 html.density-compact .bookmark-item { padding: 6px 8px; font-size: 12.5px; }
@@ -117,10 +119,10 @@ html.density-compact .trash-item { padding: 8px 10px; }
 
 /* Corner-radius scale: the same shape tokens recomputed on one axis, so
    every control and list surface rounds consistently together. */
-html.radius-sharp   { --radius: 9px;  --r-ctrl: 7px; --r-item: 6px; --r-xs: 6px; --r-chip: 4px; }
-html.radius-rounded { --radius: 18px; --r-ctrl: 14px; --r-item: 12px; --r-xs: 10px; --r-chip: 8px; }
-html.radius-extra   { --radius: 26px; --r-ctrl: 20px; --r-item: 16px; --r-xs: 14px; --r-chip: 10px; }
-html.radius-none    { --radius: 0px;  --r-ctrl: 0px;  --r-item: 0px;  --r-xs: 0px;  --r-chip: 0px; }
+html.radius-sharp   { --radius: 9px;  --r-ctrl: 7px; --r-item: 6px; --r-xs: 6px; --r-chip: 4px; --r-tiny: 3px; }
+html.radius-rounded { --radius: 18px; --r-ctrl: 14px; --r-item: 12px; --r-xs: 10px; --r-chip: 8px; --r-tiny: 6px; }
+html.radius-extra   { --radius: 26px; --r-ctrl: 20px; --r-item: 16px; --r-xs: 14px; --r-chip: 10px; --r-tiny: 8px; }
+html.radius-none    { --radius: 0px;  --r-ctrl: 0px;  --r-item: 0px;  --r-xs: 0px;  --r-chip: 0px; --r-tiny: 0px; }
 
 /* No borders: --border-w drives every UI outline, so a single variable
    zeroes them all (accent rings, selection outlines and drag guides stay —
@@ -144,7 +146,6 @@ body {
 button { font-family: inherit; cursor: pointer; }
 a { color: inherit; }
 .hidden { display: none !important; }
-kbd { font-family: inherit; background: var(--sub-alt-color); border: var(--border-w) solid var(--border-color); border-radius: var(--r-chip); padding: 1px 6px; font-size: 11px; color: var(--sub-color); }
 svg { display: block; }
 /* Any raw <svg> we inject only ever sits inside a container that already
    carries the intended width/height (e.g. .mi-ic, .nav-ic, .search-ic) —
@@ -176,7 +177,7 @@ svg { width: 100%; height: 100%; }
 .workspace-btn {
   display: flex; align-items: center; justify-content: center; gap: 9px; height: var(--ctrl-h); padding: 0 15px;
   background: var(--sub-alt-color); border: var(--border-w) solid var(--border-color);
-  border-radius: var(--r-ctrl); color: var(--text-color); font-size: 13.5px; font-weight: 700;
+  border-radius: var(--r-ctrl); color: var(--text-color); font-size: 13px; font-weight: 700;
 }
 .workspace-btn:hover { border-color: var(--main-color); color: var(--main-color); }
 .chev-ic { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 11px; height: 11px; opacity: .55; }
@@ -294,14 +295,28 @@ svg { width: 100%; height: 100%; }
 .sidebar.compact .sidebar-heading #sidebar-compact-btn:hover,
 .sidebar.compact .sidebar-heading #sidebar-closed-toggle:hover { background: var(--bg-color); color: var(--text-color); }
 .sidebar.compact .sidebar-heading #sidebar-closed-toggle.active { background: var(--bg-color); color: var(--main-color); }
+/* Compact density + icons-only rail: heading controls follow the comfortable
+   rail's pattern — each spans the full width like a tab row and matches its
+   height (17px glyph + 5px pads each side) — just on the compact scale. */
+html.density-compact .sidebar.compact .sidebar-heading .icon-btn,
+html.density-compact .sidebar.compact .sidebar-heading .icon-btn.small { width: 100%; height: 27px; padding: 0; }
+html.density-compact .sidebar.compact .sidebar-heading .icon-btn .icon,
+html.density-compact .sidebar.compact .sidebar-heading .icon-btn svg { width: 17px; height: 17px; }
 
 /* The per-tab ⋯ and × buttons are hidden in compact mode — right-click the
    row brings up the full actions, and a click still focuses the tab. */
 .sidebar.compact .tab-row .tab-icons { display: none; }
 .sidebar.compact .tab-group-label { font-size: 0; padding: 5px 8px 2px; }
 .sidebar.compact .tab-group-label::after { content: ''; display: block; height: 1px; background: var(--border-color); }
+/* The heading's border-bottom already separates it from the list, so the first
+   group label's divider would double it — drop it and keep one line per section. */
+.sidebar.compact .tab-group-label:first-child::after { display: none; }
 .sidebar.compact .tab-row { justify-content: center; padding: 8px 4px; gap: 0; }
 .sidebar.compact .tab-row img.favicon { width: 22px; height: 22px; }
+/* Compact density + icons-only rail: favicons follow the heading controls down
+   to the toggle button's 17px glyph scale, rows tighten to match. */
+html.density-compact .sidebar.compact .tab-row { padding: 5px 0; }
+html.density-compact .sidebar.compact .tab-row img.favicon { width: 17px; height: 17px; }
 /* Recently-closed rows share the rail, so their relative-time stamp would
    crowd "icons only" mode — drop it there the same way titles drop. */
 .sidebar.compact .rc-time { display: none; }
@@ -315,7 +330,7 @@ svg { width: 100%; height: 100%; }
 .sidebar-heading .icon-btn.small { width: auto; height: auto; padding: 8px 7px; }
 .sidebar-heading .icon-btn.small .icon,
 .sidebar-heading .icon-btn.small svg { width: 17px; height: 17px; }
-html.density-compact .sidebar-heading .icon-btn.small { width: auto; height: auto; padding: 6px 6px; }
+html.density-compact .sidebar-heading .icon-btn.small { width: auto; height: auto; padding: 5px 6px; }
 .sidebar-heading-title {
   flex: 1; min-width: 0; font-size: 12px; font-weight: 700; color: var(--sub-color);
   text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -389,7 +404,7 @@ html.density-compact .sidebar-heading .icon-btn.small { width: auto; height: aut
 .tab-row.dragging { opacity: .4; }
 .tab-row.tab-inactive { opacity: var(--inactive-tab-opacity, 1); filter: var(--inactive-tab-filter, none); }
 .tab-row.tab-inactive:hover { opacity: 1; filter: none; }
-.tab-row img.favicon, .bm-favicon { width: 17px; height: 17px; border-radius: 4px; flex-shrink: 0; }
+.tab-row img.favicon, .bm-favicon { width: 17px; height: 17px; border-radius: var(--r-tiny); flex-shrink: 0; }
 .tab-row .tab-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-row .pin-badge { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 12px; height: 12px; color: var(--main-color); }
 .tab-row .tab-icons { display: flex; gap: 3px; opacity: 0; pointer-events: none; }
@@ -512,7 +527,9 @@ body.dragging-tab .widget-ghost { display: flex; }
 .search-widget-body { padding: 14px; flex: 1; display: flex; align-items: center; }
 .search-widget-row { display: flex; align-items: center; gap: 9px; width: 100%; background: var(--bg-color); border: var(--border-w) solid var(--border-color); border-radius: var(--r-ctrl); padding: 9px 12px; }
 .search-widget-ic { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 16px; height: 16px; color: var(--sub-color); }
-.search-widget-input { flex: 1; border: none; background: none; outline: none; color: var(--text-color); font-size: 13.5px; font-family: inherit; caret-color: var(--caret-color); }
+.search-widget-input { flex: 1; border: none; background: none; outline: none; color: var(--text-color); font-size: 13px; font-family: inherit; caret-color: var(--caret-color); }
+.search-widget-input:focus, .search-widget-input:focus-visible { outline: none; box-shadow: none; }
+.search-widget-row:focus-within { box-shadow: 0 0 0 2px color-mix(in srgb, var(--main-color) 40%, transparent); outline: none; }
 .timer-duration-row { padding: 2px 12px; }
 .timer-duration-row .search-widget-input::-webkit-outer-spin-button,
 .timer-duration-row .search-widget-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -642,6 +659,10 @@ body.dragging-tab .widget-ghost { display: flex; }
 /* "Popup blur" setting (popupBlur=false) turns off the frosted-glass backdrop
    while keeping the dark dimming, so modals still sit on a clear page. */
 html.no-popup-blur .overlay { backdrop-filter: none; }
+/* Dialogs (and the command palette) must sit above other open layers, e.g. a
+   confirm shown from the Trash popup — the trash overlay paints last in the
+   DOM, so raise these above it. */
+#modal-overlay, #palette-overlay { z-index: 160; }
 .modal {
   background: var(--sub-alt-color); border: var(--border-w) solid var(--border-color); border-radius: var(--radius);
   box-shadow: 0 24px 64px rgba(0, 0, 0, .38); padding: 24px; width: min(480px, 92vw); max-height: 86vh; overflow-y: auto;
@@ -670,7 +691,7 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 .picker-row .picker-ic { flex: 0 0 auto; display: inline-flex; width: 16px; height: 16px; color: var(--main-color); }
 .picker-row .picker-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .picker-empty { padding: 12px 10px; color: var(--sub-color); font-size: 12px; text-align: center; }
-.filter-input { width: 100%; }
+#modal-box .filter-input { max-width: none; width: 100%; }
 /* Match the modal's primary action height so secondary buttons in a row
    (e.g. the background-color popup's "No tint" / "Cancel") line up with
    the Save button instead of sitting smaller beside it. */
@@ -823,7 +844,7 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 .bs-list { display: flex; flex-direction: column; gap: 2px; min-height: 0; }
 .bs-item { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: var(--r-item); font-size: 12.5px; cursor: pointer; }
 .bs-item:hover { background: var(--bg-color); }
-.bs-item .favicon { width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0; object-fit: contain; }
+.bs-item .favicon { width: 16px; height: 16px; border-radius: var(--r-tiny); flex-shrink: 0; object-fit: contain; }
 .bs-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bs-meta { font-size: 10.5px; color: var(--sub-color); flex-shrink: 0; }
 
@@ -879,10 +900,9 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 .palette-item { display: flex; align-items: center; gap: 10px; padding: 10px 11px; border-radius: var(--r-item); font-size: 13px; }
 .palette-item.active, .palette-item:hover { background: var(--bg-color); }
 .palette-item .pi-kind { font-size: 10px; text-transform: uppercase; color: var(--sub-color); background: var(--bg-color); padding: 2px 7px; border-radius: var(--r-chip); font-weight: 700; flex-shrink: 0; }
-.palette-item .pi-fav { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; object-fit: contain; background: var(--bg-color); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); }
-.palette-item .pi-swatch { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
-.palette-item .pi-chips { display: inline-flex; gap: 3px; flex-shrink: 0; }
-.palette-item .pi-chip { width: 13px; height: 13px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .2); }
+.palette-item .pi-fav { width: 14px; height: 14px; border-radius: var(--r-tiny); flex-shrink: 0; object-fit: contain; background: var(--bg-color); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); }
+.palette-item .pi-swatch { width: 14px; height: 14px; border-radius: var(--r-tiny); flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+.palette-item .pi-chip { width: 13px; height: 13px; border-radius: var(--r-tiny); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .2); }
 .palette-item .pi-caret { color: var(--sub-color); font-size: 15px; font-weight: 700; flex-shrink: 0; }
 .palette-item .pi-val { font-size: 11px; color: var(--sub-color); background: var(--bg-color); padding: 2px 8px; border-radius: var(--r-chip); font-weight: 700; flex-shrink: 0; }
 .palette-item mark { background: color-mix(in srgb, var(--main-color) 32%, transparent); color: var(--text-color); border-radius: var(--r-chip); padding: 0 1px; }
