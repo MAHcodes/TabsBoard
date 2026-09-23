@@ -346,7 +346,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     switch (msg.type) {
       case 'GET_OPEN_TABS': {
         const tabs = await new Promise(res => chrome.tabs.query({ currentWindow: true }, res));
-        sendResponse({ tabs: tabs.map(t => ({ id: t.id, title: t.title, url: t.url, favIconUrl: t.favIconUrl, active: t.active, pinned: t.pinned, mutedInfo: t.mutedInfo, audible: t.audible, discarded: t.discarded, canGoBack: t.canGoBack, canGoForward: t.canGoForward })) });
+        sendResponse({ tabs: tabs.map(t => ({ id: t.id, index: t.index, windowId: t.windowId, title: t.title, url: t.url, favIconUrl: t.favIconUrl, active: t.active, pinned: t.pinned, mutedInfo: t.mutedInfo, audible: t.audible, discarded: t.discarded, canGoBack: t.canGoBack, canGoForward: t.canGoForward })) });
         break;
       }
       case 'GET_ALL_TABS': {
@@ -368,6 +368,47 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       case 'CLOSE_TAB': {
         chrome.tabs.remove(msg.tabId, () => sendResponse({ ok: true }));
+        break;
+      }
+      case 'CLOSE_TABS': {
+        const ids = Array.isArray(msg.tabIds) ? msg.tabIds.filter(id => id != null) : [];
+        if (!ids.length) { sendResponse({ ok: true }); break; }
+        chrome.tabs.remove(ids, () => {
+          const err = chrome.runtime.lastError;
+          sendResponse({ ok: !err, error: err ? err.message : undefined });
+        });
+        break;
+      }
+      case 'MOVE_TAB_TO': {
+        // `msg.index` is the target position in the tab strip *after* the moved
+        // tab has been removed (see tabs.move()). Movement can transiently throw
+        // "Tabs cannot be edited right now" while the user drags a browser tab,
+        // so retry briefly before giving up.
+        let done = false;
+        const finish = (ok, error) => { if (done) return; done = true; sendResponse({ ok, error }); };
+        const attempt = () => {
+          try {
+            const out = chrome.tabs.move(msg.tabId, { index: msg.index });
+            if (out && typeof out.then === 'function') {
+              out.then(() => finish(true), (err) => attemptError(err));
+            } else {
+              chrome.tabs.move(msg.tabId, { index: msg.index }, () => {
+                const err = chrome.runtime.lastError;
+                if (err) attemptError(err);
+                else finish(true);
+              });
+            }
+          } catch (err) { attemptError(err); }
+        };
+        let tries = 0;
+        const attemptError = (err) => {
+          if (err && /dragging|editing/i.test((err.message || '').toLowerCase()) && tries++ < 10) {
+            setTimeout(attempt, 60);
+          } else {
+            finish(false, err && err.message ? err.message : String(err));
+          }
+        };
+        attempt();
         break;
       }
       case 'DUPLICATE_TAB': {
@@ -469,7 +510,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         break;
       }
       case 'TOGGLE_MUTE_TAB': {
-        chrome.tabs.update(msg.tabId, { muted: msg.muted }, () => sendResponse({ ok: true }));
+        // Flip from the tab's *live* state so "mute" always toggles to
+        // "unmute" (and back) no matter how stale the sidebar's copy is.
+        chrome.tabs.get(msg.tabId, (t) => {
+          const muted = !(t && t.mutedInfo && t.mutedInfo.muted);
+          chrome.tabs.update(msg.tabId, { muted }, () => sendResponse({ ok: true }));
+        });
         break;
       }
       case 'MOVE_TAB_NEW_WINDOW': {

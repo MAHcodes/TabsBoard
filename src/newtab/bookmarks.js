@@ -186,6 +186,8 @@
       <div class="ws-item" data-act="newwin"><span class="mi-ic">${ICONS.externalWindow}</span>Open in new window</div>
       <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate</div>
       <hr>
+      <div class="ws-item" data-act="select"><span class="mi-ic">${SELECTED.has(bm.id) ? ICONS.check : ICONS.checkSquare}</span>${SELECTED.has(bm.id) ? 'Deselect Bookmark' : 'Select Bookmark'}${SELECTED.size > 1 ? ` (${SELECTED.size} selected)` : ''}</div>
+      <hr>
       <div class="ws-item" data-act="delete" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete</div>`;
     const close = showDropdown(menu, rect, 210);
 
@@ -199,6 +201,7 @@
     menu.querySelector('[data-act=copy]').onclick = () => { close(); navigator.clipboard.writeText(bm.url); toast('Link copied'); };
     menu.querySelector('[data-act=newwin]').onclick = () => { close(); sendMsg('OPEN_URLS', { urls: [bm.url], newWindow: true }); };
     menu.querySelector('[data-act=dup]').onclick = async () => { close(); await DB.duplicateBookmark(bm.id); await reload(); };
+    menu.querySelector('[data-act=select]').onclick = () => { close(); toggleSelect(bm.id); };
     menu.querySelector('[data-act=delete]').onclick = () => { close(); deleteBookmarksWithUndo([bm.id]); };
   }
 

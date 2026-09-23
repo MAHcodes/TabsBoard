@@ -63,6 +63,9 @@
     download: `<svg viewBox="0 0 24 24" ${S}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /> <path d="m7 10 5 5 5-5" /> <path d="M12 15V3" /></svg>`,
     arrowLeft: `<svg viewBox="0 0 24 24" ${S}><path d="m12 19-7-7 7-7" /> <path d="M19 12H5" /></svg>`,
     arrowRight: `<svg viewBox="0 0 24 24" ${S}><path d="M5 12h14" /> <path d="m12 5 7 7-7 7" /></svg>`,
+    arrowUp: `<svg viewBox="0 0 24 24" ${S}><path d="m5 12 7-7 7 7" /> <path d="M12 19V5" /></svg>`,
+    arrowDown: `<svg viewBox="0 0 24 24" ${S}><path d="M12 5v14" /> <path d="m19 12-7 7-7-7" /></svg>`,
+    ban: `<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="12" r="10" /> <path d="m4.9 4.9 14.2 14.2" /></svg>`,
     folderPlus: `<svg viewBox="0 0 24 24" ${S}><path d="M12 10v6" /> <path d="M9 13h6" /> <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>`,
   };
 

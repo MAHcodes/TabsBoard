@@ -80,7 +80,7 @@
         (t.pinned ? 1 : 0) + '|' + (t.discarded ? 1 : 0) + '|' + (t.closedAt || 0);
       for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
     }
-    return (sidebarShowingClosed ? 'rc:' : 'ot:') + h + '|' + s.groupPinned + '|' + s.dimInactive + '|' + s.inactiveOpacity + '|' + s.inactiveGrayscale + '|' + !!STATE.meta.settings.sidebarCompact;
+    return (sidebarShowingClosed ? 'rc:' : 'ot:') + h + '|' + s.groupPinned + '|' + s.dimInactive + '|' + s.inactiveOpacity + '|' + s.inactiveGrayscale + '|' + !!STATE.meta.settings.sidebarCompact + '|sel:' + Array.from(SELECTED_TABS).sort().join(',');
   }
   function renderSidebar() {
     // Board edits / workspace switches call this on every pass, but the tab
@@ -105,11 +105,29 @@
     const pinned = OPEN_TABS.filter(t => t.pinned);
     const rest = OPEN_TABS.filter(t => !t.pinned);
 
-    if (s.groupPinned && pinned.length) {
-      list.appendChild(el('div', 'tab-group-label', 'Pinned'));
-      pinned.forEach(t => list.appendChild(renderTabRow(t)));
-      list.appendChild(el('div', 'tab-group-label', 'Tabs'));
-      rest.forEach(t => list.appendChild(renderTabRow(t)));
+    if (s.groupPinned) {
+      if (pinned.length) {
+        const pLabel = el('div', 'tab-group-label', 'Pinned');
+        pLabel.dataset.group = 'pinned';
+        list.appendChild(pLabel);
+        pinned.forEach(t => list.appendChild(renderTabRow(t)));
+      }
+      if (rest.length) {
+        const tLabel = el('div', 'tab-group-label');
+        tLabel.dataset.group = 'tabs';
+        tLabel.appendChild(el('span', '', 'Tabs'));
+        const closeAll = el('button', 'tab-label-close', 'Close all');
+        closeAll.title = 'Close all open tabs';
+        closeAll.onclick = async () => {
+          const n = OPEN_TABS.length;
+          if (!n) return;
+          if (!(await uiConfirm(`Close all ${n} open tab${n === 1 ? '' : 's'}?`, { title: 'Close all tabs', okLabel: 'Close all', danger: true }))) return;
+          await closeTabIds(tabIdsAll());
+        };
+        tLabel.appendChild(closeAll);
+        list.appendChild(tLabel);
+        rest.forEach(t => list.appendChild(renderTabRow(t)));
+      }
     } else {
       OPEN_TABS.forEach(t => list.appendChild(renderTabRow(t)));
     }
@@ -118,30 +136,34 @@
 
   function renderTabRow(tab) {
     const s = STATE.meta.settings.tabsList;
-    const row = el('div', 'tab-row');
+    const row = el('div', 'tab-row' + (SELECTED_TABS.has(tab.id) ? ' selected' : ''));
     if (s.dimInactive && tab.discarded) row.classList.add('tab-inactive');
     row.draggable = true;
     row.dataset.tabId = tab.id;
     row.innerHTML = `
+      ${SELECTED_TABS.has(tab.id) ? `<span class="tab-check">${ICONS.check}</span>` : ''}
       <img class="favicon" src="${tab.favIconUrl || faviconFor(tab.url)}" title="${escapeHtml(tab.title || tab.url)}" onerror="this.style.visibility='hidden'">
       ${tab.pinned ? `<span class="pin-badge">${ICONS.pin}</span>` : ''}
       <span class="tab-title" title="${escapeHtml(tab.title)}">${escapeHtml(tab.title || tab.url)}</span>
       <span class="tab-icons">
-        <button data-act="menu" title="Tab actions">${ICONS.dots}</button>
         <button data-act="close" class="tab-close" title="Close tab">${ICONS.close}</button>
       </span>`;
     row.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('application/x-tdb-tab', JSON.stringify(tab));
+      draggedTab = tab;
       row.classList.add('dragging');
       document.body.classList.add('dragging-tab');
     });
     row.addEventListener('dragend', () => {
       row.classList.remove('dragging');
       document.body.classList.remove('dragging-tab');
+      draggedTab = null;
     });
     row.addEventListener('click', (e) => {
       if (e.target.closest('[data-act]')) return;
-      sendMsg('FOCUS_TAB', { tabId: tab.id });
+      const mod = e.metaKey || e.ctrlKey || e.shiftKey;
+      if (!mod && !SELECTED_TABS.size) { sendMsg('FOCUS_TAB', { tabId: tab.id }); return; }
+      toggleTabSelected(tab.id, e);
     });
     row.querySelector('[data-act=close]').onclick = async (e) => {
       e.stopPropagation();
@@ -149,7 +171,6 @@
       await refreshOpenTabs(); await refreshRecentlyClosed();
       renderSidebar();
     };
-    row.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openTabMenu(tab, e.currentTarget); };
     row.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -159,6 +180,27 @@
     return row;
   }
 
+  function toggleTabSelected(tabId, evt) {
+    const wasSel = SELECTED_TABS.has(tabId);
+    const mod = evt && (evt.metaKey || evt.ctrlKey || evt.shiftKey);
+    if (!mod && !wasSel) SELECTED_TABS.clear();
+    if (wasSel) SELECTED_TABS.delete(tabId); else SELECTED_TABS.add(tabId);
+    renderSidebar();
+  }
+
+  function tabIdsAbove(tab) { return OPEN_TABS.filter(t => !t.pinned && t.index < tab.index).map(t => t.id); }
+  function tabIdsBelow(tab) { return OPEN_TABS.filter(t => !t.pinned && t.index > tab.index).map(t => t.id); }
+  function tabIdsOthers(tab) { return OPEN_TABS.filter(t => !t.pinned && t.id !== tab.id).map(t => t.id); }
+  function tabIdsAll() { return OPEN_TABS.map(t => t.id); }
+
+  async function closeTabIds(ids) {
+    if (!ids.length) return;
+    ids.forEach(id => SELECTED_TABS.delete(id));
+    await sendMsg('CLOSE_TABS', { tabIds: ids });
+    await refreshOpenTabs(); await refreshRecentlyClosed();
+    renderSidebar();
+  }
+
   function openTabMenu(tab, anchorBtn) {
     const rect = anchorBtn.getBoundingClientRect();
     const menu = el('div', 'dropdown-menu');
@@ -166,54 +208,115 @@
     const pinned = tab.pinned;
     const muted = tab.mutedInfo && tab.mutedInfo.muted;
     const canUnload = !tab.discarded && !tab.active;
+    const isSelected = SELECTED_TABS.has(tab.id);
+    const selCount = SELECTED_TABS.size;
+    const selThis = isSelected && selCount > 1;
 
     menu.innerHTML = `
-      <div class="ws-item" data-act="addcol"><span class="mi-ic">${ICONS.folderPlus}</span>Add to collection…</div>
+      <div class="ws-item" data-act="addcol"><span class="mi-ic">${ICONS.folderPlus}</span>Add to Collection…</div>
       <hr>
-      <div class="ws-item" data-act="pin"><span class="mi-ic">${ICONS.pin}</span>${pinned ? 'Unpin from tab strip' : 'Keep pinned in tab strip'}</div>
-      <div class="ws-item" data-act="mute"><span class="mi-ic">${muted ? ICONS.unmute : ICONS.mute}</span>${muted ? 'Let it play sound again' : 'Silence this tab'}</div>
-      <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Open a copy of this tab</div>
-      <div class="ws-item" data-act="reload"><span class="mi-ic">${ICONS.refresh}</span>Reload this tab</div>
-      <div class="ws-item${tab.canGoBack === false ? ' disabled' : ''}" data-act="back"><span class="mi-ic">${ICONS.arrowLeft}</span>Go back</div>
-      <div class="ws-item${tab.canGoForward === false ? ' disabled' : ''}" data-act="forward"><span class="mi-ic">${ICONS.arrowRight}</span>Go forward</div>
-      <div class="ws-item" data-act="movewin"><span class="mi-ic">${ICONS.externalWindow}</span>Pop out to its own window</div>
-      ${canUnload ? `<div class="ws-item" data-act="unload"><span class="mi-ic">${ICONS.archive}</span>Unload this tab</div>` : ''}
+      <div class="ws-item" data-act="reload"><span class="mi-ic">${ICONS.refresh}</span>Reload Tab</div>
+      <div class="ws-item" data-act="mute"><span class="mi-ic">${muted ? ICONS.unmute : ICONS.mute}</span>${muted ? 'Unmute Tab' : 'Mute Tab'}</div>
+      ${canUnload ? `<div class="ws-item" data-act="unload"><span class="mi-ic">${ICONS.archive}</span>Unload Tab</div>` : ''}
       <hr>
-      <div class="ws-item" data-act="close" data-danger><span class="mi-ic">${ICONS.close}</span>Close this tab</div>`;
-    const close = showDropdown(menu, rect, 230);
+      <div class="ws-item" data-act="pin"><span class="mi-ic">${pinned ? ICONS.pinOff : ICONS.pin}</span>${pinned ? 'Unpin Tab' : 'Pin Tab'}</div>
+      <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate Tab</div>
+      <div class="ws-item" data-act="movewin"><span class="mi-ic">${ICONS.externalWindow}</span>Move to New Window</div>
+      <hr>
+      <div class="ws-item" data-act="select"><span class="mi-ic">${isSelected ? ICONS.check : ICONS.checkSquare}</span>${isSelected ? 'Deselect Tab' : 'Select Tab'}${selCount > 1 ? ` (${selCount} selected)` : ''}</div>
+      <hr>
+      <div class="ws-item" data-act="close-this" data-close><span class="mi-ic">${ICONS.close}</span>${selThis ? `Close Selected Tabs (${selCount})` : 'Close Tab'}</div>
+      <div class="ws-item has-sub" data-act="close-sub" data-close><span class="mi-ic">${ICONS.layers}</span>Close Multiple Tabs<span class="mi-right">${ICONS.chevronRight}</span></div>`;
+    const close = showDropdown(menu, rect, 240);
 
-    menu.querySelector('[data-act=addcol]').onclick = (e) => { close(); openTabAddToCollectionMenu(tab, anchorBtn); };
-    menu.querySelector('[data-act=pin]').onclick = async () => { close(); await sendMsg('TOGGLE_PIN_TAB', { tabId: tab.id, pinned: !pinned }); await refreshOpenTabs(); renderSidebar(); };
-    menu.querySelector('[data-act=mute]').onclick = async () => { close(); await sendMsg('TOGGLE_MUTE_TAB', { tabId: tab.id, muted: !muted }); await refreshOpenTabs(); renderSidebar(); };
-    menu.querySelector('[data-act=dup]').onclick = async () => { close(); await sendMsg('DUPLICATE_TAB', { tabId: tab.id }); await refreshOpenTabs(); renderSidebar(); };
-    menu.querySelector('[data-act=reload]').onclick = async () => { close(); await sendMsg('RELOAD_TAB', { tabId: tab.id }); };
-    menu.querySelector('[data-act=back]').onclick = async () => {
-      if (tab.canGoBack === false) return;
-      close();
-      await sendMsg('GO_BACK_TAB', { tabId: tab.id });
-      await refreshOpenTabs(); renderSidebar();
+    /* Nested "Close tabs" menu, opened on hover with a small grace period so
+       the pointer can cross the gap into it without flickering. It flips to
+       the left when the main menu sits against the right edge of the window. */
+    const submenu = el('div', 'dropdown-menu');
+    let subTimer = null;
+    const closeSub = () => {
+      if (subTimer) { clearTimeout(subTimer); subTimer = null; }
+      if (submenu.parentNode) submenu.remove();
     };
-    menu.querySelector('[data-act=forward]').onclick = async () => {
-      if (tab.canGoForward === false) return;
+    const closeAll = () => {
+      closeSub();
       close();
-      await sendMsg('GO_FORWARD_TAB', { tabId: tab.id });
-      await refreshOpenTabs(); renderSidebar();
+      openDropdownMenus.delete(closeAll);
     };
-    menu.querySelector('[data-act=movewin]').onclick = async () => { close(); await sendMsg('MOVE_TAB_NEW_WINDOW', { tabId: tab.id }); await refreshOpenTabs(); renderSidebar(); };
+    /* The built-in close registered by showDropdown only removes the main
+       menu; make sure the submenu dies along with it. Keeping this wrapper in
+       openDropdownMenus also lets a later menu (e.g. the collection picker)
+       tear down both. */
+    openDropdownMenus.delete(close);
+    openDropdownMenus.add(closeAll);
+    setTimeout(() => document.addEventListener('click', closeAll, { once: true }), 0);
+
+    submenu.innerHTML = `
+      <div class="ws-item" data-act="sub-above" data-close><span class="mi-ic">${ICONS.arrowUp}</span>Close Tabs Above</div>
+      <div class="ws-item" data-act="sub-below" data-close><span class="mi-ic">${ICONS.arrowDown}</span>Close Tabs Below</div>
+      <div class="ws-item" data-act="sub-others" data-close><span class="mi-ic">${ICONS.ban}</span>Close Other Tabs</div>`;
+    const openSub = () => {
+      if (submenu.parentNode) return;
+      document.body.appendChild(submenu);
+      submenu.style.visibility = 'hidden';
+      submenu.style.top = '0px';
+      submenu.style.left = '0px';
+      const itemRect = menu.querySelector('[data-act=close-sub]').getBoundingClientRect();
+      const sRect = submenu.getBoundingClientRect();
+      let left = itemRect.right + 6;
+      if (left + sRect.width > window.innerWidth - 8) left = itemRect.left - sRect.width - 6;
+      left = Math.max(8, left);
+      let top = Math.min(itemRect.top, window.innerHeight - sRect.height - 8);
+      top = Math.max(8, top);
+      submenu.style.top = top + 'px';
+      submenu.style.left = left + 'px';
+      submenu.style.visibility = 'visible';
+    };
+    const subItem = menu.querySelector('[data-act=close-sub]');
+    subItem.addEventListener('mouseenter', () => { if (subTimer) clearTimeout(subTimer); openSub(); });
+    subItem.addEventListener('mouseleave', () => { subTimer = setTimeout(closeSub, 180); });
+    /* Do not let a click on the submenu trigger dismiss the menu. */
+    subItem.addEventListener('click', (e) => e.stopPropagation());
+    submenu.addEventListener('mouseenter', () => { if (subTimer) clearTimeout(subTimer); });
+    submenu.addEventListener('mouseleave', () => { subTimer = setTimeout(closeSub, 180); });
+
+    menu.querySelector('[data-act=reload]').onclick = async () => { closeAll(); await sendMsg('RELOAD_TAB', { tabId: tab.id }); };
+    const muteBtn = menu.querySelector('[data-act=mute]');
+    muteBtn.onclick = async (e) => {
+      e.stopPropagation(); // keep the menu open so the toggle label can flip
+      await sendMsg('TOGGLE_MUTE_TAB', { tabId: tab.id });
+      await refreshOpenTabs(); renderSidebar();
+      const updated = OPEN_TABS.find(t => t.id === tab.id);
+      const nowMuted = !!(updated && updated.mutedInfo && updated.mutedInfo.muted);
+      muteBtn.innerHTML = `<span class="mi-ic">${nowMuted ? ICONS.unmute : ICONS.mute}</span>${nowMuted ? 'Unmute Tab' : 'Mute Tab'}`;
+    };
+    menu.querySelector('[data-act=addcol]').onclick = (e) => { closeAll(); openTabAddToCollectionMenu(tab, anchorBtn); };
+    menu.querySelector('[data-act=dup]').onclick = async () => { closeAll(); await sendMsg('DUPLICATE_TAB', { tabId: tab.id }); await refreshOpenTabs(); renderSidebar(); };
+    menu.querySelector('[data-act=movewin]').onclick = async () => { closeAll(); await sendMsg('MOVE_TAB_NEW_WINDOW', { tabId: tab.id }); await refreshOpenTabs(); renderSidebar(); };
+    menu.querySelector('[data-act=pin]').onclick = async () => { closeAll(); await sendMsg('TOGGLE_PIN_TAB', { tabId: tab.id, pinned: !pinned }); await refreshOpenTabs(); renderSidebar(); };
     const unloadBtn = menu.querySelector('[data-act=unload]');
     if (unloadBtn) unloadBtn.onclick = async () => {
-      close();
+      closeAll();
       const res = await sendMsg('DISCARD_TAB', { tabId: tab.id });
       if (res && res.ok) toast('Tab unloaded');
       else toast("Couldn't unload that tab" + ((res && res.error) ? ': ' + res.error : ''));
       await refreshOpenTabs(); renderSidebar();
     };
-    menu.querySelector('[data-act=close]').onclick = async () => {
-      close();
-      await sendMsg('CLOSE_TAB', { tabId: tab.id });
-      await refreshOpenTabs(); await refreshRecentlyClosed();
-      renderSidebar();
+    menu.querySelector('[data-act=select]').onclick = () => { closeAll(); toggleTabSelected(tab.id, { metaKey: true }); };
+
+    menu.querySelector('[data-act=close-this]').onclick = async () => {
+      closeAll();
+      if (selThis) {
+        await closeTabIds(Array.from(SELECTED_TABS));
+      } else {
+        await sendMsg('CLOSE_TAB', { tabId: tab.id });
+        await refreshOpenTabs(); await refreshRecentlyClosed();
+        renderSidebar();
+      }
     };
+    submenu.querySelector('[data-act=sub-above]').onclick = async () => { closeAll(); await closeTabIds(tabIdsAbove(tab)); };
+    submenu.querySelector('[data-act=sub-below]').onclick = async () => { closeAll(); await closeTabIds(tabIdsBelow(tab)); };
+    submenu.querySelector('[data-act=sub-others]').onclick = async () => { closeAll(); await closeTabIds(tabIdsOthers(tab)); };
   }
 
   function openTabAddToCollectionMenu(tab, anchorBtn) {

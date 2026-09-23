@@ -19,6 +19,8 @@
   let OPEN_TABS = [];
   let SELECTED = new Set();
   let selectMode = false;
+  let SELECTED_TABS = new Set();
+  let draggedTab = null;
   let bmDropIndicator = null;
   let currentNav = 'collections'; // 'collections' | 'sessions'
   let sidebarShowingClosed = false; // false = Open Tabs, true = Recently Closed (single toggle, not a tab component)
@@ -410,6 +412,127 @@
     document.addEventListener('dragend', () => {
       document.querySelectorAll('.drag-over').forEach((n) => n.classList.remove('drag-over'));
       clearBmDropIndicator();
+      draggedTab = null;
+    });
+
+    /* Tabs drag-to-reorder + drag-to-pin on the open-tabs list. Dragging always
+       shows the same reorder indicator, wherever the tab lands: within the
+       same pin group it reorders, dragging into the other group pins/unpins
+       *and* still places the tab at the exact drop position. */
+    const rowAfterLabel = (label) => {
+      const next = label && label.nextElementSibling;
+      return next && next.classList.contains('tab-row') ? next : null;
+    };
+    const rowFor = (el) => {
+      if (!el) return null;
+      const found = OPEN_TABS.find(t => String(t.id) === el.dataset.tabId);
+      return found || null;
+    };
+    const toastErr = (res, prefix) => {
+      if (res && !res.ok && res.error) toast(prefix + ': ' + res.error);
+    };
+
+    const tabsListEl = $('#open-tabs-list');
+    tabsListEl.addEventListener('click', (e) => {
+      if (!SELECTED_TABS.size) return;
+      if (e.target.closest('.tab-row') || e.target.closest('[data-act]')) return;
+      SELECTED_TABS.clear();
+      renderSidebar();
+    });
+    tabsListEl.addEventListener('dragover', (e) => {
+      if (!draggedTab) return;
+      if (e.dataTransfer.types.indexOf('application/x-tdb-tab') === -1) return;
+      if (sidebarShowingClosed) { clearBmDropIndicator(); return; }
+      const dropRow = e.target.closest('.tab-row');
+      const dropLabel = dropRow ? null : e.target.closest('.tab-group-label');
+      if (!dropRow && !dropLabel) { clearBmDropIndicator(); return; }
+      e.preventDefault();
+      e.stopPropagation();
+      if (dropLabel) {
+        // The label's slot is the top edge of the group it introduces — draw
+        // the bar above the label itself, which for a top-anchored label (e.g.
+        // "Tabs" with nothing pinned) sits right at the very top of the list.
+        showDropIndicator({ clientY: dropLabel.getBoundingClientRect().top - 2 }, dropLabel, 'list');
+      } else if (rowFor(dropRow)) {
+        showDropIndicator(e, dropRow, 'list');
+      } else {
+        clearBmDropIndicator();
+      }
+    });
+
+    /* Same-group reorder: tabs.move() interprets `index` on the strip *after*
+       the moved tab is removed, so lower the target by one when the drag comes
+       from above. */
+    const reorderTab = async (dragged, target, before) => {
+      const from = OPEN_TABS.find(t => t.id === dragged.id);
+      if (!from || !target) return;
+      const dIdx = from.index, tIdx = target.index;
+      const idx = before
+        ? (dIdx < tIdx ? tIdx - 1 : tIdx)
+        : (dIdx < tIdx ? tIdx : tIdx + 1);
+      if (idx === dIdx) return;
+      toastErr(await sendMsg('MOVE_TAB_TO', { tabId: dragged.id, index: idx }), 'Could not reorder tab');
+    };
+
+    /* Cross-group drop: flip the pin state (the browser auto-places it at the
+       pinned/unpinned edge), then move it to the exact drop position. */
+    const pinAndPlace = async (dragged, target, before, wantPin) => {
+      toastErr(await sendMsg('TOGGLE_PIN_TAB', { tabId: dragged.id, pinned: wantPin }), 'Could not ' + (wantPin ? 'pin' : 'unpin') + ' tab');
+      if (!target) return;
+      const tIdx = target.index;
+      const pinnedCount = OPEN_TABS.filter(t => t.pinned).length;
+      // Where the toggle alone lands the tab: pin→after last pinned,
+      // unpin→before first unpinned. Skip the move when that's already the spot.
+      const autoIdx = wantPin ? pinnedCount : pinnedCount - 1;
+      const idx = wantPin ? (before ? tIdx : tIdx + 1) : (before ? tIdx - 1 : tIdx);
+      if (idx === autoIdx) return;
+      toastErr(await sendMsg('MOVE_TAB_TO', { tabId: dragged.id, index: idx }), 'Could not reorder tab');
+    };
+
+    tabsListEl.addEventListener('drop', async (e) => {
+      const tabData = e.dataTransfer.getData('application/x-tdb-tab');
+      if (!tabData || sidebarShowingClosed) return;
+      const dragged = JSON.parse(tabData);
+      const dropRow = e.target.closest('.tab-row');
+      const dropLabel = dropRow ? null : e.target.closest('.tab-group-label');
+      clearBmDropIndicator();
+      if (!dropRow && !dropLabel) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const refreshAll = async () => { await refreshOpenTabs(); await refreshRecentlyClosed(); renderSidebar(); };
+      if (dropRow) {
+        const target = rowFor(dropRow);
+        if (!target) return;
+        const from = OPEN_TABS.find(t => t.id === dragged.id);
+        const before = getDropIndex(e, dropRow, 'list') !== 'after';
+        if (from && from.pinned === target.pinned) {
+          await reorderTab(dragged, target, before);
+        } else {
+          await pinAndPlace(dragged, target, before, target.pinned);
+        }
+        await refreshAll();
+        return;
+      }
+      // Group-label boundary: same group → drop at its top; other group →
+      // pin/unpin at that section's edge.
+      const edgeRow = rowAfterLabel(dropLabel);
+      const edgeTarget = edgeRow ? rowFor(edgeRow) : null;
+      const from = OPEN_TABS.find(t => t.id === dragged.id);
+      const labelIsPinned = dropLabel.dataset.group === 'pinned';
+      const sameGroup = from && from.pinned === labelIsPinned;
+      if (sameGroup) {
+        /* With nothing pinned the "Pinned" label is hidden, but the strip above
+           the first unpinned tab is still the pin slot: dropping an unpinned
+           tab there pins it to the very top instead of just reordering. */
+        if (!labelIsPinned && !OPEN_TABS.some(t => t.pinned)) {
+          await pinAndPlace(dragged, null, true, true);
+        } else {
+          await reorderTab(dragged, edgeTarget, true);
+        }
+      } else {
+        await pinAndPlace(dragged, edgeTarget, true, labelIsPinned);
+      }
+      await refreshAll();
     });
 
     $('#nav-collections-btn').onclick = () => switchNav('collections');
@@ -525,6 +648,7 @@
         hideOverlay('#trash-overlay');
         hideOverlay('#shortcuts-overlay');
         if (SELECTED.size) { SELECTED.clear(); selectMode = false; renderBoard(); }
+        if (SELECTED_TABS.size) { SELECTED_TABS.clear(); renderSidebar(); }
         return;
       }
 
