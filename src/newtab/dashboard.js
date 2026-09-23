@@ -164,12 +164,19 @@
   /* ============ INIT ============ */
   async function boot() {
     STATE = await DB.getState();
+    // The sidebar HTML starts in the open state; settings may pivot it to
+    // compact/collapsed in applySettings(), which would transition from the
+    // open width on first load. Suppress sidebar transitions until the first
+    // fully-rendered frame has painted, and keep the page hidden (applySettings
+    // with reveal=false) so settings and the first board/sidebar render hit the
+    // screen at the same time.
+    document.documentElement.classList.add('boot-no-sidebar-anim');
     injectStaticIcons();
-    applySettings();
+    applySettings(false);
     await refreshOpenTabs();
     renderAll();
-    // Recently-closed is off-screen (sidebar) and only rendered once the user
-    // switches to it, so don't let a slow fetch delay the first paint.
+    document.documentElement.classList.add('theme-ready');
+    requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('boot-no-sidebar-anim')));
     refreshRecentlyClosed().then(() => { if (sidebarShowingClosed) renderSidebar(); });
     migrateLegacyBrowserWidgets();
     wireGlobalEvents();
@@ -333,7 +340,7 @@
     applySettings();
   }
 
-  function applySettings() {
+  function applySettings(reveal = true) {
     const s = STATE.meta.settings;
     applyThemeColors(Themes.resolveTheme(s.themeId, s.lightThemeId, s.darkThemeId));
     const r = document.documentElement.style;
@@ -361,7 +368,10 @@
     // collapsed, while the compact toggle uses plain chevrons for the narrow rail.
     $('#sidebar-toggle-btn').innerHTML = icon(s.sidebarCollapsed ? 'panelLeftOpen' : 'panelLeftClose');
     $('#sidebar-compact-btn').innerHTML = icon(s.sidebarCompact ? 'chevronRight' : 'chevronLeft', 'sm');
-    document.documentElement.classList.add('theme-ready'); // reveal now that real colors are set — avoids a flash of the light default
+    // Reveal now that real colors are set — avoids a flash of the light default.
+    // boot() passes false so it can first render the board/sidebar (settings
+    // and content land together, so the sidebar never shows mid-transition).
+    if (reveal) document.documentElement.classList.add('theme-ready');
   }
   /* ============ QUICK TOGGLES ============ */
   async function toggleSidebar() {
