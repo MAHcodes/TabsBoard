@@ -146,7 +146,6 @@
       ${SELECTED_TABS.has(tab.id) ? `<span class="tab-check">${ICONS.check}</span>` : ''}
       <img class="favicon" src="${tab.favIconUrl || faviconFor(tab.url)}" title="${escapeHtml(tab.title || tab.url)}" onerror="this.style.visibility='hidden'">
       ${showAudio ? `<button class="tab-audio${muted ? ' is-muted' : ''}" data-act="mute" title="${muted ? 'Unmute tab' : 'Mute tab'}">${muted ? ICONS.mute : ICONS.unmute}</button>` : ''}
-      ${tab.pinned ? `<span class="pin-badge">${ICONS.pin}</span>` : ''}
       <span class="tab-title" title="${escapeHtml(tab.title)}">${escapeHtml(tab.title || tab.url)}</span>
       <span class="tab-icons">
         <button data-act="close" class="tab-close" title="Close tab">${ICONS.close}</button>

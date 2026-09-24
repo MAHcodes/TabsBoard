@@ -295,7 +295,6 @@ html.boot-no-sidebar-anim .sidebar * { transition: none !important; }
 .sidebar.compact .sidebar-heading .icon-btn svg { width: 22px; height: 22px; }
 .sidebar.compact .sidebar-heading .icon-btn:hover:not(.disabled) { background: var(--bg-color); color: var(--text-color); }
 .sidebar.compact .tab-title,
-.sidebar.compact .pin-badge,
 .sidebar.compact .empty-collection-hint,
 .sidebar.compact .sidebar-heading-title { display: none; }
 /* The compact and recently-closed buttons share the sub-alt sidebar rail, so
@@ -423,7 +422,6 @@ html.density-compact .sidebar-heading .icon-btn.small { width: auto; height: aut
 .tab-row.tab-inactive:hover { opacity: 1; filter: none; }
 .tab-row img.favicon, .bm-favicon { width: 17px; height: 17px; border-radius: var(--r-tiny); flex-shrink: 0; }
 .tab-row .tab-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tab-row .pin-badge { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 12px; height: 12px; color: var(--main-color); }
 /* Audible/muted control: sits just right of the favicon and mirrors the
    browser's speaker icon — a speaker (unmute) while playing, an X (mute in
    danger tone) once muted. Always clickable, not hover-gated like .tab-icons. */
