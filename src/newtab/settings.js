@@ -1,7 +1,7 @@
   /* Settings panel + keyboard-shortcuts popup. Composes with the other newtab
    modules via the shared global scope (see index.html). */
   /* ============ SETTINGS PANEL ============ */
-  function openSettings() { pickingThemeFor = null; renderThemeGrids(); syncSettingsUI(); showOverlay('#settings-overlay'); }
+  function openSettings() { pickingThemeFor = null; renderThemeGrids(); populateFontSelect(); syncSettingsUI(); showOverlay('#settings-overlay'); }
   function closeSettings() { hideOverlay('#settings-overlay'); }
 
   function wireSettingsPanel() {
@@ -15,6 +15,30 @@
     });
     $('#settings-btn').onclick = openSettings;
     $('#settings-close-x').onclick = () => { endThemePreview(); closeSettings(); };
+
+    populateFontSelect();
+    const fontSelect = $('#interface-font');
+    if (fontSelect) fontSelect.onchange = async (e) => {
+      await DB.updateSettings({ interfaceFont: e.target.value || '' });
+      await reload();
+      syncSettingsUI();
+    };
+    $('#interface-font-custom').onclick = async () => {
+      const cur = (STATE.meta.settings.interfaceFont || '').trim();
+      const val = await openDialog({
+        title: 'Custom font',
+        label: 'Font family',
+        inputValue: cur,
+        placeholder: 'e.g. Avenir Next, Papyrus…',
+        okLabel: 'Apply'
+      });
+      if (val === null || val === false) return;
+      const family = String(val).trim();
+      if (family.length > 40) { toast('That font name looks too long.'); return; }
+      if (family !== cur) await DB.updateSettings({ interfaceFont: family });
+      await reload();
+      populateFontSelect();
+    };
 
     renderThemeGrids();
     $$('#auto-theme-boxes .auto-theme-box').forEach(box => box.onclick = () => { startThemePick(box.dataset.key); });
@@ -67,7 +91,11 @@
 
     $('#setting-show-topbar-search').onchange = async (e) => { await DB.updateSettings({ showTopbarSearch: e.target.checked }); await reload(); };
     $('#setting-show-topbar-buttons').onchange = async (e) => { await DB.updateSettings({ showTopbarButtons: e.target.checked }); await reload(); };
-    $('#setting-font-large').onchange = async (e) => { await DB.updateSettings({ interfaceFontLarge: e.target.checked }); await reload(); };
+    $$('#fontsize-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ interfaceFontSize: parseInt(b.dataset.val, 10) }); await reload(); syncSettingsUI(); });
+    $$('#font-size-custom').forEach(inp => inp.onchange = async (e) => {
+      const v = parseInt(e.target.value, 10);
+      if (!isNaN(v) && v >= 80 && v <= 150) { await DB.updateSettings({ interfaceFontSize: v }); await reload(); } else syncSettingsUI();
+    });
 
     $$('#widget-clock-format button').forEach(b => b.onclick = async () => { await DB.updateSettings({ clockFormat: b.dataset.val }); await reload(); syncSettingsUI(); });
     $$('#widget-weather-units button').forEach(b => b.onclick = async () => { await DB.updateSettings({ weatherUnits: b.dataset.val }); await reload(); syncSettingsUI(); });
@@ -144,6 +172,111 @@
     const q = (input ? input.value : '').trim().toLowerCase();
     const list = Themes.PRESET_THEMES.filter(t => !q || t.name.toLowerCase().includes(q));
     renderThemeGrid('#theme-grid-all', list);
+  }
+
+  /* Font picker. No hardcoded availability list — the dropdown is filled with
+   fonts actually on the machine. Sources:
+   - chrome.fontSettings.getFontList (Chrome, instant, needs "fontSettings"
+     permission) returns the full system list.
+   - window.queryLocalFonts (Local Font Access API, Chrome + newer Firefox)
+     enumerates installed families, prompting once for permission.
+   - As a universal fallback (Firefox ships no font API), a canvas probe
+     measures a test string against each candidate family; if the measured
+     width differs from the bare serif fallback the family is installed, so
+     only fonts that genuinely exist on the system end up in the list.
+   The stored value is the bare family name; '' means "system default". */
+  const PROBE_CHAR = 'mmmmmmmmmmbiblioilll';
+  const PROBE_CANDIDATES = [
+    // Windows
+    'Arial', 'Arial Black', 'Arial Narrow', 'Bahnschrift', 'Calibri', 'Cambria', 'Candara',
+    'Cascadia Mono', 'Comic Sans MS', 'Consolas', 'Constantia', 'Corbel', 'Courier New',
+    'Ebrima', 'Franklin Gothic Medium', 'Gabriola', 'Georgia', 'Impact', 'Leelawadee UI',
+    'Lucida Console', 'Lucida Sans Unicode', 'Malgun Gothic', 'Microsoft YaHei', 'Microsoft Sans Serif',
+    'MS Gothic', 'MV Boli', 'Nirmala UI', 'Palatino Linotype', 'Rockwell', 'Segoe Print',
+    'Segoe Script', 'Segoe UI', 'Segoe UI Light', 'Segoe UI Semibold', 'Segoe UI Symbol',
+    'SimSun', 'Sitka', 'Sylfaen', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana',
+    'Yu Gothic',
+    // macOS
+    'Academy Engraved LET', 'American Typewriter', 'Apple Chancery', 'Apple SD Gothic Neo',
+    'Avenir', 'Avenir Next', 'Avenir Next Condensed', 'Baskerville', 'Big Caslon', 'Brush Script MT',
+    'Chalkboard', 'Cochin', 'Copperplate', 'Didot', 'Futura', 'Gill Sans', 'Helvetica',
+    'Helvetica Neue', 'Hoefler Text', 'Lucida Grande', 'Marker Felt', 'Menlo', 'Monaco',
+    'Optima', 'Palatino', 'Papyrus', 'SF Pro Display', 'Snell Roundhand', 'Songti SC', 'Times',
+    // Linux / common distro
+    'Cantarell', 'DejaVu Sans', 'DejaVu Sans Mono', 'DejaVu Serif', 'Droid Sans', 'Droid Sans Mono',
+    'Droid Serif', 'Fira Sans', 'Fira Mono', 'FreeMono', 'FreeSans', 'FreeSerif', 'Liberation Mono',
+    'Liberation Sans', 'Liberation Serif', 'Nimbus Mono PS', 'Nimbus Roman', 'Nimbus Sans',
+    'Noto Sans', 'Noto Sans Mono', 'Noto Serif', 'Source Sans 3', 'Source Serif 4', 'Ubuntu', 'Ubuntu Mono',
+    'URW Gothic', 'URW Palladio L',
+    // Dev / UI favorites
+    'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Raleway', 'Poppins', 'Nunito Sans',
+    'Work Sans', 'Archivo', 'Rubik', 'Manrope', 'Sora', 'Barlow', 'Figtree', 'Karla',
+    'Merriweather', 'Playfair Display', 'IBM Plex Sans', 'IBM Plex Serif', 'IBM Plex Mono',
+    'JetBrains Mono', 'Fira Code', 'Source Code Pro', 'Hack', 'Inconsolata', 'Space Mono', 'Monoid'
+  ];
+  function probeFontAvailable(family) {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.font = '48px serif';
+      const baseline = ctx.measureText(PROBE_CHAR).width;
+      ctx.font = `48px "${family}", serif`;
+      return ctx.measureText(PROBE_CHAR).width !== baseline;
+    } catch (e) { return false; }
+  }
+  function populateFontSelect() {
+    const sel = $('#interface-font');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">System default</option>';
+    const add = (familyName) => {
+      const family = String(familyName || '').trim();
+      if (!family || sel.querySelector(`option[value="${CSS.escape(family)}"]`)) return;
+      const o = document.createElement('option');
+      o.value = family;
+      o.textContent = family;
+      sel.appendChild(o);
+    };
+    const keepSelection = () => {
+      const cur = (STATE.meta.settings.interfaceFont || '').trim();
+      if (cur && !sel.querySelector(`option[value="${CSS.escape(cur)}"]`)) add(cur);
+      sel.value = cur;
+      syncSettingsUI();
+    };
+    // Chrome-only instant list (callback style for broad compat).
+    if (chrome.fontSettings && chrome.fontSettings.getFontList) {
+      try {
+        chrome.fontSettings.getFontList((fonts) => {
+          if (!fonts) return keepSelection();
+          (fonts || []).forEach(f => add(f && (f.displayName || f.fontId)));
+          keepSelection();
+        });
+      } catch (e) { keepSelection(); }
+    } else {
+      keepSelection();
+    }
+    // Local Font Access API: every installed system font. Needs a user
+    // gesture, so this is triggered from openSettings() (a click).
+    if (window.queryLocalFonts) {
+      window.queryLocalFonts()
+        .then((entries) => {
+          const seen = new Set();
+          (entries || []).forEach(f => {
+            const fam = (f && f.family || '').trim();
+            if (fam && !seen.has(fam)) { seen.add(fam); add(fam); }
+          });
+          keepSelection();
+        })
+        .catch(() => { /* permission denied / unavailable — fall back to probe */ });
+    }
+    // Universal fallback (Firefox has no font API): probe the candidate list
+    // and add only families that measure differently from the serif fallback,
+    // i.e. fonts that are actually installed. Duplicates against the entries
+    // above are skipped by add().
+    if (!window.queryLocalFonts) {
+      PROBE_CANDIDATES.forEach((name) => {
+        if (probeFontAvailable(name)) add(name);
+      });
+    }
   }
 
   /* The Auto section carries the toggle plus the two selected-theme boxes
@@ -259,7 +392,18 @@
 
     $('#setting-show-topbar-search').checked = s.showTopbarSearch !== false;
     $('#setting-show-topbar-buttons').checked = s.showTopbarButtons !== false;
-    $('#setting-font-large').checked = s.interfaceFontLarge === true;
+    $$('#fontsize-toggle button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (s.interfaceFontSize || 100)));
+    $$('#font-size-custom').forEach(inp => inp.value = (s.interfaceFontSize || 100));
+    const fontSel = $('#interface-font');
+    if (fontSel) {
+      const cur = (s.interfaceFont || '').trim();
+      if (cur && !fontSel.querySelector(`option[value="${CSS.escape(cur)}"]`)) {
+        const o = document.createElement('option');
+        o.value = cur; o.textContent = cur;
+        fontSel.appendChild(o);
+      }
+      fontSel.value = cur;
+    }
 
     $$('#widget-clock-format button').forEach(b => b.classList.toggle('active', b.dataset.val === (s.clockFormat || '24')));
     $$('#widget-weather-units button').forEach(b => b.classList.toggle('active', b.dataset.val === (s.weatherUnits || 'c')));

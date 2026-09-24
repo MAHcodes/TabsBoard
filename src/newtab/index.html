@@ -167,10 +167,35 @@
                 <span class="switch-text"><span class="switch-title">Blur behind popups</span><span class="switch-desc">Frosted-glass backdrop behind modals, the command palette, and settings.</span></span>
                 <label class="switch"><input type="checkbox" id="setting-popup-blur"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
-              <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Larger interface font</span><span class="switch-desc">Slightly bigger text across the whole dashboard.</span></span>
-                <label class="switch"><input type="checkbox" id="setting-font-large"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Typography</h3>
+              <p>Pick the typeface the whole dashboard is rendered in.</p>
+            </div>
+            <div class="settings-row">
+              <label for="font-size-custom">Font size</label>
+              <div class="count-picker">
+                <div class="segmented" id="fontsize-toggle">
+                  <button data-val="92">Small</button>
+                  <button data-val="100">Normal</button>
+                  <button data-val="109">Large</button>
+                  <button data-val="118">X-Large</button>
+                </div>
+                <input type="number" id="font-size-custom" min="80" max="150" step="1" aria-label="Custom font size">
               </div>
+              <div class="hint-text">Scales the text across the whole dashboard. Type any number to set a custom size.</div>
+            </div>
+            <div class="settings-row">
+              <label>Interface font</label>
+              <div class="select-wrap">
+                <select id="interface-font">
+                  <option value="">System default</option>
+                </select>
+              </div>
+              <div class="hint-text">The picker lists every font installed on your system (read via the browser's Local Font Access API — you may get a one-time permission prompt). "System default" restores your OS UI font.<br><br><button type="button" class="mini-btn" id="interface-font-custom">Custom font…</button></div>
             </div>
           </div>
         </div>

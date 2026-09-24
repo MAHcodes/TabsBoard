@@ -265,8 +265,8 @@
       { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
     { id: 'showTopbarButtons', label: 'Shortcuts & trash buttons', get: s => s.showTopbarButtons !== false, set: v => ({ showTopbarButtons: v }), options: [
       { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
-    { id: 'fontLarge', label: 'Larger interface font', get: s => s.interfaceFontLarge === true, set: v => ({ interfaceFontLarge: v }), options: [
-      { label: 'Off', value: false }, { label: 'On', value: true } ] },
+    { id: 'fontSize', label: 'Interface font size', get: s => s.interfaceFontSize || 100, set: v => ({ interfaceFontSize: v }), options: [
+      { label: 'Small', value: 92 }, { label: 'Normal', value: 100 }, { label: 'Large', value: 109 }, { label: 'X-Large', value: 118 } ] },
     { id: 'recentlyClosedLimit', label: 'Recently closed tabs shown', get: s => s.recentlyClosedLimit || 0, set: v => ({ recentlyClosedLimit: v }), options: [
       { label: 'All', value: 0 }, { label: '5', value: 5 }, { label: '10', value: 10 }, { label: '20', value: 20 }, { label: '40', value: 40 } ] },
     { id: 'historyShowTimes', label: 'Show visit time in History widgets', get: s => s.historyShowTimes !== false, set: v => ({ historyShowTimes: v }), options: [
@@ -283,7 +283,7 @@
   /* The palette is a navigable tree: root → Themes / Settings groups → options.
      Searching flattens every leaf so "change anything by typing" still works. */
   const PALETTE_SETTING_GROUPS = [
-    { name: 'Appearance', keys: ['density', 'radius', 'borders', 'animations', 'popupBlur', 'fontLarge'] },
+    { name: 'Appearance', keys: ['density', 'radius', 'borders', 'animations', 'popupBlur', 'fontSize'] },
     { name: 'Layout', keys: ['viewMode', 'columns', 'showTopbarSearch', 'showTopbarButtons'] },
     { name: 'Sidebar', keys: ['sidebarCollapsed', 'sidebarCompact', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'recentlyClosedLimit'] },
     { name: 'Behavior', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'searchEngine', 'confirmRestoreSession'] },

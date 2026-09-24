@@ -117,11 +117,11 @@
         tLabel.dataset.group = 'tabs';
         tLabel.appendChild(el('span', '', 'Tabs'));
         const closeAll = el('button', 'tab-label-close', 'Close all');
-        closeAll.title = 'Close all open tabs except this dashboard';
+        closeAll.title = 'Close all unpinned tabs except this dashboard';
         closeAll.onclick = async () => {
-          const ids = tabIdsAll();
+          const ids = tabIdsUnpinned();
           if (!ids.length) return;
-          if (!(await uiConfirm(`Close ${ids.length} open tab${ids.length === 1 ? '' : 's'} and keep TabsBoard open?`, { title: 'Close all tabs', okLabel: 'Close all', danger: true }))) return;
+          if (!(await uiConfirm(`Close ${ids.length} unpinned tab${ids.length === 1 ? '' : 's'}. Pinned tabs and TabsBoard stay open?`, { title: 'Close unpinned tabs', okLabel: 'Close unpinned', danger: true }))) return;
           await closeTabIds(ids);
         };
         tLabel.appendChild(closeAll);
@@ -208,7 +208,9 @@
     const base = chrome.runtime.getURL('');
     return !!(tab && tab.url && tab.url.indexOf(base) === 0);
   }
-  function tabIdsAll() { return OPEN_TABS.filter(t => !isDashboardTab(t)).map(t => t.id); }
+  // "Close all" only clears the unpinned Tabs group — pinned tabs stay, and
+  // the dashboard tab itself is always kept open.
+  function tabIdsUnpinned() { return OPEN_TABS.filter(t => !t.pinned && !isDashboardTab(t)).map(t => t.id); }
 
   async function closeTabIds(ids) {
     if (!ids.length) return;

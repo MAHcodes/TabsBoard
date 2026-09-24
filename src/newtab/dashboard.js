@@ -354,7 +354,9 @@
     document.documentElement.classList.toggle('no-borders', s.borders === false);
     document.documentElement.classList.toggle('no-anim', s.animations === false);
     document.documentElement.classList.toggle('no-popup-blur', s.popupBlur === false);
-    document.documentElement.classList.toggle('font-large', s.interfaceFontLarge === true);
+    r.setProperty('--fb-zoom', String(((typeof s.interfaceFontSize === 'number' ? s.interfaceFontSize : 100)) / 100));
+    const defaultStack = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+    r.setProperty('--fb-font', s.interfaceFont ? `"${s.interfaceFont}", ${defaultStack}` : defaultStack);
     ['#search-trigger', '#shortcuts-btn', '#trash-btn'].forEach(sel => {
       const elNode = $(sel);
       if (!elNode) return;

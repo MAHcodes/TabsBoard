@@ -225,7 +225,8 @@ function defaultState() {
         trashBadgeSeen: 0,         // trash badge mark-as-read count; persisted so it stays dismissed
         showTopbarSearch: true,    // show the "Jump to…" search bar in the header
         showTopbarButtons: true,   // show the shortcuts + trash buttons in the header
-        interfaceFontLarge: false, // bump up the base interface font size
+        interfaceFontSize: 100,       // interface font size as a % (80–150)
+        interfaceFont: '',         // custom interface font family; '' = system default
         dashboard: {
           columns: 4               // board width in columns (3–6); each widget spans 1–N of these
         },
@@ -383,7 +384,7 @@ function migrate(data) {
       clockFormat: '24', weatherUnits: 'c', pomodoroFocus: 25, pomodoroBreak: 5,
       countdownDays: 7, rssRefreshInterval: 0, recentlyClosedLimit: 20,
       trashRetentionDays: 0, confirmRestoreSession: false,
-      showTopbarSearch: true, showTopbarButtons: true, interfaceFontLarge: false
+      showTopbarSearch: true, showTopbarButtons: true, interfaceFontLarge: false,
     };
     for (const [k, v] of Object.entries(d11)) { if (s[k] === undefined) s[k] = v; }
     data.version = 11;
@@ -435,6 +436,18 @@ function migrate(data) {
     const s = data.meta.settings;
     if (s.popupBlur === undefined) s.popupBlur = true;
     data.version = 17;
+  }
+  if (data.version < 18) {
+    // v18: per-user interface font; '' keeps the system default stack.
+    const s = data.meta.settings;
+    if (s.interfaceFont === undefined) s.interfaceFont = '';
+    data.version = 18;
+  }
+  if (data.version < 19) {
+    // v19: font size moves from a boolean "large" flag to a percentage scale.
+    const s = data.meta.settings;
+    if (s.interfaceFontSize === undefined) s.interfaceFontSize = s.interfaceFontLarge === true ? 109 : 100;
+    data.version = 19;
   }
   return data;
 }

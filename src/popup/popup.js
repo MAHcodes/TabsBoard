@@ -26,6 +26,8 @@
     r.setProperty('--error-extra-color', palette.errorExtra);
     r.setProperty('--colorful-error-color', palette.colorfulError);
     r.setProperty('--colorful-error-extra-color', palette.colorfulErrorExtra);
+    const defaultStack = '-apple-system, "Segoe UI", Roboto, sans-serif';
+    r.setProperty('--fb-font', s.interfaceFont ? `"${s.interfaceFont}", ${defaultStack}` : defaultStack);
   }
 
   const CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';

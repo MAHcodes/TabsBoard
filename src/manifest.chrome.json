@@ -9,7 +9,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "tabs", "alarms", "contextMenus", "sessions", "notifications", "bookmarks", "search", "topSites", "omnibox", "downloads", "downloads.open", "history"],
+  "permissions": ["storage", "tabs", "alarms", "contextMenus", "sessions", "notifications", "bookmarks", "search", "topSites", "omnibox", "downloads", "downloads.open", "history", "fontSettings"],
   "host_permissions": ["https://geocoding-api.open-meteo.com/*", "https://api.open-meteo.com/*"],
   "optional_host_permissions": ["<all_urls>"],
   "omnibox": {

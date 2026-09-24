@@ -59,7 +59,7 @@
    stays hidden — not unstyled, just invisible — until dashboard.js adds
    .theme-ready right after it sets the real theme's CSS variables, so the
    very first thing anyone sees is already the correct theme. */
-html { visibility: hidden; }
+html { visibility: hidden; height: 100%; }
 html.theme-ready { visibility: visible; }
 
 /* Density: "Compact" is a real scale, not just a slightly tighter gap.
@@ -70,7 +70,7 @@ html.density-compact {
   --gap: 10px; --pad: 8px; --radius: 12px; --sidebar-w: 244px;
 }
 html.density-compact .topbar { height: 52px; padding: 0 12px; gap: 10px; }
-html.density-compact .app-body { height: calc(100vh - 52px); }
+html.density-compact .app-body { flex-basis: auto; }
 html.density-compact .workspace-btn { padding: 0 11px; height: 34px; font-size: 13px; border-radius: var(--r-ctrl); }
 html.density-compact .icon-btn { width: 34px; height: 34px; border-radius: var(--r-xs); }
 html.density-compact .icon-btn .icon, html.density-compact .icon-btn svg { width: 17px; height: 17px; }
@@ -130,12 +130,13 @@ html.radius-none    { --radius: 0px;  --r-ctrl: 0px;  --r-item: 0px;  --r-xs: 0p
 html.no-borders { --border-w: 0px; --border-color: transparent; }
 
 html.no-anim, html.no-anim * { transition: none !important; animation: none !important; }
-html.font-large { zoom: 1.07; }
+html { zoom: var(--fb-zoom, 1); }
 
 * { box-sizing: border-box; }
 body {
-  margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background: var(--bg-color); color: var(--text-color); height: 100vh; overflow: hidden;
+  margin: 0; font-family: var(--fb-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+  background: var(--bg-color); color: var(--text-color); height: 100%; overflow: hidden;
+  display: flex; flex-direction: column;
   transition: background .15s ease, color .15s ease;
 }
 /* Per-widget background tint: any widget can have its own solid, flat
@@ -272,7 +273,7 @@ svg { width: 100%; height: 100%; }
 .dropdown-menu .ws-add:hover { background: var(--sub-alt-color); }
 
 /* ---------- Layout ---------- */
-.app-body { display: flex; height: calc(100vh - 60px); }
+.app-body { display: flex; flex: 1; min-height: 0; }
 .sidebar {
   width: var(--sidebar-w); flex-shrink: 0; border-right: var(--border-w) solid var(--border-color); background: var(--sub-alt-color);
   overflow: hidden; padding: 16px 12px; transition: width .16s ease, padding .16s ease, opacity .12s ease;
@@ -850,6 +851,9 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 }
 .settings-row label { display: block; font-size: 12px; font-weight: 800; color: var(--sub-color); margin-bottom: 9px; }
 .settings-row > .hint-text { margin: 10px 0 0; }
+/* Font picker: full-width select styled like the other settings controls. */
+.settings-row .select-wrap select { width: 100%; height: var(--ctrl-h); padding: 0 11px; background: var(--sub-alt-color); border: var(--border-w) solid var(--border-color); border-radius: var(--r-ctrl); color: var(--text-color); font-size: 13px; font-weight: 700; font-family: inherit; }
+.settings-row .select-wrap select:hover { border-color: var(--main-color); }
 .danger-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .danger-row .danger-row-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .danger-row .switch-title { color: var(--error-color); }
