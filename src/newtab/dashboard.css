@@ -208,11 +208,6 @@ svg { width: 100%; height: 100%; }
 .icon-btn:hover { background: var(--sub-alt-color); color: var(--text-color); }
 .icon-btn.small { width: 30px; height: 30px; }
 .icon-btn.small svg { width: 15px; height: 15px; }
-/* One full spin of the sidebar refresh icon while its handler runs; the class
-   is applied + removed in dashboard.js. Disabled with the rest of the motion
-   via html.no-anim. */
-#refresh-tabs-btn .icon svg.spinning { animation: cw-spin .55s ease-out; }
-@keyframes cw-spin { to { transform: rotate(360deg); } }
 .icon-btn.active { background: var(--sub-alt-color); color: var(--main-color); }
 .badge {
   position: absolute; top: 3px; right: 3px; background: var(--error-color); color: var(--bg-color); font-size: 9px; font-weight: 700;
@@ -303,13 +298,11 @@ html.boot-no-sidebar-anim .sidebar * { transition: none !important; }
 .sidebar.compact .pin-badge,
 .sidebar.compact .empty-collection-hint,
 .sidebar.compact .sidebar-heading-title { display: none; }
-/* The refresh and compact buttons share the sub-alt sidebar rail, so icon-btn's
-   default sub-alt hover is invisible there — give them a lighter chip so the
-   hover state actually reads. */
-.sidebar .sidebar-heading #refresh-tabs-btn:hover:not(.disabled),
+/* The compact and recently-closed buttons share the sub-alt sidebar rail, so
+   icon-btn's default sub-alt hover is invisible there — give them a lighter
+   chip so the hover state actually reads. */
 .sidebar .sidebar-heading #sidebar-compact-btn:hover,
 .sidebar .sidebar-heading #sidebar-closed-toggle:hover,
-.sidebar.compact .sidebar-heading #refresh-tabs-btn:hover:not(.disabled),
 .sidebar.compact .sidebar-heading #sidebar-compact-btn:hover,
 .sidebar.compact .sidebar-heading #sidebar-closed-toggle:hover { background: var(--bg-color); color: var(--text-color); }
 .sidebar.compact .sidebar-heading #sidebar-closed-toggle.active { background: var(--bg-color); color: var(--main-color); }
@@ -609,6 +602,81 @@ body.dragging-tab .widget-ghost { display: flex; }
 .bookmarks-list { display: flex; flex-direction: column; padding: 7px; gap: 2px; min-height: 44px; flex: 1 1 auto; }
 .bookmarks-list.is-empty { align-items: center; justify-content: center; }
 .widget .bookmarks-list.view-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 9px; padding: 12px; align-content: start; }
+
+/* History widget: day-group headers and typed badge. */
+.hs-day-label { grid-column: 1 / -1; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--sub-color); padding: 10px 4px 2px; margin-top: 4px; border-top: 1px solid var(--border-color); }
+.hs-day-label:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+.hs-typed { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--main-color); }
+.bookmark-tile .hs-typed { position: absolute; top: 5px; left: 5px; width: 8px; height: 8px; }
+
+/* History Details modal — reads via chrome.history search/getVisits, writes
+   via addUrl/deleteUrl, and stays live through onVisited / onVisitRemoved /
+   onTitleChanged while it's open. */
+.hdm { display: flex; flex-direction: column; gap: 15px; }
+/* A tad wider than the default modal so the stat dates get room to breathe. */
+#modal-box.hdm-modal { width: min(540px, 94vw); }
+.hdm-head { display: flex; align-items: center; gap: 12px; }
+.hdm-fav { width: 34px; height: 34px; border-radius: var(--r-xs); flex-shrink: 0; }
+.hdm-title-wrap { flex: 1; min-width: 0; }
+.hdm-title { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hdm-host { display: block; font-size: 12px; color: var(--sub-color); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+.hdm-host:hover { color: var(--main-color); }
+.hdm-head .icon-btn { flex-shrink: 0; }
+
+.hdm-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.hdm-stat { background: var(--bg-color); border: var(--border-w) solid var(--border-color); border-radius: var(--r-ctrl); padding: 9px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hdm-stat-n { font-size: 15px; font-weight: 800; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hdm-stat-l { font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--sub-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Tab switcher uses the app's standard segmented control. */
+.hdm-tabs { margin-top: 4px; }
+.hdm-tab-n { font-size: 11px; opacity: .65; font-weight: 600; }
+/* Footer: destructive forget actions sit on the left as a matching pair,
+   Cancel anchored on the far right. */
+.modal-actions .hdm-foot-group { display: flex; gap: 8px; margin-right: auto; }
+.hdm-panel { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; }
+.hdm-panel.hidden { display: none; }
+.hdm-empty { padding: 18px 12px; text-align: center; color: var(--sub-color); font-size: 12px; }
+
+.hdm-day { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--sub-color); padding: 9px 4px 3px; margin-top: 2px; border-top: 1px solid var(--border-color); }
+.hdm-day:first-child { border-top: none; margin-top: 0; }
+.hdm-row { display: flex; align-items: center; gap: 9px; padding: 6px 4px; border-bottom: 1px solid var(--border-color); }
+.hdm-row:last-child { border-bottom: none; }
+.hdm-dot { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--border-color); }
+.hdm-time { font-size: 12.5px; color: var(--text-color); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hdm-trans { margin-left: auto; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--sub-color); text-align: right; }
+
+.hdm-dsum { padding: 10px 4px 6px; }
+.hdm-dsum-n { font-size: 13px; font-weight: 800; }
+.hdm-dsum-s { font-size: 11px; color: var(--sub-color); margin-top: 1px; }
+.hdm-dlist { display: flex; flex-direction: column; }
+.hdm-drow { display: flex; align-items: center; gap: 9px; padding: 6px 4px; border-radius: var(--r-item); cursor: pointer; }
+.hdm-drow:hover { background: var(--bg-color); }
+.hdm-drow .favicon { width: 16px; height: 16px; flex-shrink: 0; }
+.hdm-drow-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.hdm-drow-meta { flex-shrink: 0; font-size: 10.5px; color: var(--sub-color); }
+
+/* Compact density: the details modal follows the same tightening as the rest
+   of the dashboard — smaller favicon, type, stat/tab/list padding. */
+html.density-compact .hdm { gap: 12px; }
+html.density-compact .hdm-fav { width: 27px; height: 27px; }
+html.density-compact .hdm-title { font-size: 13.5px; }
+html.density-compact .hdm-host { font-size: 10.5px; }
+html.density-compact .hdm-stat { padding: 7px 8px; }
+html.density-compact .hdm-stat-n { font-size: 13px; }
+html.density-compact .hdm-stat-l { font-size: 8.5px; }
+html.density-compact .hdm-panel { max-height: 260px; }
+html.density-compact .hdm-day { padding: 7px 4px 2px; font-size: 9.5px; }
+html.density-compact .hdm-row { padding: 4px 4px; }
+html.density-compact .hdm-time { font-size: 11.5px; }
+html.density-compact .hdm-trans { font-size: 10px; }
+html.density-compact .hdm-dsum { padding: 8px 4px 5px; }
+html.density-compact .hdm-dsum-n { font-size: 12px; }
+html.density-compact .hdm-dsum-s { font-size: 10.5px; }
+html.density-compact .hdm-drow { padding: 4px 4px; }
+html.density-compact .hdm-drow .hdm-drow-title { font-size: 12px; }
+html.density-compact .hdm-drow .hdm-drow-meta { font-size: 10px; }
+html.density-compact .hdm-empty { padding: 14px 10px; font-size: 11.5px; }
 
 .bookmark-item { display: flex; align-items: center; gap: 9px; padding: 8px 9px; border-radius: var(--r-item); font-size: 13px; cursor: grab; position: relative; }
 .bookmark-item:hover { background: var(--bg-color); }

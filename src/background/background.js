@@ -195,6 +195,13 @@ function scheduleBrowserDataSync(delayMs) {
   bsyncTimer = setTimeout(() => { runBrowserDataSync().catch(() => {}); }, delayMs == null ? 2500 : delayMs);
 }
 
+/* History entries removed from the browser (user clearing history, or the
+   dashboard's own delete actions) — re-mirror synced History collections so
+   they don't keep dead pages past the next alarm. */
+if (chrome.history && chrome.history.onVisitRemoved) {
+  chrome.history.onVisitRemoved.addListener(() => scheduleBrowserDataSync(400));
+}
+
 async function rebuildContextMenus() {
   chrome.contextMenus.removeAll(async () => {
     const state = await DB.getState();
@@ -488,7 +495,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const count = msg.count || 10;
         const days = msg.days > 0 ? msg.days : 1;
         const items = await new Promise(res => chrome.history.search({
-          text: '',
+          text: (msg.text || '').trim(),
           startTime: Date.now() - days * 86400000,
           maxResults: count * 5
         }, res));
@@ -500,9 +507,105 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             if (!it || !it.url || /^(chrome|about|moz|edge|file|javascript|view-source):/i.test(it.url)) return;
             if (seen.has(it.url)) return;
             seen.add(it.url);
-            out.push({ url: it.url, title: it.title || it.url, visitCount: it.visitCount || 0, lastVisitTime: it.lastVisitTime || 0 });
+            out.push({
+              url: it.url, title: it.title || it.url, favIconUrl: it.favIconUrl || '',
+              visitCount: it.visitCount || 0, typedCount: it.typedCount || 0,
+              lastVisitTime: it.lastVisitTime || 0
+            });
           });
         sendResponse({ history: out.slice(0, count) });
+        break;
+      }
+      case 'GET_HISTORY_VISITS': {
+        // Every recorded visit for one URL, oldest → newest, with the
+        // transition kind (typed / followed a link / reload / form / ...).
+        if (!msg.url || !chrome.history || !chrome.history.getVisits) { sendResponse({ visits: [] }); break; }
+        const visits = await new Promise(res => chrome.history.getVisits({ url: msg.url }, res));
+        const sorted = ((visits || []).slice())
+          .filter(v => v && v.visitTime)
+          .sort((a, b) => (a.visitTime || 0) - (b.visitTime || 0))
+          .map(v => ({ visitTime: v.visitTime, transition: v.transition || '' }));
+        sendResponse({ visits: sorted });
+        break;
+      }
+      case 'GET_HISTORY_DETAILS': {
+        // Everything the History "Details" modal needs in one round trip:
+        // getVisits for the per-visit timeline (with transition kinds) plus
+        // two history.search calls over the page's whole lifetime — one to
+        // reconcile this page's own counters, one scoped to its hostname to
+        // surface related pages on the same domain.
+        if (!msg.url || !chrome.history || !chrome.history.getVisits || !chrome.history.search) { sendResponse({ ok: false, error: 'not supported' }); break; }
+        let host = '';
+        try { host = new URL(msg.url).hostname.replace(/^www\./, ''); } catch (e) { host = ''; }
+        try {
+          const [visits, page, related] = await Promise.all([
+            new Promise(res => chrome.history.getVisits({ url: msg.url }, res)),
+            new Promise(res => chrome.history.search({ text: msg.url, startTime: 0, maxResults: 5 }, res)),
+            host ? new Promise(res => chrome.history.search({ text: host, startTime: 0, maxResults: 200 }, res)) : Promise.resolve([])
+          ]);
+          const pageHit = (page || []).find(p => p && p.url === msg.url) || {};
+          const seen = new Set();
+          const domainPages = [];
+          let totalVisits = 0, totalTyped = 0, firstVisit = 0;
+          (related || []).forEach(p => {
+            if (!p || !p.url || !/^https?:/i.test(p.url)) return;
+            let h = '';
+            try { h = new URL(p.url).hostname.replace(/^www\./, ''); } catch (e) { return; }
+            if (h !== host || seen.has(p.url)) return;
+            seen.add(p.url);
+            totalVisits += p.visitCount || 0;
+            totalTyped += p.typedCount || 0;
+            if (!firstVisit || (p.lastVisitTime || 0) < firstVisit) firstVisit = p.lastVisitTime || 0;
+            domainPages.push({
+              url: p.url, title: p.title || p.url, favIconUrl: p.favIconUrl || '',
+              visitCount: p.visitCount || 0, typedCount: p.typedCount || 0, lastVisitTime: p.lastVisitTime || 0
+            });
+          });
+          domainPages.sort((a, b) => (b.visitCount || 0) - (a.visitCount || 0) || (b.lastVisitTime || 0) - (a.lastVisitTime || 0));
+          sendResponse({
+            ok: true,
+            visits: ((visits || []).slice())
+              .filter(v => v && v.visitTime)
+              .sort((a, b) => (a.visitTime || 0) - (b.visitTime || 0))
+              .map(v => ({ visitTime: v.visitTime, transition: v.transition || '' })),
+            page: {
+              url: msg.url,
+              title: pageHit.title || msg.title || '',
+              favIconUrl: pageHit.favIconUrl || '',
+              visitCount: pageHit.visitCount != null ? pageHit.visitCount : (visits || []).length,
+              typedCount: pageHit.typedCount || 0,
+              lastVisitTime: pageHit.lastVisitTime || (visits && visits.length ? visits[visits.length - 1].visitTime : 0)
+            },
+            domain: { host, pages: domainPages.slice(0, 20), pageCount: domainPages.length, totalVisits, totalTyped, firstVisit }
+          });
+        } catch (err) { sendResponse({ ok: false, error: (err && err.message) || String(err) }); }
+        break;
+      }
+      case 'DELETE_HISTORY': {
+        // Lets the dashboard remove a single page from browser history
+        // (deleteUrl) — the Details modal's "Forget" actions. Resolve with the
+        // API's real outcome (chrome.runtime.lastError appears as a failure)
+        // and answer no matter which browser/branch executes. Synced History
+        // collections are re-mirrored right afterwards so they drop the same
+        // entries instead of waiting for the next alarm.
+        if (!msg.url || !chrome.history || !chrome.history.deleteUrl) { sendResponse({ ok: false, error: 'not supported' }); break; }
+        try {
+          const ok = await new Promise((resolve) => {
+            let settled = false;
+            chrome.history.deleteUrl({ url: msg.url }, () => {
+              if (settled) return;
+              settled = true;
+              resolve(!chrome.runtime.lastError);
+            });
+          });
+          if (!ok) {
+            const err = chrome.runtime.lastError && chrome.runtime.lastError.message;
+            sendResponse({ ok: false, error: err ? String(err) : 'history api error' });
+            break;
+          }
+        } catch (e) { sendResponse({ ok: false, error: String((e && e.message) || e) }); break; }
+        scheduleBrowserDataSync(300);
+        sendResponse({ ok: true });
         break;
       }
       case 'TOGGLE_PIN_TAB': {

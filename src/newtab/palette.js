@@ -62,7 +62,8 @@
     }
   }
 
-  function openModal(html, afterMount) {
+  function openModal(html, afterMount, extraClass) {
+    $('#modal-box').className = 'modal' + (extraClass ? ' ' + extraClass : '');
     $('#modal-box').innerHTML = html;
     showOverlay('#modal-overlay');
     afterMount && afterMount();
@@ -97,6 +98,7 @@
         resolve(val);
       };
       const onKey = (e) => { if (e.key === 'Escape') finish(hasInput ? null : false); };
+      $('#modal-box').className = 'modal';
       $('#modal-box').innerHTML = html;
       registerOverlayCloser('modal-overlay', () => finish(hasInput ? null : false));
       showOverlay('#modal-overlay');
@@ -148,6 +150,7 @@
         resolve(val);
       };
       const onEscapeCapture = (e) => { if (e.key === 'Escape') finish(null); };
+      $('#modal-box').className = 'modal';
       $('#modal-box').innerHTML = `
         ${title ? `<h2>${escapeHtml(title)}</h2>` : ''}
         ${message ? `<p class="dialog-message">${escapeHtml(message)}</p>` : ''}

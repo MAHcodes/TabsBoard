@@ -3,43 +3,80 @@
 <head>
 <meta charset="UTF-8" />
 <style>
-  :root { --bg-color:#e1e1e3; --main-color:#e2b714; --caret-color:#e2b714; --sub-color:#aaaeb3; --sub-alt-color:#d1d3d8; --text-color:#323437; --error-color:#da3333; --error-extra-color:#791717; --colorful-error-color:#da3333; --colorful-error-extra-color:#791717; --border-color: color-mix(in srgb, var(--sub-color) 30%, transparent); --border-w: 1px; --radius: 14px; --r-ctrl: 10px; --r-item: 9px; --r-xs: 8px; --r-chip: 6px; }
+  /* Defaults mirror the dashboard's own :root so the popup stands alone until
+     the saved theme arrives (popup.js overwrites these with the selected
+     theme's polled monkeytype values). */
+  :root {
+    --bg-color:#e1e1e3; --main-color:#e2b714; --caret-color:#e2b714; --sub-color:#aaaeb3;
+    --sub-alt-color:#d1d3d8; --text-color:#323437; --error-color:#da3333; --error-extra-color:#791717;
+    --colorful-error-color:#da3333; --colorful-error-extra-color:#791717;
+    --border-color: color-mix(in srgb, var(--sub-color) 30%, transparent); --border-w: 1px;
+    --radius: 14px; --r-ctrl: 10px; --r-item: 9px; --r-xs: 8px; --r-chip: 6px; --r-tiny: 4px;
+    --ctrl-h: 38px; --shadow: 0 1px 2px rgba(20,20,40,.05), 0 10px 30px rgba(20,20,40,.08);
+  }
   :root.no-borders { --border-w: 0px; --border-color: transparent; }
-  :root.radius-sharp   { --radius: 9px; --r-ctrl: 7px; --r-item: 6px; --r-xs: 6px; --r-chip: 4px; }
-  :root.radius-rounded { --radius: 18px; --r-ctrl: 14px; --r-item: 12px; --r-xs: 10px; --r-chip: 8px; }
-  :root.radius-extra   { --radius: 26px; --r-ctrl: 20px; --r-item: 16px; --r-xs: 14px; --r-chip: 10px; }
-  :root.radius-none    { --radius: 0px; --r-ctrl: 0px; --r-item: 0px; --r-xs: 0px; --r-chip: 0px; }
+  :root.radius-sharp   { --radius: 9px; --r-ctrl: 7px; --r-item: 6px; --r-xs: 6px; --r-chip: 4px; --r-tiny: 3px; }
+  :root.radius-rounded { --radius: 18px; --r-ctrl: 14px; --r-item: 12px; --r-xs: 10px; --r-chip: 8px; --r-tiny: 6px; }
+  :root.radius-extra   { --radius: 26px; --r-ctrl: 20px; --r-item: 16px; --r-xs: 14px; --r-chip: 10px; --r-tiny: 8px; }
+  :root.radius-none    { --radius: 0px; --r-ctrl: 0px; --r-item: 0px; --r-xs: 0px; --r-chip: 0px; --r-tiny: 0px; }
   * { box-sizing: border-box; }
-  body { width: 320px; margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg-color); color: var(--text-color); }
-  .header { padding: 14px 15px 10px; border-bottom: var(--border-w) solid var(--border-color); display: flex; align-items: center; gap: 10px; }
-  .header img { width: 20px; height: 20px; border-radius: var(--r-xs); flex-shrink: 0; background: var(--sub-alt-color); }
-  .header-text { min-width: 0; }
+  html, body { margin: 0; }
+  body { width: 320px; font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg-color); color: var(--text-color); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--sub-color) 55%, transparent); border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background-color: var(--sub-color); }
+
+  .header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: var(--border-w) solid var(--border-color); }
+  .fav { width: 32px; height: 32px; border-radius: var(--r-xs); background: var(--sub-alt-color); border: var(--border-w) solid var(--border-color); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+  .fav img { width: 18px; height: 18px; }
+  .header-text { min-width: 0; line-height: 1.25; }
   .header .title { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .header .url { font-size: 11px; color: var(--sub-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .list { max-height: 260px; overflow-y: auto; padding: 7px; }
-  .col-item { display: flex; align-items: center; gap: 9px; padding: 9px 9px; border-radius: var(--r-item); font-size: 13px; cursor: pointer; font-weight: 600; }
+  .caption { padding: 11px 14px 3px; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--sub-color); font-weight: 800; }
+  .search { padding: 8px 14px 2px; }
+  .search input { width: 100%; padding: 8px 11px; border-radius: var(--r-ctrl); border: var(--border-w) solid var(--border-color); background: var(--sub-alt-color); color: var(--text-color); font-size: 13px; caret-color: var(--caret-color); outline: none; }
+  .search input:focus { border-color: var(--main-color); }
+  .list { max-height: 236px; overflow-y: auto; padding: 6px; }
+  .col-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 10px; border-radius: var(--r-item); border: none; background: none; font-size: 13px; color: var(--text-color); cursor: pointer; line-height: 1.3; transition: background-color .12s ease, color .12s ease; }
   .col-item:hover { background: var(--sub-alt-color); }
-  .dot { width: 11px; height: 11px; border-radius: var(--r-xs); flex-shrink: 0; }
-  .new-row { padding: 9px; border-top: var(--border-w) solid var(--border-color); }
-  .new-row input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: var(--r-ctrl); border: var(--border-w) solid var(--border-color); background: var(--sub-alt-color); color: var(--text-color); font-size: 12px; margin-bottom: 7px; caret-color: var(--caret-color); }
-  .new-row button, .open-dash { width: 100%; padding: 9px; border: none; border-radius: var(--r-ctrl); background: var(--main-color); color: var(--bg-color); font-size: 12px; font-weight: 700; cursor: pointer; }
-  .open-dash { background: none; color: var(--main-color); margin-top: 5px; }
-  .done { padding: 20px; text-align: center; font-size: 13px; color: var(--main-color); font-weight: 700; }
-  .empty { padding: 15px; text-align: center; font-size: 12px; color: var(--sub-color); }
+  .col-item .dot { width: 11px; height: 11px; border-radius: var(--r-tiny); flex-shrink: 0; }
+  .col-item .name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .col-item .go { color: var(--sub-color); flex-shrink: 0; display: inline-flex; transition: transform .12s ease; }
+  .col-item .go svg { width: 14px; height: 14px; }
+  .col-item:hover .go { color: var(--main-color); transform: translateX(2px); }
+  .empty { padding: 16px; text-align: center; font-size: 12px; color: var(--sub-color); }
+  .footer { padding: 10px 14px 14px; border-top: var(--border-w) solid var(--border-color); display: flex; flex-direction: column; gap: 8px; }
+  .new-row { display: flex; gap: 8px; }
+  .new-row input { flex: 1; min-width: 0; padding: 8px 11px; border-radius: var(--r-ctrl); border: var(--border-w) solid var(--border-color); background: var(--sub-alt-color); color: var(--text-color); font-size: 12.5px; caret-color: var(--caret-color); outline: none; }
+  .new-row input:focus { border-color: var(--main-color); }
+  .new-row .create { border: none; border-radius: var(--r-ctrl); padding: 0 13px; height: var(--ctrl-h); font-size: 12.5px; font-weight: 700; cursor: pointer; background: var(--main-color); color: var(--bg-color); flex-shrink: 0; }
+  .new-row .create:hover { filter: brightness(1.08); }
+  .open-dash { border: none; border-radius: var(--r-ctrl); padding: 0 13px; height: var(--ctrl-h); font-size: 12.5px; font-weight: 700; cursor: pointer; background: none; color: var(--main-color); }
+  .open-dash:hover { background: var(--sub-alt-color); }
+  .done { padding: 24px; text-align: center; font-size: 13px; color: var(--main-color); font-weight: 700; }
+  .col-item:focus-visible, .new-row .create:focus-visible, .open-dash:focus-visible,
+  .search input:focus-visible, .new-row input:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--main-color) 55%, transparent); outline-offset: 2px;
+  }
 </style>
 </head>
 <body>
   <div class="header">
-    <img id="p-favicon" src="" onerror="this.style.visibility='hidden'">
+    <div class="fav"><img id="p-favicon" src="" onerror="this.style.visibility='hidden'"></div>
     <div class="header-text">
       <div class="title" id="p-title">Loading…</div>
       <div class="url" id="p-url"></div>
     </div>
   </div>
+  <div class="caption">Save current page to</div>
+  <div class="search"><input type="text" id="p-filter" placeholder="Search collections…" autocomplete="off"></div>
   <div class="list" id="p-list"></div>
-  <div class="new-row">
-    <input type="text" id="p-new-name" placeholder="New collection name">
-    <button id="p-new-btn">+ Create &amp; add</button>
+  <div class="footer">
+    <div class="new-row">
+      <input type="text" id="p-new-name" placeholder="New collection name">
+      <button class="create" id="p-new-btn">Create</button>
+    </div>
     <button class="open-dash" id="p-open-dash">Open full dashboard</button>
   </div>
   <script src="../common/color-utils.js"></script>

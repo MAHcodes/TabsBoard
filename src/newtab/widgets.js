@@ -117,12 +117,12 @@
         tLabel.dataset.group = 'tabs';
         tLabel.appendChild(el('span', '', 'Tabs'));
         const closeAll = el('button', 'tab-label-close', 'Close all');
-        closeAll.title = 'Close all open tabs';
+        closeAll.title = 'Close all open tabs except this dashboard';
         closeAll.onclick = async () => {
-          const n = OPEN_TABS.length;
-          if (!n) return;
-          if (!(await uiConfirm(`Close all ${n} open tab${n === 1 ? '' : 's'}?`, { title: 'Close all tabs', okLabel: 'Close all', danger: true }))) return;
-          await closeTabIds(tabIdsAll());
+          const ids = tabIdsAll();
+          if (!ids.length) return;
+          if (!(await uiConfirm(`Close ${ids.length} open tab${ids.length === 1 ? '' : 's'} and keep TabsBoard open?`, { title: 'Close all tabs', okLabel: 'Close all', danger: true }))) return;
+          await closeTabIds(ids);
         };
         tLabel.appendChild(closeAll);
         list.appendChild(tLabel);
@@ -191,7 +191,16 @@
   function tabIdsAbove(tab) { return OPEN_TABS.filter(t => !t.pinned && t.index < tab.index).map(t => t.id); }
   function tabIdsBelow(tab) { return OPEN_TABS.filter(t => !t.pinned && t.index > tab.index).map(t => t.id); }
   function tabIdsOthers(tab) { return OPEN_TABS.filter(t => !t.pinned && t.id !== tab.id).map(t => t.id); }
-  function tabIdsAll() { return OPEN_TABS.map(t => t.id); }
+  // The dashboard itself runs in an extension tab — closing it would kill the
+  // page you're using. Exclude every page served by this extension (the
+  // current TabsBoard tab) from the sidebar's "Close all" so the dashboard
+  // stays open. chrome.runtime.getURL('') normalizes across Chrome/Firefox
+  // extension origins.
+  function isDashboardTab(tab) {
+    const base = chrome.runtime.getURL('');
+    return !!(tab && tab.url && tab.url.indexOf(base) === 0);
+  }
+  function tabIdsAll() { return OPEN_TABS.filter(t => !isDashboardTab(t)).map(t => t.id); }
 
   async function closeTabIds(ids) {
     if (!ids.length) return;
@@ -319,26 +328,53 @@
     submenu.querySelector('[data-act=sub-others]').onclick = async () => { closeAll(); await closeTabIds(tabIdsOthers(tab)); };
   }
 
-  function openTabAddToCollectionMenu(tab, anchorBtn) {
+  /* Shared "add a URL to a collection" picker — used by both the Open Tabs
+     sidebar and history entries. <info> is { title, url, favicon }. */
+  function openUrlAddToCollectionMenu(info, rect) {
     const cols = collectionsForActiveWS();
     if (!cols.length) { toast('Create a collection first'); return; }
-    const rect = anchorBtn.getBoundingClientRect();
     const menu = el('div', 'dropdown-menu');
     cols.forEach(c => {
       const item = el('div', 'ws-item');
       item.innerHTML = `<span style="flex:1">${escapeHtml(c.name)}</span>`;
       item.onclick = async () => {
         menu.remove();
-        const created = await addBookmarkSmart(c.id, activeWorkspaceId(), { title: tab.title, url: tab.url, favicon: tab.favIconUrl });
+        const created = await addBookmarkSmart(c.id, activeWorkspaceId(), { title: info.title, url: info.url, favicon: info.favicon || '' });
         if (created) toast(`Added to "${c.name}"`);
       };
       menu.appendChild(item);
     });
     showDropdown(menu, rect, 240);
   }
+  function openTabAddToCollectionMenu(tab, anchorBtn) {
+    openUrlAddToCollectionMenu({ title: tab.title, url: tab.url, favicon: tab.favIconUrl }, anchorBtn.getBoundingClientRect());
+  }
 
+  function reopenSession(item) {
+    return async () => {
+      await sendMsg('REOPEN_CLOSED_SESSION', { sessionId: item.sessionId });
+      await refreshOpenTabs();
+      await refreshRecentlyClosed();
+      sidebarShowingClosed = false; // reopening a tab naturally returns you to the tabs view
+      renderSidebar();
+    };
+  }
+
+  /* The sidebar's "history": recently-closed tabs/windows + a per-entry
+     right-click menu (restore / open / copy / add-to-collection / details),
+     plus day-of-week grouping headers. Menu is right-click only — the rows
+     deliberately carry no visible ⋯ button. */
   function renderRecentlyClosedRows(wrap) {
+    const n = new Date();
+    const todayStart = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+    let lastKey = null;
     RECENTLY_CLOSED.forEach(item => {
+      const t = item.closedAt || 0;
+      const key = t >= todayStart ? 'Today' : t >= todayStart - 86400000 ? 'Yesterday' : new Date(t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+      if (key !== lastKey) {
+        wrap.appendChild(el('div', 'tab-group-label', escapeHtml(key)));
+        lastKey = key;
+      }
       const row = el('div', 'tab-row' + (item.isWindow ? ' tab-window-row' : ''));
       if (item.isWindow) {
         const favs = (item.tabs || []).slice(0, 4).map(u =>
@@ -348,22 +384,42 @@
           <span class="window-favicons">${favs}</span>
           <span class="tab-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</span>
           <span class="rc-time">${formatRelTime(item.closedAt)}</span>`;
+        row.addEventListener('click', reopenSession(item));
       } else {
         row.innerHTML = `
           <img class="favicon" src="${item.favIconUrl || faviconFor(item.url)}" onerror="this.style.visibility='hidden'">
           <span class="tab-title" title="${escapeHtml(item.url)}">${escapeHtml(item.title || item.url)}</span>
           <span class="rc-time">${formatRelTime(item.closedAt)}</span>`;
+        row.addEventListener('click', reopenSession(item));
+        row.addEventListener('contextmenu', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          openRecentlyClosedMenu(item, { left: e.clientX, top: e.clientY, bottom: e.clientY, height: 0, width: 0 });
+        });
       }
-      row.addEventListener('click', async () => {
-        await sendMsg('REOPEN_CLOSED_SESSION', { sessionId: item.sessionId });
-        await refreshOpenTabs();
-        await refreshRecentlyClosed();
-        sidebarShowingClosed = false; // reopening a tab naturally returns you to the tabs view
-        renderSidebar();
-      });
       wrap.appendChild(row);
     });
     if (!RECENTLY_CLOSED.length) wrap.appendChild(el('div', 'empty-collection-hint', 'Nothing closed recently'));
+  }
+
+  function openRecentlyClosedMenu(item, rect) {
+    const fav = item.favIconUrl || faviconFor(item.url || '');
+    const menu = el('div', 'dropdown-menu');
+    menu.innerHTML = `
+      <div class="ws-item" data-act="open"><span class="mi-ic">${ICONS.openAll}</span>Restore tab</div>
+      ${item.url ? `
+        <div class="ws-item" data-act="opennew"><span class="mi-ic">${ICONS.externalWindow}</span>Open in a new tab</div>
+        <div class="ws-item" data-act="copy"><span class="mi-ic">${ICONS.copy}</span>Copy link</div>
+        <div class="ws-item" data-act="addcol"><span class="mi-ic">${ICONS.folderPlus}</span>Add to Collection…</div>
+        <hr>
+        <div class="ws-item" data-act="details"><span class="mi-ic">${ICONS.target}</span>Details<span class="mi-right">${ICONS.chevronRight}</span></div>` : ''}`;
+    const close = showDropdown(menu, rect, 240);
+    menu.querySelector('[data-act=open]').onclick = () => { close(); reopenSession(item)(); };
+    if (item.url) {
+      menu.querySelector('[data-act=opennew]').onclick = () => { close(); sendMsg('OPEN_URL', { url: item.url, forceNewTab: true }); };
+      menu.querySelector('[data-act=copy]').onclick = async () => { close(); if (await copyTextToClipboard(item.url)) toast('Link copied'); else toast("Couldn't copy"); };
+      menu.querySelector('[data-act=addcol]').onclick = (e) => { close(); openUrlAddToCollectionMenu({ title: item.title || item.url, url: item.url, favicon: fav }, { left: e.clientX, top: e.clientY, bottom: e.clientY, height: 0, width: 0 }); };
+      menu.querySelector('[data-act=details]').onclick = () => { close(); openHistoryDetailsModal({ url: item.url, title: item.title || item.url, favicon: fav, lastVisitTime: item.closedAt }); };
+    }
   }
 
   /* ============ BOARD (widgets) ============ */
@@ -1145,25 +1201,383 @@
     return card;
   }
 
-  /* ---- Browsing history: chrome.history shows pages visited recently,
-     rendered as a normal collection widget. Each entry's visit time is shown
-     (unless the user turns it off) and the per-widget count comes from the
-     global "History tabs shown" setting. ---- */
+  /* ---- Browsing history: chrome.history shows pages visited recently.
+     Rows are grouped by day (Today / Yesterday / weekday), show a relative
+     visit time and visit count, mark pages typed into the address bar, and
+     carry the same favicon/tile layout as a real collection. The ⋯ / right-
+     click menu can open/copy the page, add it to a collection, inspect every
+     visit (Details) or delete history back to the browser. ---- */
   function renderHistoryWidget(w) {
     const s = STATE.meta.settings;
     const count = Math.max(1, Number(w.count || s.historyCount) || 10);
     const showTimes = s.historyShowTimes !== false;
-    return renderBrowserDataWidget(w, {
-      title: 'History', icon: ICONS.rotateCcwClock, emptyText: 'No browsing history yet',
-      count,
-      meta: (item) => (showTimes && item._t ? formatRelTime(item._t) : ''),
-      fetch: (done) => {
-        sendMsg('GET_HISTORY', { count: Math.max(count, 20), days: w.days || 1 }).then(
-          (data) => done(((data && data.history) || []).map((h, i) => ({ title: h.title, url: h.url, favicon: '', _i: i, _t: h.lastVisitTime }))),
-          () => done([])
-        );
+    const viewMode = STATE.meta.settings.viewMode || 'grid';
+    const isTile = viewMode === 'grid';
+    const titleHtml = `<span class="widget-title">History</span>`;
+    const { card, header } = widgetShell(w, ICONS.rotateCcwClock, titleHtml);
+    header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
+    const body = el('div', 'widget-body');
+    const listWrap = el('div', 'bookmarks-list is-empty');
+    listWrap.appendChild(el('div', 'empty-collection-hint', 'Loading…'));
+    body.appendChild(listWrap);
+    card.appendChild(body);
+    const fill = (raw) => {
+      const items = (raw || []).slice(0, count);
+      listWrap.classList.toggle('view-grid', viewMode === 'grid' && items.length > 0);
+      listWrap.classList.toggle('is-empty', !items.length);
+      listWrap.innerHTML = '';
+      if (!items.length) { listWrap.appendChild(el('div', 'empty-collection-hint', 'No browsing history yet')); return; }
+      const n = new Date();
+      const todayStart = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+      let lastKey = null;
+      items.forEach((it, i) => {
+        const t = it.lastVisitTime || 0;
+        const key = t >= todayStart ? 'Today' : t >= todayStart - 86400000 ? 'Yesterday' : new Date(t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+        if (key !== lastKey) {
+          listWrap.appendChild(el('div', 'hs-day-label', escapeHtml(key)));
+          lastKey = key;
+        }
+        const fav = it.favIconUrl || faviconFor(it.url);
+        const metaBits = [];
+        if (showTimes && t) metaBits.push(formatRelTime(t));
+        if (it.visitCount) metaBits.push(it.visitCount + (it.visitCount === 1 ? ' visit' : ' visits'));
+        const metaStr = metaBits.join(' · ');
+        const info = { url: it.url, title: it.title || it.url, favicon: fav, visitCount: it.visitCount || 0, typedCount: it.typedCount || 0, lastVisitTime: t };
+        const item = el('div', isTile ? 'bookmark-tile hs-item' : 'bookmark-item hs-item');
+        item.draggable = true;
+        if (isTile) {
+          item.innerHTML = `
+            <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
+            <div class="bm-title" title="${escapeHtml(info.url)}">${escapeHtml(info.title)}</div>
+            ${it.typedCount ? `<div class="hs-typed" title="Typed ${it.typedCount}x into the address bar"></div>` : ''}
+            ${metaStr ? `<div class="bm-meta" title="${escapeHtml(metaStr)}">${escapeHtml(metaStr)}</div>` : ''}`;
+        } else {
+          item.innerHTML = `
+            <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
+            <span class="bm-title" title="${escapeHtml(info.url)}">${escapeHtml(info.title)}</span>
+            ${it.typedCount ? `<span class="hs-typed" title="Typed ${it.typedCount}x into the address bar"></span>` : ''}
+            ${metaStr ? `<span class="bm-meta" title="${escapeHtml(metaStr)}">${escapeHtml(metaStr)}</span>` : ''}`;
+        }
+        item.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('application/x-tdb-tab', JSON.stringify({ title: info.title, url: info.url, favIconUrl: fav }));
+          item.classList.add('dragging');
+          document.body.classList.add('dragging-tab');
+        });
+        item.addEventListener('dragend', () => {
+          item.classList.remove('dragging');
+          document.body.classList.remove('dragging-tab');
+        });
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          openBookmarkUrl({ url: info.url });
+        });
+        item.addEventListener('contextmenu', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          openHistoryMenu(info, { left: e.clientX, top: e.clientY, bottom: e.clientY, height: 0, width: 0 });
+        });
+        listWrap.appendChild(item);
+      });
+    };
+    sendMsg('GET_HISTORY', { count: Math.max(count, 30), days: w.days || 1 })
+      .then((data) => fill((data && data.history) || []), () => fill([]));
+    return card;
+  }
+
+  /* ---- History entry context menu: open/copy/add-to-collection/Details.
+     No destructive actions here — inspecting a page's visits is handled by
+     the Details modal, which can forget the page via deleteUrl. ---- */
+  function openHistoryMenu(info, rect) {
+    const menu = el('div', 'dropdown-menu');
+    menu.innerHTML = `
+      <div class="ws-item" data-act="open"><span class="mi-ic">${ICONS.openAll}</span>Open</div>
+      <div class="ws-item" data-act="opennew"><span class="mi-ic">${ICONS.externalWindow}</span>Open in a new tab</div>
+      <div class="ws-item" data-act="copy"><span class="mi-ic">${ICONS.copy}</span>Copy link</div>
+      <div class="ws-item" data-act="addcol"><span class="mi-ic">${ICONS.folderPlus}</span>Add to Collection…</div>
+      <hr>
+      <div class="ws-item" data-act="details"><span class="mi-ic">${ICONS.target}</span>Details<span class="mi-right">${ICONS.chevronRight}</span></div>`;
+    const close = showDropdown(menu, rect, 240);
+    menu.querySelector('[data-act=open]').onclick = () => { close(); openBookmarkUrl({ url: info.url }); };
+    menu.querySelector('[data-act=opennew]').onclick = () => { close(); sendMsg('OPEN_URL', { url: info.url, forceNewTab: true }); };
+    menu.querySelector('[data-act=copy]').onclick = async () => { close(); if (await copyTextToClipboard(info.url)) toast('Link copied'); else toast("Couldn't copy"); };
+    menu.querySelector('[data-act=addcol]').onclick = (e) => { close(); openUrlAddToCollectionMenu({ title: info.title, url: info.url, favicon: info.favicon }, { left: e.clientX, top: e.clientY, bottom: e.clientY, height: 0, width: 0 }); };
+    menu.querySelector('[data-act=details]').onclick = () => { close(); openHistoryDetailsModal(info); };
+  }
+
+  /* ---- History "Details" modal, rebuilt around the full chrome.history
+     surface. Reads: getVisits (per-visit timeline + transition kinds) and
+     two search calls — one reconciling this page's own counters, one scoped
+     to its hostname for the "Site" tab. Writes: addUrl ("Remember") and
+     deleteUrl ("Forget this page" / the per-page loop behind "Forget this
+     site"). The onVisited / onVisitRemoved / onTitleChanged events keep an
+     open modal live; the bulk clears don't exist anywhere in the UI. */
+  const TRANSITION_LABELS = {
+    link: 'Followed a link', typed: 'Typed into the address bar', reload: 'Reloaded',
+    auto_bookmark: 'Opened from a bookmark', form_submit: 'Submitted a form',
+    generated: 'Redirected', keyword: 'Opened from a search', keyword_generated: 'Redirected from a search',
+    auto_subframe: 'Embedded (frame)', auto_toplevel: 'Opened automatically',
+    manual_subframe: 'Navigated (frame)', embed: 'Embedded',
+    start_page: 'Start-up page', anchor: 'Via an anchor link'
+  };
+  const TRANSITION_DOTS = {
+    typed: 'typed', reload: 'reload', auto_bookmark: 'book',
+    form_submit: 'form', generated: 'gen', keyword: 'kw', keyword_generated: 'kw',
+    auto_toplevel: 'auto', link: 'link', start_page: 'start', anchor: 'anchor',
+    auto_subframe: 'embed', embed: 'embed', manual_subframe: 'embed'
+  };
+  function transitionLabel(t) { return TRANSITION_LABELS[t] || 'Visited'; }
+  function transitionDotClass(t) { return TRANSITION_DOTS[t] || 'other'; }
+  // Row time is just the clock — the day grouping header already says which
+// day a visit belongs to, so a per-row "Today · " prefix would just be noise.
+  function formatVisitTime(ts) {
+    if (!ts) return '';
+    return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+  function formatFullDate(ts) {
+    if (!ts) return '—';
+    return new Date(ts).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+  function dayGroupKey(ts) {
+    const d = new Date(ts);
+    const today = new Date().setHours(0, 0, 0, 0);
+    const day = d.setHours(0, 0, 0, 0);
+    if (day === today) return { label: 'Today', key: 'today' };
+    if (day === today - 86400000) return { label: 'Yesterday', key: 'yesterday' };
+    return { label: d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }), key: String(day) };
+  }
+
+  function openHistoryDetailsModal(info) {
+    const fav = info.favicon || faviconFor(info.url);
+    const host = hostnameOf(info.url);
+    const MAX_VISITS = 60;
+    const alive = { v: true };
+    let refreshTimer = null;
+    let lastDetails = null;
+
+    const dispose = () => {
+      alive.v = false;
+      if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+      if (chrome.history && chrome.history.onVisited) {
+        chrome.history.onVisited.removeListener(onVisited);
+        chrome.history.onVisitRemoved.removeListener(onVisitRemoved);
+        chrome.history.onTitleChanged.removeListener(onTitleChanged);
       }
-    });
+    };
+    function onVisited(item) { if (item && item.url === info.url) scheduleRefresh(); }
+    function onVisitRemoved() { scheduleRefresh(); }
+    function onTitleChanged(item) {
+      if (!alive.v || !item || item.url !== info.url || !item.title) return;
+      const t = $('#hdm-title');
+      if (t) t.textContent = item.title;
+    }
+    function scheduleRefresh() {
+      if (!alive.v) return;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => { refreshTimer = null; load(); }, 280);
+    }
+
+    function setStat(id, text) { const n = document.getElementById(id); if (n) n.textContent = text; }
+
+    function renderVisits(visits) {
+      const panel = $('#hdm-panel-visits');
+      if (!panel) return;
+      panel.innerHTML = '';
+      if (!visits.length) {
+        panel.appendChild(el('div', 'hdm-empty', 'No visit records found. Visiting the page writes one.'));
+        return;
+      }
+      const shown = visits.slice(-MAX_VISITS);
+      const hidden = visits.length - shown.length;
+      let lastKey = null;
+      shown.forEach(v => {
+        const g = dayGroupKey(v.visitTime);
+        if (g.key !== lastKey) { lastKey = g.key; panel.appendChild(el('div', 'hdm-day', escapeHtml(g.label))); }
+        const row = el('div', 'hdm-row');
+        row.innerHTML = `
+          <span class="hdm-dot ${transitionDotClass(v.transition)}" title="${escapeHtml(transitionLabel(v.transition))}"></span>
+          <span class="hdm-time">${escapeHtml(formatVisitTime(v.visitTime))}</span>
+          <span class="hdm-trans">${escapeHtml(transitionLabel(v.transition))}</span>`;
+        panel.appendChild(row);
+      });
+      if (hidden > 0) {
+        panel.appendChild(el('div', 'hdm-day', `+ ${hidden} older visit${hidden === 1 ? '' : 's'} not shown`));
+      }
+    }
+
+    function renderDomain(domain) {
+      const panel = $('#hdm-panel-domain');
+      if (!panel) return;
+      panel.innerHTML = '';
+      if (!domain || !domain.host) {
+        panel.appendChild(el('div', 'hdm-empty', 'No site data found.'));
+        return;
+      }
+      const sum = el('div', 'hdm-dsum');
+      const bits = [];
+      bits.push(`${domain.pageCount} page${domain.pageCount === 1 ? '' : 's'}`);
+      bits.push(`${domain.totalVisits} visit${domain.totalVisits === 1 ? '' : 's'}`);
+      if (domain.totalTyped) bits.push(`${domain.totalTyped} typed`);
+      sum.innerHTML = `
+        <div class="hdm-dsum-n">${escapeHtml(bits.join(' · '))}</div>
+        <div class="hdm-dsum-s">${domain.firstVisit ? 'activity since ' + escapeHtml(formatFullDate(domain.firstVisit)) : ''}</div>`;
+      panel.appendChild(sum);
+      if (!domain.pages.length) {
+        panel.appendChild(el('div', 'hdm-empty', 'Nothing else recorded on this site yet.'));
+        return;
+      }
+      const list = el('div', 'hdm-dlist');
+      domain.pages.forEach(p => {
+        const r = el('div', 'hdm-drow');
+        r.innerHTML = `
+          <img class="favicon" src="${p.favIconUrl || faviconFor(p.url)}" onerror="this.style.visibility='hidden'">
+          <span class="hdm-drow-title" title="${escapeHtml(p.url)}">${escapeHtml(p.title || p.url)}</span>
+          <span class="hdm-drow-meta">${p.visitCount} visit${p.visitCount === 1 ? '' : 's'}${p.typedCount ? ' · ' + p.typedCount + ' typed' : ''}</span>`;
+        r.addEventListener('click', () => openBookmarkUrl({ url: p.url }));
+        list.appendChild(r);
+      });
+      panel.appendChild(list);
+      const forgetSite = $('#hdm-forget-site');
+      if (forgetSite) {
+        forgetSite.title = `Remove every page on ${domain.host} from your browsing history`;
+        forgetSite.classList.remove('hidden');
+      }
+    }
+
+    function fill(details) {
+      if (!details || !details.ok) {
+        const panel = $('#hdm-panel-visits');
+        if (panel) panel.innerHTML = '<div class="hdm-empty">Couldn\'t read browser history.</div>';
+        setStat('hdm-stat-visits', '—');
+        setStat('hdm-stat-first', '—');
+        setStat('hdm-stat-last', '—');
+        return;
+      }
+      lastDetails = details;
+      const page = details.page || {};
+      const visits = details.visits || [];
+      const domain = details.domain || null;
+      if (page.title && page.title !== info.url) {
+        const t = $('#hdm-title');
+        if (t && (!info.title || info.title === info.url)) t.textContent = page.title;
+      }
+      if (page.favIconUrl) { const f = $('.hdm-fav'); if (f) f.src = page.favIconUrl; }
+      // "typed" counts the typed transitions in the actual timeline rather than
+      // trusting search's typedCount, which can report 0 for a visit whose
+      // transition IS "typed" (they're tracked separately by the browser).
+      const typedVisits = visits.filter(v => /typed/.test(v.transition || '')).length;
+      setStat('hdm-stat-visits', String(page.visitCount != null ? page.visitCount : visits.length));
+      setStat('hdm-stat-typed', String(typedVisits || '—'));
+      setStat('hdm-stat-first', formatFullDate(visits.length ? visits[0].visitTime : page.lastVisitTime));
+      setStat('hdm-stat-last', page.lastVisitTime ? formatRelTime(page.lastVisitTime) : '—');
+      setStat('hdm-tab-visits-n', String(visits.length));
+      setStat('hdm-tab-domain-n', domain ? String(domain.pageCount) : '0');
+      renderVisits(visits);
+      renderDomain(domain);
+    }
+
+    async function load() {
+      if (!alive.v) return;
+      const res = await sendMsg('GET_HISTORY_DETAILS', { url: info.url, title: info.title || '' });
+      if (!alive.v) return;
+      fill(res || { ok: false });
+    }
+
+    openModal(`
+      <div class="hdm">
+        <div class="hdm-head">
+          <img class="hdm-fav" src="${fav}" onerror="this.style.visibility='hidden'">
+          <div class="hdm-title-wrap">
+            <h2 class="hdm-title" id="hdm-title" title="${escapeHtml(info.url)}">${escapeHtml(info.title || info.url)}</h2>
+            <a class="hdm-host" href="${escapeHtml(info.url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>
+          </div>
+          <button class="icon-btn" id="hdm-close" title="Close"></button>
+        </div>
+
+        <div class="hdm-stats">
+          <div class="hdm-stat"><span class="hdm-stat-n" id="hdm-stat-visits">…</span><span class="hdm-stat-l">visits</span></div>
+          <div class="hdm-stat"><span class="hdm-stat-n" id="hdm-stat-typed">…</span><span class="hdm-stat-l">typed</span></div>
+          <div class="hdm-stat"><span class="hdm-stat-n" id="hdm-stat-first">…</span><span class="hdm-stat-l">first seen</span></div>
+          <div class="hdm-stat"><span class="hdm-stat-n" id="hdm-stat-last">…</span><span class="hdm-stat-l">last visit</span></div>
+        </div>
+
+        <div class="segmented hdm-tabs" role="tablist">
+          <button class="hdm-tab active" id="hdm-tab-visits" role="tab" aria-selected="true">Visits <span class="hdm-tab-n" id="hdm-tab-visits-n"></span></button>
+          <button class="hdm-tab" id="hdm-tab-domain" role="tab" aria-selected="false">Site <span class="hdm-tab-n" id="hdm-tab-domain-n"></span></button>
+        </div>
+
+        <div class="hdm-panel" id="hdm-panel-visits"><div class="hdm-empty">Loading visit records…</div></div>
+        <div class="hdm-panel hidden" id="hdm-panel-domain"><div class="hdm-empty">Loading site activity…</div></div>
+      </div>
+
+      <div class="modal-actions">
+        <div class="hdm-foot-group">
+          <button class="mini-btn danger" id="hdm-forget"><span class="btn-ic-sm">${ICONS.trash}</span>Forget page</button>
+          <button class="mini-btn danger hidden" id="hdm-forget-site"><span class="btn-ic-sm">${ICONS.trash}</span>Forget site</button>
+        </div>
+        <button class="mini-btn" id="hdm-cancel">Cancel</button>
+      </div>`, () => {
+      $('#hdm-close').innerHTML = icon('close');
+
+      const switchTab = (which) => {
+        $('#hdm-tab-visits').classList.toggle('active', which === 'visits');
+        $('#hdm-tab-domain').classList.toggle('active', which === 'domain');
+        $('#hdm-tab-visits').setAttribute('aria-selected', which === 'visits');
+        $('#hdm-tab-domain').setAttribute('aria-selected', which === 'domain');
+        $('#hdm-panel-visits').classList.toggle('hidden', which !== 'visits');
+        $('#hdm-panel-domain').classList.toggle('hidden', which !== 'domain');
+      };
+      $('#hdm-tab-visits').onclick = () => switchTab('visits');
+      $('#hdm-tab-domain').onclick = () => switchTab('domain');
+
+      $('#hdm-close').onclick = () => { dispose(); closeModal(); };
+      $('#hdm-cancel').onclick = () => { dispose(); closeModal(); };
+      $('#hdm-forget').onclick = async () => {
+        if (!(await uiConfirm('Remove this page from your browsing history? This forgets every visit.\n\nIt cannot be undone.', { title: 'Forget this page', okLabel: 'Forget page', danger: true }))) return;
+        dispose();
+        const res = await sendMsg('DELETE_HISTORY', { mode: 'url', url: info.url });
+        closeModal();
+        if (res && res.ok) {
+          toast('Page removed from history');
+          boardInvalidateForHistory();
+        } else {
+          toast("Couldn't remove that page");
+        }
+      };
+      $('#hdm-forget-site').onclick = async () => {
+        const domain = lastDetails && lastDetails.domain;
+        if (!domain || !domain.pages || !domain.pages.length) return;
+        const ok = await uiConfirm(`Remove every page on ${domain.host} from your browsing history?`, { title: `Forget ${domain.host}`, okLabel: 'Forget site', danger: true });
+        dispose();
+        if (!ok) return;
+        let failed = 0;
+        closeModal();
+        for (const p of domain.pages) {
+          const res = await sendMsg('DELETE_HISTORY', { mode: 'url', url: p.url });
+          if (!(res && res.ok)) failed++;
+        }
+        if (failed) toast(`Removed ${domain.pages.length - failed} page${domain.pages.length - failed === 1 ? '' : 's'} (${failed} failed)`);
+        else toast(`Forgot ${domain.pages.length} page${domain.pages.length === 1 ? '' : 's'} on ${domain.host}`);
+        boardInvalidateForHistory();
+      };
+
+      // Keep the open modal in sync with the browser's history events.
+      if (chrome.history && chrome.history.onVisited) {
+        chrome.history.onVisited.addListener(onVisited);
+        chrome.history.onVisitRemoved.addListener(onVisitRemoved);
+        chrome.history.onTitleChanged.addListener(onTitleChanged);
+      }
+      // Backdrop click also cleans up the listeners.
+      registerOverlayCloser('modal-overlay', () => { dispose(); closeModal(); });
+      load();
+    }, 'hdm-modal');
+  }
+
+  /* The History widget re-fetches on reload but reconciles cards by signature,
+     so a page removed from history wouldn't leave. Wipe the board to force a
+     fresh render (mirrors what the history widget menu does). */
+  function boardInvalidateForHistory() {
+    const board = $('#board');
+    if (board) board.innerHTML = '';
+    reload();
   }
 
   /* ---- Countdown: days remaining until a date ---- */

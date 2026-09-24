@@ -295,7 +295,6 @@
     $('#shortcuts-btn').innerHTML = icon('keyboard');
     $('#trash-btn').prepend(el('span', 'icon', ICONS.trash));
     $('#settings-btn').innerHTML = icon('settings');
-    $('#refresh-tabs-btn').innerHTML = icon('refresh', 'sm');
     $('#sidebar-compact-btn').innerHTML = icon('panelLeftClose', 'sm');
     $('#sidebar-closed-toggle').innerHTML = icon('rotateCcwClock', 'sm');
     $('#new-collection-btn .btn-ic').innerHTML = ICONS.plus;
@@ -557,20 +556,6 @@
         refreshRecentlyClosed().then(() => renderSidebar());
       }
     };
-    const refreshTabsBtn = $('#refresh-tabs-btn');
-    refreshTabsBtn.onclick = async () => {
-      const svg = refreshTabsBtn.querySelector('.icon svg');
-      if (svg) {
-        svg.classList.remove('spinning');
-        void svg.offsetWidth; // reflow so a rapid second click restarts the spin
-        svg.classList.add('spinning');
-      }
-      await refreshOpenTabs(); await refreshRecentlyClosed(); renderSidebar();
-    };
-    refreshTabsBtn.addEventListener('animationend', (e) => {
-      if (e.target && e.target.classList) e.target.classList.remove('spinning');
-    });
-
     $('#save-window-session-btn').onclick = saveWindowSession;
     $('#save-all-session-btn').onclick = saveAllWindowsSession;
 

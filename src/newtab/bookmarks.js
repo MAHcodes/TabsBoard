@@ -108,6 +108,10 @@
     }
     const fav = bm.favicon || faviconFor(bm.url);
     const tagsHtml = (bm.tags || []).slice(0, 2).map(t => `<span class="bm-tag">${escapeHtml(t)}</span>`).join('');
+    // Browser-synced collections (History, Most visited) are data rows: they
+    // get no visible ⋯ button — management lives in the right-click menu.
+    const browserData = !!(col && col.syncSource);
+    const menuHtml = browserData ? '' : `<button class="bm-menu-btn" data-act="menu" title="Bookmark actions">${ICONS.dots}</button>`;
     // Browser-synced collections store each entry's visit time; show it as a
     // small relative badge (honoring the "Show visit time" setting).
     const timeHtml = (bm.visitTime && STATE.meta.settings.historyShowTimes !== false)
@@ -122,7 +126,7 @@
         : (bm.pinned ? `<span class="bm-pin-ic">${ICONS.pin}</span>` : '');
       item.innerHTML = `
         ${selectHtml}
-        <button class="bm-menu-btn" data-act="menu" title="Bookmark actions">${ICONS.dots}</button>
+        ${menuHtml}
         <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
         <div class="bm-title" title="${escapeHtml(bm.title)}">${escapeHtml(bm.title)}</div>
         ${timeHtml}`;
@@ -134,7 +138,7 @@
         <span class="bm-title" title="${escapeHtml(bm.url)}">${escapeHtml(bm.title)}</span>
         ${timeHtml}
         ${tagsHtml}
-        <button class="bm-menu-btn" data-act="menu" title="Bookmark actions">${ICONS.dots}</button>`;
+        ${menuHtml}`;
     }
 
     item.addEventListener('dragstart', (e) => {

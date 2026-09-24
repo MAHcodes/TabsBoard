@@ -28,6 +28,44 @@
     r.setProperty('--colorful-error-extra-color', palette.colorfulErrorExtra);
   }
 
+  const CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+  let COLS = [];
+
+  function renderList(query) {
+    const list = $('#p-list');
+    list.innerHTML = '';
+    const q = (query || '').trim().toLowerCase();
+    const shown = COLS.filter(c => !q || c.name.toLowerCase().includes(q));
+    if (!shown.length) {
+      list.innerHTML = `<div class="empty">${COLS.length ? 'No collections match.' : 'No collections yet — name one below.'}</div>`;
+      return;
+    }
+    shown.forEach(col => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'col-item';
+      row.innerHTML = `<span class="dot" style="background:${col.color}"></span><span class="name">${escapeHtml(col.name)}</span><span class="go">${CHEVRON}</span>`;
+      row.onclick = async () => await addCurrentTab(col.id);
+      list.appendChild(row);
+    });
+  }
+
+  async function addCurrentTab(colId) {
+    const tab = await currentTab();
+    const state = await DB.getState();
+    await DB.createBookmark(colId, state.meta.activeWorkspaceId, { title: tab.title, url: tab.url, favicon: tab.favIconUrl });
+    sendMsg('REBUILD_MENUS');
+    showDone();
+  }
+
+  async function createCollection() {
+    const name = $('#p-new-name').value.trim();
+    if (!name) return;
+    const state = await DB.getState();
+    const col = await DB.createCollection(state.meta.activeWorkspaceId, name);
+    await addCurrentTab(col.id);
+  }
+
   async function boot() {
     const tab = await currentTab();
     $('#p-title').textContent = tab.title || tab.url;
@@ -37,36 +75,18 @@
     const state = await DB.getState();
     applyTheme(state);
     const wsId = state.meta.activeWorkspaceId;
-    const cols = Object.values(state.collections).filter(c => c.workspaceId === wsId).sort((a, b) => a.order - b.order);
+    COLS = Object.values(state.collections).filter(c => c.workspaceId === wsId).sort((a, b) => a.order - b.order);
+    renderList('');
 
-    const list = $('#p-list');
-    list.innerHTML = '';
-    if (!cols.length) list.innerHTML = '<div class="empty">No collections yet — create one below.</div>';
-    cols.forEach(col => {
-      const row = document.createElement('div');
-      row.className = 'col-item';
-      row.innerHTML = `<span class="dot" style="background:${col.color}"></span><span>${escapeHtml(col.name)}</span>`;
-      row.onclick = async () => {
-        await DB.createBookmark(col.id, wsId, { title: tab.title, url: tab.url, favicon: tab.favIconUrl });
-        sendMsg('REBUILD_MENUS');
-        showDone();
-      };
-      list.appendChild(row);
-    });
-
-    $('#p-new-btn').onclick = async () => {
-      const name = $('#p-new-name').value.trim();
-      if (!name) return;
-      const col = await DB.createCollection(wsId, name);
-      await DB.createBookmark(col.id, wsId, { title: tab.title, url: tab.url, favicon: tab.favIconUrl });
-      sendMsg('REBUILD_MENUS');
-      showDone();
-    };
-
+    $('#p-filter').addEventListener('input', (e) => renderList(e.target.value));
+    $('#p-new-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); createCollection(); } });
+    $('#p-new-btn').onclick = createCollection;
     $('#p-open-dash').onclick = () => {
       chrome.tabs.create({ url: chrome.runtime.getURL('newtab/index.html') });
       window.close();
     };
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.close(); });
+    $('#p-filter').focus();
   }
 
   function showDone() {
