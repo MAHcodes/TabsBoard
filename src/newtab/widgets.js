@@ -77,7 +77,7 @@
     let h = 0;
     for (const t of list) {
       const str = (t.id || t.sessionId || '') + '|' + (t.title || '') + '|' + (t.url || '') + '|' + (t.favIconUrl || '') + '|' +
-        (t.pinned ? 1 : 0) + '|' + (t.discarded ? 1 : 0) + '|' + (t.closedAt || 0);
+        (t.pinned ? 1 : 0) + '|' + (t.discarded ? 1 : 0) + '|' + (t.audible ? 1 : 0) + '|' + ((t.mutedInfo && t.mutedInfo.muted) ? 1 : 0) + '|' + (t.closedAt || 0);
       for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
     }
     return (sidebarShowingClosed ? 'rc:' : 'ot:') + h + '|' + s.groupPinned + '|' + s.dimInactive + '|' + s.inactiveOpacity + '|' + s.inactiveGrayscale + '|' + !!STATE.meta.settings.sidebarCompact + '|sel:' + Array.from(SELECTED_TABS).sort().join(',');
@@ -136,6 +136,8 @@
 
   function renderTabRow(tab) {
     const s = STATE.meta.settings.tabsList;
+    const muted = !!(tab.mutedInfo && tab.mutedInfo.muted);
+    const showAudio = tab.audible || muted;
     const row = el('div', 'tab-row' + (SELECTED_TABS.has(tab.id) ? ' selected' : ''));
     if (s.dimInactive && tab.discarded) row.classList.add('tab-inactive');
     row.draggable = true;
@@ -143,6 +145,7 @@
     row.innerHTML = `
       ${SELECTED_TABS.has(tab.id) ? `<span class="tab-check">${ICONS.check}</span>` : ''}
       <img class="favicon" src="${tab.favIconUrl || faviconFor(tab.url)}" title="${escapeHtml(tab.title || tab.url)}" onerror="this.style.visibility='hidden'">
+      ${showAudio ? `<button class="tab-audio${muted ? ' is-muted' : ''}" data-act="mute" title="${muted ? 'Unmute tab' : 'Mute tab'}">${muted ? ICONS.mute : ICONS.unmute}</button>` : ''}
       ${tab.pinned ? `<span class="pin-badge">${ICONS.pin}</span>` : ''}
       <span class="tab-title" title="${escapeHtml(tab.title)}">${escapeHtml(tab.title || tab.url)}</span>
       <span class="tab-icons">
@@ -170,6 +173,12 @@
       await sendMsg('CLOSE_TAB', { tabId: tab.id });
       await refreshOpenTabs(); await refreshRecentlyClosed();
       renderSidebar();
+    };
+    const audioBtn = row.querySelector('[data-act=mute]');
+    if (audioBtn) audioBtn.onclick = async (e) => {
+      e.stopPropagation();
+      await sendMsg('TOGGLE_MUTE_TAB', { tabId: tab.id });
+      await refreshOpenTabs(); renderSidebar();
     };
     row.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -208,6 +217,33 @@
     await sendMsg('CLOSE_TABS', { tabIds: ids });
     await refreshOpenTabs(); await refreshRecentlyClosed();
     renderSidebar();
+  }
+
+  /* Live mute-state sync for the open-tab context menu. The menu is built
+     from a snapshot, so if the tab is muted/unmuted from the browser itself
+     the label would go stale — this patches the open menu's Mute row in place
+     whenever tabs change, and closes the menu if the tab disappears. All
+     close paths clear it via isConnected on the next update. */
+  let openTabLive = null;
+  function ensureTabLiveSync() {
+    if (tabLiveMsgRegistered) return;
+    tabLiveMsgRegistered = true;
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg && msg.type === 'TABS_CHANGED') syncOpenTabMenuMute();
+    });
+  }
+  let tabLiveMsgRegistered = false;
+  function syncOpenTabMenuMute() {
+    const live = openTabLive;
+    if (!live) return;
+    if (!live.el.isConnected) { openTabLive = null; return; }
+    const fresh = OPEN_TABS.find(t => t.id === live.tabId);
+    if (!fresh) { openTabLive = null; live.close(); return; }
+    const m = !!(fresh.mutedInfo && fresh.mutedInfo.muted);
+    if (m !== live.muted) {
+      live.muted = m;
+      live.el.innerHTML = `<span class="mi-ic">${m ? ICONS.unmute : ICONS.mute}</span>${m ? 'Unmute Tab' : 'Mute Tab'}`;
+    }
   }
 
   function openTabMenu(tab, anchorBtn) {
@@ -291,6 +327,8 @@
 
     menu.querySelector('[data-act=reload]').onclick = async () => { closeAll(); await sendMsg('RELOAD_TAB', { tabId: tab.id }); };
     const muteBtn = menu.querySelector('[data-act=mute]');
+    ensureTabLiveSync();
+    openTabLive = { tabId: tab.id, el: muteBtn, muted: muted, close: closeAll };
     muteBtn.onclick = async (e) => {
       e.stopPropagation(); // keep the menu open so the toggle label can flip
       await sendMsg('TOGGLE_MUTE_TAB', { tabId: tab.id });
