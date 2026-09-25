@@ -5,7 +5,7 @@
  */
 
 const STORAGE_KEY = 'tdb_data';
-const SCHEMA_VERSION = 17;
+const SCHEMA_VERSION = 20;
 
 const DEFAULT_COLLECTION_COLORS = (typeof self !== 'undefined' && self.Themes) ? self.Themes.COLLECTION_COLORS : [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -224,7 +224,8 @@ function defaultState() {
         confirmRestoreSession: false, // ask before restoring a saved session
         trashBadgeSeen: 0,         // trash badge mark-as-read count; persisted so it stays dismissed
         showTopbarSearch: true,    // show the "Jump to…" search bar in the header
-        showTopbarButtons: true,   // show the shortcuts + trash buttons in the header
+        showShortcutsButton: true, // show the keyboard-shortcuts button in the header
+        showTrashButton: true,     // show the trash button in the header
         interfaceFontSize: 100,       // interface font size as a % (80–150)
         interfaceFont: '',         // custom interface font family; '' = system default
         dashboard: {
@@ -232,6 +233,7 @@ function defaultState() {
         },
         tabsList: {
           groupPinned: true,       // show pinned open tabs in their own group above the rest
+          showTabAudio: true,      // show mute controls for audible or muted tabs
           dimInactive: true,       // fade + desaturate tabs that aren't the focused one
           inactiveOpacity: 55,     // percent
           inactiveGrayscale: true
@@ -448,6 +450,16 @@ function migrate(data) {
     const s = data.meta.settings;
     if (s.interfaceFontSize === undefined) s.interfaceFontSize = s.interfaceFontLarge === true ? 109 : 100;
     data.version = 19;
+  }
+  if (data.version < 20) {
+    const s = data.meta.settings;
+    const showTopbarButtons = s.showTopbarButtons !== false;
+    if (s.showShortcutsButton === undefined) s.showShortcutsButton = showTopbarButtons;
+    if (s.showTrashButton === undefined) s.showTrashButton = showTopbarButtons;
+    delete s.showTopbarButtons;
+    s.tabsList = s.tabsList || {};
+    if (s.tabsList.showTabAudio === undefined) s.tabsList.showTabAudio = true;
+    data.version = 20;
   }
   return data;
 }

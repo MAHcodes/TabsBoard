@@ -357,10 +357,13 @@
     r.setProperty('--fb-zoom', String(((typeof s.interfaceFontSize === 'number' ? s.interfaceFontSize : 100)) / 100));
     const defaultStack = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
     r.setProperty('--fb-font', s.interfaceFont ? `"${s.interfaceFont}", ${defaultStack}` : defaultStack);
-    ['#search-trigger', '#shortcuts-btn', '#trash-btn'].forEach(sel => {
-      const elNode = $(sel);
-      if (!elNode) return;
-      elNode.classList.toggle('hidden', sel === '#search-trigger' ? s.showTopbarSearch === false : s.showTopbarButtons === false);
+    [
+      ['#search-trigger', s.showTopbarSearch !== false],
+      ['#shortcuts-btn', s.showShortcutsButton !== false],
+      ['#trash-btn', s.showTrashButton !== false]
+    ].forEach(([selector, visible]) => {
+      const elNode = $(selector);
+      if (elNode) elNode.classList.toggle('hidden', !visible);
     });
     $('#sidebar').classList.toggle('collapsed', !!s.sidebarCollapsed);
     $('#sidebar').classList.toggle('compact', !!s.sidebarCompact);

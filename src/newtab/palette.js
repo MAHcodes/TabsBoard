@@ -229,6 +229,8 @@
       { label: 'Expanded', value: false }, { label: 'Collapsed', value: true } ] },
     { id: 'sidebarCompact', label: 'Sidebar compact', get: s => !!s.sidebarCompact, set: v => ({ sidebarCompact: v }), options: [
       { label: 'Off', value: false }, { label: 'Icons only', value: true } ] },
+    { id: 'showTabAudio', label: 'Show tab audio controls', get: s => !(s.tabsList && s.tabsList.showTabAudio === false), set: v => ({ tabsList: { showTabAudio: v } }), options: [
+      { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
     { id: 'animations', label: 'Animations', get: s => s.animations !== false, set: v => ({ animations: v }), options: [
       { label: 'On', value: true }, { label: 'Off', value: false } ] },
     { id: 'confirmDelete', label: 'Confirm before delete', get: s => s.confirmDelete !== false, set: v => ({ confirmDelete: v }), options: [
@@ -263,7 +265,9 @@
       { label: 'Off', value: false }, { label: 'On', value: true } ] },
     { id: 'showTopbarSearch', label: 'Topbar search bar', get: s => s.showTopbarSearch !== false, set: v => ({ showTopbarSearch: v }), options: [
       { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
-    { id: 'showTopbarButtons', label: 'Shortcuts & trash buttons', get: s => s.showTopbarButtons !== false, set: v => ({ showTopbarButtons: v }), options: [
+    { id: 'showShortcutsButton', label: 'Shortcuts button', get: s => s.showShortcutsButton !== false, set: v => ({ showShortcutsButton: v }), options: [
+      { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
+    { id: 'showTrashButton', label: 'Trash button', get: s => s.showTrashButton !== false, set: v => ({ showTrashButton: v }), options: [
       { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
     { id: 'fontSize', label: 'Interface font size', get: s => s.interfaceFontSize || 100, set: v => ({ interfaceFontSize: v }), options: [
       { label: 'Small', value: 92 }, { label: 'Normal', value: 100 }, { label: 'Large', value: 109 }, { label: 'X-Large', value: 118 } ] },
@@ -284,8 +288,8 @@
      Searching flattens every leaf so "change anything by typing" still works. */
   const PALETTE_SETTING_GROUPS = [
     { name: 'Appearance', keys: ['density', 'radius', 'borders', 'animations', 'popupBlur', 'fontSize'] },
-    { name: 'Layout', keys: ['viewMode', 'columns', 'showTopbarSearch', 'showTopbarButtons'] },
-    { name: 'Sidebar', keys: ['sidebarCollapsed', 'sidebarCompact', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'recentlyClosedLimit'] },
+    { name: 'Layout', keys: ['viewMode', 'columns', 'showTopbarSearch', 'showShortcutsButton', 'showTrashButton'] },
+    { name: 'Sidebar', keys: ['sidebarCollapsed', 'sidebarCompact', 'showTabAudio', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'recentlyClosedLimit'] },
     { name: 'Behavior', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'searchEngine', 'confirmRestoreSession'] },
     { name: 'Widgets', keys: ['clockFormat', 'weatherUnits', 'pomodoroFocus', 'pomodoroBreak', 'countdownDays', 'rssRefreshInterval', 'historyShowTimes', 'historyCount', 'topSitesCount'] },
     { name: 'Data', keys: ['trashRetentionDays'] }

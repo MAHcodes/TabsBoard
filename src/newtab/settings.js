@@ -84,13 +84,15 @@
     $('#setting-open-in-new-tab').onchange = async (e) => { await DB.updateSettings({ openBookmarksInNewTab: e.target.checked }); await reload(); };
     $$('#search-engine-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ searchEngine: b.dataset.val }); await reload(); syncSettingsUI(); });
     $$('#favicon-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ faviconSource: b.dataset.val }); await reload(); syncSettingsUI(); });
+    $('#setting-show-tab-audio').onchange = async (e) => { await DB.updateSettings({ tabsList: { showTabAudio: e.target.checked } }); await reload(); };
     $('#setting-group-pinned').onchange = async (e) => { await DB.updateSettings({ tabsList: { groupPinned: e.target.checked } }); await reload(); };
     $('#setting-dim-inactive').onchange = async (e) => { await DB.updateSettings({ tabsList: { dimInactive: e.target.checked } }); await reload(); };
     $('#setting-inactive-grayscale').onchange = async (e) => { await DB.updateSettings({ tabsList: { inactiveGrayscale: e.target.checked } }); await reload(); };
     $$('#inactiveopacity-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ tabsList: { inactiveOpacity: parseInt(b.dataset.val, 10) } }); await reload(); syncSettingsUI(); });
 
     $('#setting-show-topbar-search').onchange = async (e) => { await DB.updateSettings({ showTopbarSearch: e.target.checked }); await reload(); };
-    $('#setting-show-topbar-buttons').onchange = async (e) => { await DB.updateSettings({ showTopbarButtons: e.target.checked }); await reload(); };
+    $('#setting-show-shortcuts-button').onchange = async (e) => { await DB.updateSettings({ showShortcutsButton: e.target.checked }); await reload(); };
+    $('#setting-show-trash-button').onchange = async (e) => { await DB.updateSettings({ showTrashButton: e.target.checked }); await reload(); };
     $$('#fontsize-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ interfaceFontSize: parseInt(b.dataset.val, 10) }); await reload(); syncSettingsUI(); });
     $$('#font-size-custom').forEach(inp => inp.onchange = async (e) => {
       const v = parseInt(e.target.value, 10);
@@ -385,13 +387,15 @@
     $$('#search-engine-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === (s.searchEngine || 'google')));
     $$('#favicon-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.faviconSource));
     const tl = s.tabsList || {};
+    $('#setting-show-tab-audio').checked = tl.showTabAudio !== false;
     $('#setting-group-pinned').checked = tl.groupPinned !== false;
     $('#setting-dim-inactive').checked = tl.dimInactive !== false;
     $('#setting-inactive-grayscale').checked = tl.inactiveGrayscale !== false;
     $$('#inactiveopacity-toggle button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (tl.inactiveOpacity ?? 55)));
 
     $('#setting-show-topbar-search').checked = s.showTopbarSearch !== false;
-    $('#setting-show-topbar-buttons').checked = s.showTopbarButtons !== false;
+    $('#setting-show-shortcuts-button').checked = s.showShortcutsButton !== false;
+    $('#setting-show-trash-button').checked = s.showTrashButton !== false;
     $$('#fontsize-toggle button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === (s.interfaceFontSize || 100)));
     $$('#font-size-custom').forEach(inp => inp.value = (s.interfaceFontSize || 100));
     const fontSel = $('#interface-font');

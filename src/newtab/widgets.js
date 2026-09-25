@@ -80,7 +80,7 @@
         (t.pinned ? 1 : 0) + '|' + (t.discarded ? 1 : 0) + '|' + (t.audible ? 1 : 0) + '|' + ((t.mutedInfo && t.mutedInfo.muted) ? 1 : 0) + '|' + (t.closedAt || 0);
       for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
     }
-    return (sidebarShowingClosed ? 'rc:' : 'ot:') + h + '|' + s.groupPinned + '|' + s.dimInactive + '|' + s.inactiveOpacity + '|' + s.inactiveGrayscale + '|' + !!STATE.meta.settings.sidebarCompact + '|sel:' + Array.from(SELECTED_TABS).sort().join(',');
+    return (sidebarShowingClosed ? 'rc:' : 'ot:') + h + '|' + s.groupPinned + '|' + s.showTabAudio + '|' + s.dimInactive + '|' + s.inactiveOpacity + '|' + s.inactiveGrayscale + '|' + !!STATE.meta.settings.sidebarCompact + '|sel:' + Array.from(SELECTED_TABS).sort().join(',');
   }
   function renderSidebar() {
     // Board edits / workspace switches call this on every pass, but the tab
@@ -137,7 +137,7 @@
   function renderTabRow(tab) {
     const s = STATE.meta.settings.tabsList;
     const muted = !!(tab.mutedInfo && tab.mutedInfo.muted);
-    const showAudio = tab.audible || muted;
+    const showAudio = s.showTabAudio !== false && (tab.audible || muted);
     const row = el('div', 'tab-row' + (SELECTED_TABS.has(tab.id) ? ' selected' : ''));
     if (s.dimInactive && tab.discarded) row.classList.add('tab-inactive');
     row.draggable = true;
