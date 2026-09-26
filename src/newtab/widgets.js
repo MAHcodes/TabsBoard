@@ -133,13 +133,18 @@
     if (s.dimInactive && tab.discarded) row.classList.add('tab-inactive');
     row.draggable = true;
     row.dataset.tabId = tab.id;
+    /* Pinned rows turn their single action button into a two-state control: a
+       minus that unloads the tab while it is still loaded, then an × once it
+       is unloaded and closing is all that's left. Browsers refuse to discard
+       the focused tab, so the active one keeps the plain ×. */
+    const canUnload = tab.pinned && canUnloadTab(tab);
     row.innerHTML = `
       <img class="favicon" src="${tab.favIconUrl || faviconFor(tab.url)}" onerror="this.style.visibility='hidden'">
       ${showAudio ? `<button class="tab-audio${muted ? ' is-muted' : ''}" data-act="mute" title="${muted ? 'Unmute tab' : 'Mute tab'}">${muted ? ICONS.mute : ICONS.unmute}</button>` : ''}
       <span class="tab-title" title="${escapeHtml(tab.title)}">${escapeHtml(tab.title || tab.url)}</span>
       ${SELECTED_TABS.has(tab.id) ? `<span class="tab-check">${ICONS.check}</span>` : ''}
       <span class="tab-icons">
-        <button data-act="close" class="tab-close" title="Close tab">${ICONS.close}</button>
+        <button data-act="${canUnload ? 'unload' : 'close'}" class="${canUnload ? 'tab-unload' : 'tab-close'}" title="${canUnload ? 'Unload tab' : 'Close tab'}">${canUnload ? ICONS.minus : ICONS.close}</button>
       </span>`;
     row.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('application/x-tdb-tab', JSON.stringify(tab));
@@ -160,11 +165,17 @@
       if (!mod && !SELECTED_TABS.size) { sendMsg('FOCUS_TAB', { tabId: tab.id }); return; }
       toggleTabSelected(tab.id, e);
     });
-    row.querySelector('[data-act=close]').onclick = async (e) => {
+    const closeBtn = row.querySelector('[data-act=close]');
+    if (closeBtn) closeBtn.onclick = async (e) => {
       e.stopPropagation();
       await sendMsg('CLOSE_TAB', { tabId: tab.id });
       await refreshOpenTabs(); await refreshRecentlyClosed();
       renderSidebar();
+    };
+    const unloadBtn = row.querySelector('[data-act=unload]');
+    if (unloadBtn) unloadBtn.onclick = async (e) => {
+      e.stopPropagation();
+      await unloadTab(tab);
     };
     const audioBtn = row.querySelector('[data-act=mute]');
     if (audioBtn) audioBtn.onclick = async (e) => {
@@ -201,6 +212,18 @@
     renderSidebar();
   }
 
+  /* Unload = free the tab's memory but keep it in the strip. Shared by the
+     pinned row's minus button and the context menu's Unload Tab item, so both
+     report the same result the same way. */
+  function canUnloadTab(tab) { return !tab.discarded && !tab.active; }
+
+  async function unloadTab(tab) {
+    const res = await sendMsg('DISCARD_TAB', { tabId: tab.id });
+    if (res && res.ok) toast('Tab unloaded');
+    else toast("Couldn't unload that tab" + ((res && res.error) ? ': ' + res.error : ''));
+    await refreshOpenTabs(); renderSidebar();
+  }
+
   /* Live mute-state sync for the open-tab context menu. The menu is built
      from a snapshot, so if the tab is muted/unmuted from the browser itself
      the label would go stale — this patches the open menu's Mute row in place
@@ -234,7 +257,7 @@
 
     const pinned = tab.pinned;
     const muted = tab.mutedInfo && tab.mutedInfo.muted;
-    const canUnload = !tab.discarded && !tab.active;
+    const canUnload = canUnloadTab(tab);
     const isSelected = SELECTED_TABS.has(tab.id);
     const selCount = SELECTED_TABS.size;
     const selThis = isSelected && selCount > 1;
@@ -324,13 +347,7 @@
     menu.querySelector('[data-act=movewin]').onclick = async () => { closeAll(); await sendMsg('MOVE_TAB_NEW_WINDOW', { tabId: tab.id }); await refreshOpenTabs(); renderSidebar(); };
     menu.querySelector('[data-act=pin]').onclick = async () => { closeAll(); await sendMsg('TOGGLE_PIN_TAB', { tabId: tab.id, pinned: !pinned }); await refreshOpenTabs(); renderSidebar(); };
     const unloadBtn = menu.querySelector('[data-act=unload]');
-    if (unloadBtn) unloadBtn.onclick = async () => {
-      closeAll();
-      const res = await sendMsg('DISCARD_TAB', { tabId: tab.id });
-      if (res && res.ok) toast('Tab unloaded');
-      else toast("Couldn't unload that tab" + ((res && res.error) ? ': ' + res.error : ''));
-      await refreshOpenTabs(); renderSidebar();
-    };
+    if (unloadBtn) unloadBtn.onclick = async () => { closeAll(); await unloadTab(tab); };
     menu.querySelector('[data-act=select]').onclick = () => { closeAll(); toggleTabSelected(tab.id, { metaKey: true }); };
 
     menu.querySelector('[data-act=close-this]').onclick = async () => {
