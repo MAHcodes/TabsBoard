@@ -469,8 +469,12 @@
         const bRect = dropBoundary.getBoundingClientRect();
         const indicator = showDropIndicator({ clientY: bRect.top - 2 }, dropBoundary, 'list');
         if (indicator) {
+          // Land the bar on the boundary's drop line: the divider itself, or —
+          // for the empty pin slot — 4px above the hairline so the bar does not
+          // read as part of it.
+          const isSlot = dropBoundary.classList.contains('is-pin-slot');
           indicator.classList.add('at-boundary');
-          indicator.style.setProperty('--drop-shift', `${bRect.height / 2 + 2}px`);
+          indicator.style.setProperty('--drop-shift', `${isSlot ? bRect.height - 6 : bRect.height}px`);
         }
       } else if (rowFor(dropRow)) {
         showDropIndicator(e, dropRow, 'list');

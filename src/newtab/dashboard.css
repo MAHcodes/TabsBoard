@@ -424,6 +424,9 @@ html.density-compact .sidebar-heading .icon-btn.small svg { width: 17px; height:
 .open-tabs-list.dragging-open-tab .tab-group-divider { display: block; }
 .open-tabs-list .tab-group-divider.is-pin-slot { position: relative; height: 24px; margin: 0; background: none; }
 .open-tabs-list .tab-group-divider.is-pin-slot::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--border-color); }
+.open-tabs-list.dragging-open-tab .tab-group-boundary,
+.open-tabs-list.dragging-open-tab .tab-group-divider.is-pin-slot { margin-bottom: 8px; }
+.open-tabs-list.dragging-open-tab .tab-group-divider:not(.is-pin-slot) { margin-top: 8px; }
 
 .tab-row { display: flex; align-items: center; gap: 9px; padding: 8px 7px; border-radius: var(--r-item); font-size: 12.5px; cursor: pointer; user-select: none; position: relative; transition: opacity .15s ease, filter .15s ease, background-color .12s ease; }
 .tab-row[draggable="true"] { cursor: grab; }
