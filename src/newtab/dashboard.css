@@ -329,6 +329,7 @@ html.density-compact .sidebar.compact .sidebar-heading .icon-btn svg { width: 17
 .sidebar.compact .tab-row .tab-audio svg { width: 13px; height: 13px; }
 /* Compact density + icons-only rail: favicons follow the heading controls down
    to the toggle button's 17px glyph scale, rows tighten to match. */
+html.density-compact .sidebar.compact:not(.collapsed) { width: 56px; padding: 10px 6px; }
 html.density-compact .sidebar.compact .tab-row { padding: 5px 0; }
 html.density-compact .sidebar.compact .tab-row img.favicon { width: 17px; height: 17px; }
 /* Recently-closed rows share the rail, so their relative-time stamp would
@@ -440,9 +441,8 @@ html.density-compact .sidebar-heading .icon-btn.small svg { width: 17px; height:
    browser's speaker icon — a speaker (unmute) while playing, an X (mute in
    danger tone) once muted. Always clickable, not hover-gated like .tab-icons. */
 .tab-row .tab-audio { border: none; background: none; color: var(--text-color); width: 22px; height: 22px; border-radius: var(--r-xs); display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; transition: background-color .12s ease, color .12s ease; }
-.tab-row .tab-audio:hover { background: color-mix(in srgb, var(--sub-color) 16%, transparent); }
-.tab-row .tab-audio.is-muted { color: var(--error-color); }
-.tab-row .tab-audio.is-muted:hover { background: color-mix(in srgb, var(--error-color) 15%, transparent); }
+.sidebar:not(.compact) .tab-row .tab-audio:hover { background: color-mix(in srgb, var(--sub-color) 16%, transparent); }
+.tab-row .tab-audio.is-muted { color: color-mix(in srgb, var(--text-color) 65%, var(--sub-color)); }
 .tab-row .tab-audio svg { width: 17px; height: 17px; }
 .tab-row .tab-icons { display: flex; gap: 3px; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
 .tab-row:hover .tab-icons,
