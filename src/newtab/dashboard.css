@@ -85,7 +85,7 @@ html.density-compact .main-toolbar .primary-btn, html.density-compact .main-tool
 html.density-compact .main-toolbar .filter-input { height: 34px; padding: 0 13px; font-size: 12.5px; border-radius: var(--r-xs); }
 html.density-compact .main-toolbar .filter-input { padding: 0 11px; }
 html.density-compact .sidebar { padding: 10px 8px; }
-html.density-compact .sidebar-heading { padding: 0 4px 6px; margin-bottom: 8px; font-size: 10.5px; }
+html.density-compact .sidebar-heading { padding: 0 0 4px; margin-bottom: 4px; }
 html.density-compact .tab-group-label { padding: 5px 5px 2px; }
 html.density-compact .tab-row { padding: 5px 6px; font-size: 12px; }
 html.density-compact .widget-header { padding: 8px 12px; }
@@ -276,7 +276,7 @@ svg { width: 100%; height: 100%; }
 .app-body { display: flex; flex: 1; min-height: 0; }
 .sidebar {
   width: var(--sidebar-w); flex-shrink: 0; border-right: var(--border-w) solid var(--border-color); background: var(--sub-alt-color);
-  overflow: hidden; padding: 16px 12px; transition: width .16s ease, padding .16s ease, opacity .12s ease;
+  overflow: hidden; padding: 16px 12px; transition: width .16s ease, padding .16s ease, opacity .16s ease;
   display: flex; flex-direction: column;
 }
 /* On first load the sidebar HTML starts in the open state, then applySettings()
@@ -284,9 +284,9 @@ svg { width: 100%; height: 100%; }
    open width/glyphs on every refresh. boot() drops the class after first paint. */
 html.boot-no-sidebar-anim .sidebar,
 html.boot-no-sidebar-anim .sidebar * { transition: none !important; }
-.sidebar.collapsed { width: 0; padding: 16px 0; overflow: hidden; opacity: 0; border-right: none; }
+.sidebar.collapsed { width: 0; padding: 0; overflow: hidden; opacity: 0; border-right: none; visibility: hidden; pointer-events: none; transition: width .16s ease, padding .16s ease, opacity .16s ease, visibility 0s linear .16s; }
 .sidebar.compact:not(.collapsed) { width: 64px; padding: 12px 8px; }
-.sidebar.compact .sidebar-heading { flex-direction: column; align-items: stretch; gap: 6px; padding: 0 0 8px; margin-bottom: 8px; }
+.sidebar.compact .sidebar-heading { flex-direction: column; align-items: stretch; gap: 6px; padding: 0 0 4px; margin-bottom: 4px; }
 /* Match the tab favicons' sizing and hover treatment: each control spans the
    rail's full width like a tab row, glyph at 22px centered, transparent base
    that fills with bg-color on hover — so the heading reads as part of the
@@ -314,7 +314,7 @@ html.density-compact .sidebar.compact .sidebar-heading .icon-btn.small { width: 
 html.density-compact .sidebar.compact .sidebar-heading .icon-btn .icon,
 html.density-compact .sidebar.compact .sidebar-heading .icon-btn svg { width: 17px; height: 17px; }
 
-/* The per-tab ⋯ and × buttons are hidden in compact mode — right-click the
+/* The per-tab × button is hidden in compact mode — right-click the
    row brings up the full actions, and a click still focuses the tab. */
 .sidebar.compact .tab-row .tab-icons { display: none; }
 .sidebar.compact .tab-row .tab-check { display: none; }
@@ -335,28 +335,26 @@ html.density-compact .sidebar.compact .tab-row img.favicon { width: 17px; height
    crowd "icons only" mode — drop it there the same way titles drop. */
 .sidebar.compact .rc-time { display: none; }
 /* Only the list below scrolls (overflow on #open-tabs-list), so this sibling
-   stays put — its solid sidebar background keeps rows from showing through. */
+   stays put; the background keeps the collapse fade from showing through. */
 .sidebar-heading {
-  display: flex; align-items: center; gap: 6px; padding: 0 0 10px; flex-shrink: 0;
-  border-bottom: var(--border-w) solid var(--border-color); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px; padding: 0 0 4px; flex-shrink: 0;
+  border-bottom: var(--border-w) solid var(--border-color); margin-bottom: 4px;
   background: var(--sub-alt-color);
 }
-/* The refresh/compact icon buttons take the tab rows' padding and favicon
-   size, so their glyphs sit at the same inset as the favicon column below. */
+/* The compact/recently-closed icon buttons take the tab rows' padding and
+   favicon size, so their glyphs sit at the same inset as the favicon column below. */
 .sidebar-heading .icon-btn.small { width: auto; height: auto; padding: 8px 7px; }
 .sidebar-heading .icon-btn.small .icon,
 .sidebar-heading .icon-btn.small svg { width: 17px; height: 17px; }
 html.density-compact .sidebar-heading .icon-btn.small { width: auto; height: auto; padding: 5px 6px; }
+html.density-compact .sidebar-heading .icon-btn.small .icon,
+html.density-compact .sidebar-heading .icon-btn.small svg { width: 17px; height: 17px; }
 .sidebar-heading-title {
   flex: 1; min-width: 0; font-size: 12px; font-weight: 700; color: var(--sub-color);
   text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .sidebar-heading #sidebar-closed-toggle.active { background: var(--bg-color); color: var(--main-color); }
-.tab-group-label { display: flex; align-items: center; gap: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--sub-color); font-weight: 800; padding: 10px 7px 4px; opacity: .7; }
-.tab-group-label:first-child { padding-top: 0; }
-.tab-group-label .tab-label-close { margin-left: auto; padding: 0; background: none; border: none; cursor: pointer; font-size: 10px; font-weight: 700; text-transform: none; letter-spacing: normal; color: var(--sub-color); }
-.tab-group-label .tab-label-close:hover { color: var(--main-color); }
-.sidebar.compact .tab-group-label .tab-label-close { display: none; }
+.tab-group-label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--sub-color); font-weight: 800; padding: 10px 7px 4px; opacity: .7; }
 .main { flex: 1; overflow-y: auto; padding: 20px 24px 60px; }
 .board-switcher-btn { display: flex; align-items: center; gap: 8px; height: var(--ctrl-h-sm); padding: 0 14px; }
 
@@ -416,23 +414,36 @@ html.density-compact .sidebar-heading .icon-btn.small { width: auto; height: aut
 }
 
 /* ---------- Open tabs ---------- */
-.open-tabs-list { display: flex; flex-direction: column; gap: 3px;  flex: 1; min-height: 0; overflow-y: auto; padding-right: 3px; }
+.open-tabs-list { display: flex; flex-direction: column; gap: 3px; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--sub-color) 45%, transparent) transparent; }
+.open-tabs-list::-webkit-scrollbar { width: 8px; }
+.open-tabs-list::-webkit-scrollbar-track { background: transparent; }
+.open-tabs-list::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--sub-color) 55%, transparent); border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
+.open-tabs-list > .empty-collection-hint { flex: 1; display: grid; place-content: center; line-height: 1.5; }
+.open-tabs-list .tab-group-divider { display: none; height: 1px; margin: 4px 0; background: var(--border-color); flex-shrink: 0; }
+.open-tabs-list .tab-group-divider.is-visible,
+.open-tabs-list.dragging-open-tab .tab-group-divider { display: block; }
+.open-tabs-list .tab-group-divider.is-pin-slot { position: relative; height: 24px; margin: 0; background: none; }
+.open-tabs-list .tab-group-divider.is-pin-slot::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--border-color); }
 
-.tab-row { display: flex; align-items: center; gap: 9px; padding: 8px 7px; border-radius: var(--r-item); font-size: 12.5px; cursor: grab; user-select: none; position: relative; transition: opacity .15s ease, filter .15s ease, background-color .12s ease; }
+.tab-row { display: flex; align-items: center; gap: 9px; padding: 8px 7px; border-radius: var(--r-item); font-size: 12.5px; cursor: pointer; user-select: none; position: relative; transition: opacity .15s ease, filter .15s ease, background-color .12s ease; }
+.tab-row[draggable="true"] { cursor: grab; }
 .tab-row:hover { background: var(--bg-color); }
-.tab-row.dragging { opacity: .4; }
+.tab-row.dragging { opacity: .4; cursor: grabbing; }
 .tab-row.tab-inactive { opacity: var(--inactive-tab-opacity, 1); filter: var(--inactive-tab-filter, none); }
 .tab-row.tab-inactive:hover { opacity: 1; filter: none; }
 .tab-row img.favicon, .bm-favicon { width: 17px; height: 17px; border-radius: var(--r-tiny); flex-shrink: 0; }
-.tab-row .tab-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-row .tab-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Audible/muted control: sits just right of the favicon and mirrors the
    browser's speaker icon — a speaker (unmute) while playing, an X (mute in
    danger tone) once muted. Always clickable, not hover-gated like .tab-icons. */
 .tab-row .tab-audio { border: none; background: none; color: var(--text-color); width: 22px; height: 22px; border-radius: var(--r-xs); display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; transition: background-color .12s ease, color .12s ease; }
-.tab-row .tab-audio:hover { background: var(--sub-alt-color); }
+.tab-row .tab-audio:hover { background: color-mix(in srgb, var(--sub-color) 16%, transparent); }
+.tab-row .tab-audio.is-muted { color: var(--error-color); }
+.tab-row .tab-audio.is-muted:hover { background: color-mix(in srgb, var(--error-color) 15%, transparent); }
 .tab-row .tab-audio svg { width: 17px; height: 17px; }
-.tab-row .tab-icons { display: flex; gap: 3px; opacity: 0; pointer-events: none; }
-.tab-row:hover .tab-icons { opacity: 1; pointer-events: auto; }
+.tab-row .tab-icons { display: flex; gap: 3px; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+.tab-row:hover .tab-icons,
+.tab-row:focus-within .tab-icons { opacity: 1; pointer-events: auto; }
 .tab-row .tab-icons button { border: none; background: none; color: var(--sub-color); width: 24px; height: 24px; border-radius: var(--r-xs); display: flex; align-items: center; justify-content: center; }
 .tab-row .tab-icons button svg { width: 13px; height: 13px; }
 .tab-row .tab-icons button:hover { background: var(--bg-color); color: var(--text-color); }
@@ -443,7 +454,7 @@ html.density-compact .sidebar-heading .icon-btn.small { width: auto; height: aut
 .tab-row.selected:hover { background: color-mix(in srgb, var(--main-color) 24%, var(--bg-color)); }
 .tab-row .tab-check { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 15px; height: 15px; color: var(--main-color); }
 .tab-row .tab-check svg { width: 13px; height: 13px; }
-.tab-row .rc-time { font-size: 10.5px; color: var(--sub-color); flex-shrink: 0; opacity: .8; }
+.tab-row .rc-time { font-size: 10.5px; color: var(--sub-color); flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; opacity: .8; }
 .tab-window-row .window-favicons { display: flex; gap: 2px; flex-shrink: 0; }
 .tab-window-row .window-favicons .favicon { width: 14px; height: 14px; }
 
@@ -723,6 +734,8 @@ html.density-compact .hdm-empty { padding: 14px 10px; font-size: 11.5px; }
 .bm-drop-indicator { pointer-events: none; z-index: 10; }
 .bm-drop-indicator.horizontal { position: relative; height: 0; margin: 0; flex-shrink: 0; }
 .bm-drop-indicator.horizontal::after { content: ''; position: absolute; left: 7px; right: 7px; top: -2px; height: 3px; border-radius: 2px; background: var(--main-color); }
+.bm-drop-indicator.horizontal.at-boundary::after { transform: translateY(var(--drop-shift, 0px)); }
+html.density-compact .bm-drop-indicator.horizontal::after { left: 6px; right: 6px; }
 
 .bookmark-tile.drop-before::after, .bookmark-tile.drop-after::after {
   content: ''; position: absolute; top: 0; bottom: 0; width: 3px;

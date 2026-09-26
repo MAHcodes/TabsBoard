@@ -92,7 +92,10 @@
     const list = $('#open-tabs-list');
     list.innerHTML = '';
 
-    $('#sidebar-closed-toggle').classList.toggle('active', sidebarShowingClosed);
+    const closedToggle = $('#sidebar-closed-toggle');
+    closedToggle.classList.toggle('active', sidebarShowingClosed);
+    closedToggle.setAttribute('aria-pressed', String(sidebarShowingClosed));
+    closedToggle.title = sidebarShowingClosed ? 'Show open tabs' : 'Show recently closed';
     const titleEl = $('#sidebar-heading-title');
     if (titleEl) titleEl.textContent = sidebarShowingClosed ? 'Recently closed' : 'Open tabs';
 
@@ -107,27 +110,15 @@
 
     if (s.groupPinned) {
       if (pinned.length) {
-        const pLabel = el('div', 'tab-group-label', 'Pinned');
-        pLabel.dataset.group = 'pinned';
-        list.appendChild(pLabel);
+        const pinnedBoundary = el('div', 'tab-group-boundary');
+        pinnedBoundary.dataset.group = 'pinned';
+        list.appendChild(pinnedBoundary);
         pinned.forEach(t => list.appendChild(renderTabRow(t)));
       }
-      if (rest.length) {
-        const tLabel = el('div', 'tab-group-label');
-        tLabel.dataset.group = 'tabs';
-        tLabel.appendChild(el('span', '', 'Tabs'));
-        const closeAll = el('button', 'tab-label-close', 'Close all');
-        closeAll.title = 'Close all unpinned tabs except this dashboard';
-        closeAll.onclick = async () => {
-          const ids = tabIdsUnpinned();
-          if (!ids.length) return;
-          if (!(await uiConfirm(`Close ${ids.length} unpinned tab${ids.length === 1 ? '' : 's'}. Pinned tabs and TabsBoard stay open?`, { title: 'Close unpinned tabs', okLabel: 'Close unpinned', danger: true }))) return;
-          await closeTabIds(ids);
-        };
-        tLabel.appendChild(closeAll);
-        list.appendChild(tLabel);
-        rest.forEach(t => list.appendChild(renderTabRow(t)));
-      }
+      const tabsBoundary = el('div', 'tab-group-boundary tab-group-divider' + (pinned.length ? ' is-visible' : ' is-pin-slot'));
+      tabsBoundary.dataset.group = 'tabs';
+      list.appendChild(tabsBoundary);
+      rest.forEach(t => list.appendChild(renderTabRow(t)));
     } else {
       OPEN_TABS.forEach(t => list.appendChild(renderTabRow(t)));
     }
@@ -143,10 +134,10 @@
     row.draggable = true;
     row.dataset.tabId = tab.id;
     row.innerHTML = `
-      ${SELECTED_TABS.has(tab.id) ? `<span class="tab-check">${ICONS.check}</span>` : ''}
-      <img class="favicon" src="${tab.favIconUrl || faviconFor(tab.url)}" title="${escapeHtml(tab.title || tab.url)}" onerror="this.style.visibility='hidden'">
+      <img class="favicon" src="${tab.favIconUrl || faviconFor(tab.url)}" onerror="this.style.visibility='hidden'">
       ${showAudio ? `<button class="tab-audio${muted ? ' is-muted' : ''}" data-act="mute" title="${muted ? 'Unmute tab' : 'Mute tab'}">${muted ? ICONS.mute : ICONS.unmute}</button>` : ''}
       <span class="tab-title" title="${escapeHtml(tab.title)}">${escapeHtml(tab.title || tab.url)}</span>
+      ${SELECTED_TABS.has(tab.id) ? `<span class="tab-check">${ICONS.check}</span>` : ''}
       <span class="tab-icons">
         <button data-act="close" class="tab-close" title="Close tab">${ICONS.close}</button>
       </span>`;
@@ -155,10 +146,12 @@
       draggedTab = tab;
       row.classList.add('dragging');
       document.body.classList.add('dragging-tab');
+      $('#open-tabs-list').classList.add('dragging-open-tab');
     });
     row.addEventListener('dragend', () => {
       row.classList.remove('dragging');
       document.body.classList.remove('dragging-tab');
+      $('#open-tabs-list').classList.remove('dragging-open-tab');
       draggedTab = null;
     });
     row.addEventListener('click', (e) => {
@@ -199,18 +192,6 @@
   function tabIdsAbove(tab) { return OPEN_TABS.filter(t => !t.pinned && t.index < tab.index).map(t => t.id); }
   function tabIdsBelow(tab) { return OPEN_TABS.filter(t => !t.pinned && t.index > tab.index).map(t => t.id); }
   function tabIdsOthers(tab) { return OPEN_TABS.filter(t => !t.pinned && t.id !== tab.id).map(t => t.id); }
-  // The dashboard itself runs in an extension tab — closing it would kill the
-  // page you're using. Exclude every page served by this extension (the
-  // current TabsBoard tab) from the sidebar's "Close all" so the dashboard
-  // stays open. chrome.runtime.getURL('') normalizes across Chrome/Firefox
-  // extension origins.
-  function isDashboardTab(tab) {
-    const base = chrome.runtime.getURL('');
-    return !!(tab && tab.url && tab.url.indexOf(base) === 0);
-  }
-  // "Close all" only clears the unpinned Tabs group — pinned tabs stay, and
-  // the dashboard tab itself is always kept open.
-  function tabIdsUnpinned() { return OPEN_TABS.filter(t => !t.pinned && !isDashboardTab(t)).map(t => t.id); }
 
   async function closeTabIds(ids) {
     if (!ids.length) return;
@@ -423,18 +404,17 @@
           <span class="window-favicons">${favs}</span>
           <span class="tab-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</span>
           <span class="rc-time">${formatRelTime(item.closedAt)}</span>`;
-        row.addEventListener('click', reopenSession(item));
       } else {
         row.innerHTML = `
           <img class="favicon" src="${item.favIconUrl || faviconFor(item.url)}" onerror="this.style.visibility='hidden'">
           <span class="tab-title" title="${escapeHtml(item.url)}">${escapeHtml(item.title || item.url)}</span>
           <span class="rc-time">${formatRelTime(item.closedAt)}</span>`;
-        row.addEventListener('click', reopenSession(item));
-        row.addEventListener('contextmenu', (e) => {
-          e.preventDefault(); e.stopPropagation();
-          openRecentlyClosedMenu(item, { left: e.clientX, top: e.clientY, bottom: e.clientY, height: 0, width: 0 });
-        });
       }
+      row.addEventListener('click', reopenSession(item));
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        openRecentlyClosedMenu(item, { left: e.clientX, top: e.clientY, bottom: e.clientY, height: 0, width: 0 });
+      });
       wrap.appendChild(row);
     });
     if (!RECENTLY_CLOSED.length) wrap.appendChild(el('div', 'empty-collection-hint', 'Nothing closed recently'));
@@ -442,9 +422,10 @@
 
   function openRecentlyClosedMenu(item, rect) {
     const fav = item.favIconUrl || faviconFor(item.url || '');
+    const restoreLabel = item.isWindow ? 'Restore window' : 'Restore tab';
     const menu = el('div', 'dropdown-menu');
     menu.innerHTML = `
-      <div class="ws-item" data-act="open"><span class="mi-ic">${ICONS.openAll}</span>Restore tab</div>
+      <div class="ws-item" data-act="open"><span class="mi-ic">${ICONS.openAll}</span>${restoreLabel}</div>
       ${item.url ? `
         <div class="ws-item" data-act="opennew"><span class="mi-ic">${ICONS.externalWindow}</span>Open in a new tab</div>
         <div class="ws-item" data-act="copy"><span class="mi-ic">${ICONS.copy}</span>Copy link</div>
@@ -2266,7 +2247,9 @@
       const indicator = el('div', 'bm-drop-indicator horizontal');
       item.parentNode.insertBefore(indicator, before ? item : item.nextSibling);
       bmDropIndicator = indicator;
+      return indicator;
     }
+    return item;
   }
 
   function wireBookmarkItemDrop(item, bm, col, viewMode, listWrap) {

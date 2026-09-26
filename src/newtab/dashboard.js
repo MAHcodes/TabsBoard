@@ -372,6 +372,8 @@
     // collapsed, while the compact toggle uses plain chevrons for the narrow rail.
     $('#sidebar-toggle-btn').innerHTML = icon(s.sidebarCollapsed ? 'panelLeftOpen' : 'panelLeftClose');
     $('#sidebar-compact-btn').innerHTML = icon(s.sidebarCompact ? 'chevronRight' : 'chevronLeft', 'sm');
+    $('#sidebar-compact-btn').setAttribute('aria-pressed', String(!!s.sidebarCompact));
+    $('#sidebar-compact-btn').title = s.sidebarCompact ? 'Exit compact sidebar' : 'Use compact sidebar';
     // Reveal now that real colors are set — avoids a flash of the light default.
     // boot() passes false so it can first render the board/sidebar (settings
     // and content land together, so the sidebar never shows mid-transition).
@@ -426,6 +428,7 @@
     document.addEventListener('dragend', () => {
       document.querySelectorAll('.drag-over').forEach((n) => n.classList.remove('drag-over'));
       clearBmDropIndicator();
+      $('#open-tabs-list').classList.remove('dragging-open-tab');
       draggedTab = null;
     });
 
@@ -433,8 +436,8 @@
        shows the same reorder indicator, wherever the tab lands: within the
        same pin group it reorders, dragging into the other group pins/unpins
        *and* still places the tab at the exact drop position. */
-    const rowAfterLabel = (label) => {
-      const next = label && label.nextElementSibling;
+    const rowAfterBoundary = (boundary) => {
+      const next = boundary && boundary.nextElementSibling;
       return next && next.classList.contains('tab-row') ? next : null;
     };
     const rowFor = (el) => {
@@ -458,15 +461,17 @@
       if (e.dataTransfer.types.indexOf('application/x-tdb-tab') === -1) return;
       if (sidebarShowingClosed) { clearBmDropIndicator(); return; }
       const dropRow = e.target.closest('.tab-row');
-      const dropLabel = dropRow ? null : e.target.closest('.tab-group-label');
-      if (!dropRow && !dropLabel) { clearBmDropIndicator(); return; }
+      const dropBoundary = dropRow ? null : e.target.closest('.tab-group-boundary');
+      if (!dropRow && !dropBoundary) { clearBmDropIndicator(); return; }
       e.preventDefault();
       e.stopPropagation();
-      if (dropLabel) {
-        // The label's slot is the top edge of the group it introduces — draw
-        // the bar above the label itself, which for a top-anchored label (e.g.
-        // "Tabs" with nothing pinned) sits right at the very top of the list.
-        showDropIndicator({ clientY: dropLabel.getBoundingClientRect().top - 2 }, dropLabel, 'list');
+      if (dropBoundary) {
+        const bRect = dropBoundary.getBoundingClientRect();
+        const indicator = showDropIndicator({ clientY: bRect.top - 2 }, dropBoundary, 'list');
+        if (indicator) {
+          indicator.classList.add('at-boundary');
+          indicator.style.setProperty('--drop-shift', `${bRect.height / 2 + 2}px`);
+        }
       } else if (rowFor(dropRow)) {
         showDropIndicator(e, dropRow, 'list');
       } else {
@@ -508,9 +513,9 @@
       if (!tabData || sidebarShowingClosed) return;
       const dragged = JSON.parse(tabData);
       const dropRow = e.target.closest('.tab-row');
-      const dropLabel = dropRow ? null : e.target.closest('.tab-group-label');
+      const dropBoundary = dropRow ? null : e.target.closest('.tab-group-boundary');
       clearBmDropIndicator();
-      if (!dropRow && !dropLabel) return;
+      if (!dropRow && !dropBoundary) return;
       e.preventDefault();
       e.stopPropagation();
       const refreshAll = async () => { await refreshOpenTabs(); await refreshRecentlyClosed(); renderSidebar(); };
@@ -527,24 +532,24 @@
         await refreshAll();
         return;
       }
-      // Group-label boundary: same group → drop at its top; other group →
+      // Group boundary: same group → drop at its top; other group →
       // pin/unpin at that section's edge.
-      const edgeRow = rowAfterLabel(dropLabel);
+      const edgeRow = rowAfterBoundary(dropBoundary);
       const edgeTarget = edgeRow ? rowFor(edgeRow) : null;
       const from = OPEN_TABS.find(t => t.id === dragged.id);
-      const labelIsPinned = dropLabel.dataset.group === 'pinned';
-      const sameGroup = from && from.pinned === labelIsPinned;
+      const boundaryIsPinned = dropBoundary.dataset.group === 'pinned';
+      const sameGroup = from && from.pinned === boundaryIsPinned;
       if (sameGroup) {
-        /* With nothing pinned the "Pinned" label is hidden, but the strip above
-           the first unpinned tab is still the pin slot: dropping an unpinned
-           tab there pins it to the very top instead of just reordering. */
-        if (!labelIsPinned && !OPEN_TABS.some(t => t.pinned)) {
+        /* With nothing pinned, the strip above the first unpinned tab is still
+           the pin slot: dropping an unpinned tab there pins it to the very top
+           instead of just reordering. */
+        if (!boundaryIsPinned && !OPEN_TABS.some(t => t.pinned)) {
           await pinAndPlace(dragged, null, true, true);
         } else {
           await reorderTab(dragged, edgeTarget, true);
         }
       } else {
-        await pinAndPlace(dragged, edgeTarget, true, labelIsPinned);
+        await pinAndPlace(dragged, edgeTarget, true, boundaryIsPinned);
       }
       await refreshAll();
     });

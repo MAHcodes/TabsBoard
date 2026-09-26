@@ -49,9 +49,9 @@
 <div class="app-body">
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-heading">
-      <button id="sidebar-compact-btn" class="icon-btn small" title="Toggle compact sidebar"></button>
-      <span class="sidebar-heading-title" id="sidebar-heading-title">Open tabs</span>
-      <button id="sidebar-closed-toggle" class="icon-btn small" title="Toggle recently closed view"></button>
+      <button id="sidebar-compact-btn" class="icon-btn small" title="Use compact sidebar" aria-label="Use compact sidebar" aria-pressed="false"></button>
+      <span class="sidebar-heading-title" id="sidebar-heading-title" aria-live="polite">Open tabs</span>
+      <button id="sidebar-closed-toggle" class="icon-btn small" title="Show recently closed" aria-label="Show recently closed" aria-pressed="false"></button>
     </div>
     <div id="open-tabs-list" class="open-tabs-list"></div>
   </aside>
@@ -313,7 +313,7 @@
                 <label class="switch"><input type="checkbox" id="setting-show-tab-audio"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
               <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Group pinned tabs at the top</span><span class="switch-desc">Split the list into Pinned and Tabs sections.</span></span>
+                <span class="switch-text"><span class="switch-title">Group pinned tabs at the top</span><span class="switch-desc">Separate pinned tabs from the rest with a divider.</span></span>
                 <label class="switch"><input type="checkbox" id="setting-group-pinned"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
               <div class="switch-row">
