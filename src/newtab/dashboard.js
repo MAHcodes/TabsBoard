@@ -344,12 +344,18 @@
     applyThemeColors(Themes.resolveTheme(s.themeId, s.lightThemeId, s.darkThemeId));
     const r = document.documentElement.style;
     r.setProperty('--board-cols', String((s.dashboard && s.dashboard.columns) || 4));
-    r.setProperty('--board-row-min', s.density === 'compact' ? '168px' : '200px');
+    const DENSITY_ROW_MIN = { spacious: '224px', comfortable: '200px', compact: '168px', dense: '150px' };
+    r.setProperty('--board-row-min', DENSITY_ROW_MIN[s.density] || '200px');
     const opacity = (s.tabsList && s.tabsList.dimInactive) ? (((s.tabsList.inactiveOpacity ?? 55)) / 100) : 1;
     const grayscale = (s.tabsList && s.tabsList.dimInactive && s.tabsList.inactiveGrayscale) ? 'grayscale(85%)' : 'none';
     r.setProperty('--inactive-tab-opacity', String(opacity));
     r.setProperty('--inactive-tab-filter', grayscale);
-    document.documentElement.classList.toggle('density-compact', s.density === 'compact');
+    /* Dense layers on top of Compact: it only has to describe the extra step,
+       so the compact block above stays the single source for both. */
+    const density = s.density || 'comfortable';
+    document.documentElement.classList.toggle('density-spacious', density === 'spacious');
+    document.documentElement.classList.toggle('density-compact', density === 'compact' || density === 'dense');
+    document.documentElement.classList.toggle('density-dense', density === 'dense');
     ['radius-sharp', 'radius-rounded', 'radius-extra', 'radius-none'].forEach(c => document.documentElement.classList.toggle(c, s.radius === c.slice(7)));
     document.documentElement.classList.toggle('no-borders', s.borders === false);
     document.documentElement.classList.toggle('no-anim', s.animations === false);

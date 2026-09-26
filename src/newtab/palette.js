@@ -214,7 +214,8 @@
      value. Adding a new setting here automatically makes it palette-driven. */
   const PALETTE_SETTINGS = [
     { id: 'density', label: 'Density', get: s => s.density, set: v => ({ density: v }), options: [
-      { label: 'Comfortable', value: 'comfortable' }, { label: 'Compact', value: 'compact' } ] },
+      { label: 'Spacious', value: 'spacious' }, { label: 'Comfortable', value: 'comfortable' },
+      { label: 'Compact', value: 'compact' }, { label: 'Dense', value: 'dense' } ] },
     { id: 'radius', label: 'Corner radius', get: s => s.radius || 'default', set: v => ({ radius: v }), options: [
       { label: 'None', value: 'none' }, { label: 'Sharp', value: 'sharp' }, { label: 'Standard', value: 'default' }, { label: 'Rounded', value: 'rounded' }, { label: 'Extra', value: 'extra' } ] },
     { id: 'borders', label: 'Borders', get: s => s.borders !== false, set: v => ({ borders: v }), options: [

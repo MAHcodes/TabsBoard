@@ -196,7 +196,7 @@ function defaultState() {
       activeWorkspaceId: wsId,
       settings: {
         themeId: 'auto',           // preset id or 'auto' (follows the OS)
-        density: 'comfortable',    // comfortable | compact
+        density: 'comfortable',    // spacious | comfortable | compact | dense
         radius: 'default',         // shape scale: sharp | default | rounded
         searchEngine: 'google',    // fallback engine for address-bar + palette web search
         viewMode: 'grid',          // grid | list — bookmark tiles vs rows *inside* a collection widget

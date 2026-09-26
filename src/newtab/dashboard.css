@@ -117,6 +117,118 @@ html.density-compact .palette input { padding: 14px 16px; font-size: 14px; }
 html.density-compact .palette-item { padding: 8px 10px; }
 html.density-compact .trash-item { padding: 8px 10px; }
 
+/* Density: four steps on one scale. Comfortable is the baseline everywhere
+   else in this file; Compact re-steps the tokens and element sizes above;
+   Spacious widens the same steps from the baseline; Dense layers on top of
+   Compact (both classes are set) and tightens one step further, so each tier
+   only has to describe its own delta. */
+html.density-spacious {
+  --gap: 22px; --pad: 18px; --radius: 16px; --ctrl-h: 44px; --ctrl-h-sm: 34px; --sidebar-w: 292px;
+}
+html.density-spacious .topbar { height: 66px; padding: 0 20px; gap: 16px; }
+html.density-spacious .workspace-btn { padding: 0 17px; }
+html.density-spacious .icon-btn { width: 44px; height: 44px; }
+html.density-spacious .icon-btn .icon, html.density-spacious .icon-btn svg { width: 22px; height: 22px; }
+html.density-spacious .icon-btn.small { width: 30px; height: 30px; }
+html.density-spacious .icon-btn.small svg { width: 15px; height: 15px; }
+html.density-spacious .top-nav-btn { padding: 8px 14px; font-size: 13.5px; }
+html.density-spacious .search-trigger { padding: 10px 14px; }
+html.density-spacious .main { padding: 26px 32px 72px; }
+html.density-spacious .main-toolbar { margin-bottom: 24px; gap: 14px; }
+html.density-spacious .main-toolbar .filter-input { padding: 0 16px; }
+html.density-spacious .sidebar { padding: 20px 14px; }
+html.density-spacious .sidebar-heading { padding: 0 0 10px; margin-bottom: 8px; }
+html.density-spacious .tab-group-label { padding: 12px 9px 6px; }
+html.density-spacious .tab-row { padding: 11px 9px; font-size: 13.5px; }
+html.density-spacious .tab-row img.favicon { width: 20px; height: 20px; }
+html.density-spacious .tab-row .tab-audio { width: 24px; height: 24px; }
+html.density-spacious .tab-row .tab-audio svg { width: 19px; height: 19px; }
+html.density-spacious .sidebar-heading .icon-btn.small { padding: 10px 9px; }
+html.density-spacious .sidebar-heading .icon-btn.small .icon,
+html.density-spacious .sidebar-heading .icon-btn.small svg { width: 19px; height: 19px; }
+html.density-spacious .widget-header { padding: var(--pad) 16px; }
+html.density-spacious .widget-title { font-size: 16px; }
+html.density-spacious .bookmark-item { padding: 10px 11px; font-size: 13.5px; }
+html.density-spacious .bookmark-tile { padding: 15px 9px; gap: 9px; }
+html.density-spacious .bookmark-tile .bm-favicon { width: 32px; height: 32px; }
+html.density-spacious .widget .bookmarks-list.view-grid { gap: 11px; padding: 14px; }
+html.density-spacious .notes-textarea { font-size: 13.5px; }
+html.density-spacious .notes-body, html.density-spacious .todo-body { padding: 12px; }
+html.density-spacious .todo-item { padding: 7px 6px; font-size: 13.5px; }
+html.density-spacious .todo-add-row input { padding: 9px 11px; }
+html.density-spacious .rss-item, html.density-spacious .bs-item { padding: 9px 10px; font-size: 13.5px; }
+html.density-spacious .rss-body, html.density-spacious .bs-body { padding: 10px; }
+html.density-spacious .clock-body, html.density-spacious .countdown-body,
+html.density-spacious .pomodoro-body, html.density-spacious .timer-body,
+html.density-spacious .weather-body { padding: 24px 16px; }
+html.density-spacious .session-card { padding: 20px; gap: 13px; }
+html.density-spacious .settings-modal { height: min(700px, 88vh); }
+html.density-spacious .settings-tab { padding: 12px 14px; }
+html.density-spacious .settings-row { padding: 17px 18px; margin-bottom: 17px; }
+html.density-spacious .settings-group { margin-bottom: 30px; }
+html.density-spacious .modal { padding: 28px; }
+html.density-spacious .field { margin-bottom: 17px; }
+html.density-spacious .field input[type=text], html.density-spacious .field input[type=url],
+html.density-spacious .field input[type=number], html.density-spacious .field input[type=date],
+html.density-spacious .field textarea, html.density-spacious .field select { padding: 11px 13px; }
+html.density-spacious .palette input { padding: 20px 22px; font-size: 16px; }
+html.density-spacious .palette-item { padding: 12px 13px; }
+html.density-spacious .trash-item { padding: 12px 13px; }
+
+html.density-compact.density-dense {
+  --gap: 8px; --pad: 6px; --radius: 10px; --ctrl-h: 34px; --ctrl-h-sm: 26px; --sidebar-w: 226px;
+}
+html.density-compact.density-dense .topbar { height: 46px; padding: 0 10px; gap: 8px; }
+html.density-compact.density-dense .workspace-btn { padding: 0 9px; height: 30px; font-size: 12.5px; }
+html.density-compact.density-dense .icon-btn { width: 30px; height: 30px; }
+html.density-compact.density-dense .icon-btn .icon, html.density-compact.density-dense .icon-btn svg { width: 16px; height: 16px; }
+html.density-compact.density-dense .icon-btn.small { width: 24px; height: 24px; }
+html.density-compact.density-dense .icon-btn.small svg { width: 12px; height: 12px; }
+html.density-compact.density-dense .top-nav-btn { padding: 5px 9px; font-size: 12px; }
+html.density-compact.density-dense .search-trigger { padding: 6px 9px; }
+html.density-compact.density-dense .main { padding: 10px 14px 40px; }
+html.density-compact.density-dense .main-toolbar { margin-bottom: 10px; gap: 8px; }
+html.density-compact.density-dense .main-toolbar .primary-btn, html.density-compact.density-dense .main-toolbar .mini-btn,
+html.density-compact.density-dense .main-toolbar .filter-input { height: 30px; padding: 0 11px; font-size: 12px; }
+html.density-compact.density-dense .sidebar { padding: 8px 6px; }
+html.density-compact.density-dense .sidebar-heading { padding: 0 0 3px; margin-bottom: 3px; }
+html.density-compact.density-dense .tab-group-label { padding: 4px 4px 2px; }
+html.density-compact.density-dense .tab-row { padding: 4px 5px; font-size: 11.5px; gap: 7px; }
+html.density-compact.density-dense .tab-row img.favicon { width: 15px; height: 15px; }
+html.density-compact.density-dense .tab-row .tab-audio { width: 20px; height: 20px; }
+html.density-compact.density-dense .tab-row .tab-audio svg { width: 15px; height: 15px; }
+html.density-compact.density-dense .sidebar-heading .icon-btn.small { padding: 4px 5px; }
+html.density-compact.density-dense .sidebar-heading .icon-btn.small .icon,
+html.density-compact.density-dense .sidebar-heading .icon-btn.small svg { width: 15px; height: 15px; }
+html.density-compact.density-dense .widget-header { padding: 6px 10px; }
+html.density-compact.density-dense .widget-title { font-size: 13px; }
+html.density-compact.density-dense .bookmark-item { padding: 5px 7px; font-size: 12px; gap: 7px; }
+html.density-compact.density-dense .bookmark-tile { padding: 8px 5px; gap: 4px; }
+html.density-compact.density-dense .bookmark-tile .bm-favicon { width: 22px; height: 22px; }
+html.density-compact.density-dense .widget .bookmarks-list.view-grid { gap: 6px; padding: 8px; }
+html.density-compact.density-dense .notes-textarea { font-size: 12px; }
+html.density-compact.density-dense .notes-body, html.density-compact.density-dense .todo-body { padding: 6px; }
+html.density-compact.density-dense .todo-item { padding: 3px 4px; font-size: 12px; }
+html.density-compact.density-dense .todo-add-row input { padding: 5px 7px; }
+html.density-compact.density-dense .rss-item, html.density-compact.density-dense .bs-item { padding: 4px 6px; font-size: 12px; }
+html.density-compact.density-dense .rss-body, html.density-compact.density-dense .bs-body { padding: 5px; }
+html.density-compact.density-dense .clock-body, html.density-compact.density-dense .countdown-body,
+html.density-compact.density-dense .pomodoro-body, html.density-compact.density-dense .timer-body,
+html.density-compact.density-dense .weather-body { padding: 9px 12px; }
+html.density-compact.density-dense .session-card { padding: 11px; gap: 7px; }
+html.density-compact.density-dense .settings-modal { height: min(560px, 84vh); }
+html.density-compact.density-dense .settings-tab { padding: 7px 10px; }
+html.density-compact.density-dense .settings-row { padding: 9px 12px; margin-bottom: 9px; }
+html.density-compact.density-dense .settings-group { margin-bottom: 16px; }
+html.density-compact.density-dense .modal { padding: 18px; }
+html.density-compact.density-dense .field { margin-bottom: 9px; }
+html.density-compact.density-dense .field input[type=text], html.density-compact.density-dense .field input[type=url],
+html.density-compact.density-dense .field input[type=number], html.density-compact.density-dense .field input[type=date],
+html.density-compact.density-dense .field textarea, html.density-compact.density-dense .field select { padding: 6px 9px; }
+html.density-compact.density-dense .palette input { padding: 12px 14px; font-size: 13.5px; }
+html.density-compact.density-dense .palette-item { padding: 7px 9px; }
+html.density-compact.density-dense .trash-item { padding: 7px 9px; }
+
 /* Corner-radius scale: the same shape tokens recomputed on one axis, so
    every control and list surface rounds consistently together. */
 html.radius-sharp   { --radius: 9px;  --r-ctrl: 7px; --r-item: 6px; --r-xs: 6px; --r-chip: 4px; --r-tiny: 3px; }
@@ -332,6 +444,26 @@ html.density-compact .sidebar.compact .sidebar-heading .icon-btn svg { width: 17
 html.density-compact .sidebar.compact:not(.collapsed) { width: 56px; padding: 10px 6px; }
 html.density-compact .sidebar.compact .tab-row { padding: 5px 0; }
 html.density-compact .sidebar.compact .tab-row img.favicon { width: 17px; height: 17px; }
+/* The rail steps with the density scale: 72 / 64 / 56 / 52px, with the favicon,
+   heading glyphs, and audio badge following the same ratio. */
+html.density-spacious .sidebar.compact:not(.collapsed) { width: 72px; padding: 16px 10px; }
+html.density-spacious .sidebar.compact .tab-row { padding: 12px 0; }
+html.density-spacious .sidebar.compact .tab-row img.favicon { width: 24px; height: 24px; }
+html.density-spacious .sidebar.compact .sidebar-heading .icon-btn,
+html.density-spacious .sidebar.compact .sidebar-heading .icon-btn.small { height: 31px; }
+html.density-spacious .sidebar.compact .sidebar-heading .icon-btn .icon,
+html.density-spacious .sidebar.compact .sidebar-heading .icon-btn svg { width: 24px; height: 24px; }
+html.density-spacious .sidebar.compact .tab-row .tab-audio { width: 20px; height: 20px; }
+html.density-spacious .sidebar.compact .tab-row .tab-audio svg { width: 15px; height: 15px; }
+html.density-compact.density-dense .sidebar.compact:not(.collapsed) { width: 52px; padding: 8px 5px; }
+html.density-compact.density-dense .sidebar.compact .tab-row { padding: 4px 0; }
+html.density-compact.density-dense .sidebar.compact .tab-row img.favicon { width: 15px; height: 15px; }
+html.density-compact.density-dense .sidebar.compact .sidebar-heading .icon-btn,
+html.density-compact.density-dense .sidebar.compact .sidebar-heading .icon-btn.small { height: 25px; }
+html.density-compact.density-dense .sidebar.compact .sidebar-heading .icon-btn .icon,
+html.density-compact.density-dense .sidebar.compact .sidebar-heading .icon-btn svg { width: 15px; height: 15px; }
+html.density-compact.density-dense .sidebar.compact .tab-row .tab-audio { width: 16px; height: 16px; }
+html.density-compact.density-dense .sidebar.compact .tab-row .tab-audio svg { width: 12px; height: 12px; }
 /* Recently-closed rows share the rail, so their relative-time stamp would
    crowd "icons only" mode — drop it there the same way titles drop. */
 .sidebar.compact .rc-time { display: none; }
@@ -926,6 +1058,7 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 
 .segmented { display: flex; background: var(--sub-alt-color); border-radius: var(--r-ctrl); padding: 3px; gap: 3px; }
 .segmented button { flex: 1; background: none; border: none; padding: 8px; border-radius: var(--r-item); font-size: 12px; color: var(--sub-color); font-weight: 700; cursor: pointer; }
+#density-toggle button { min-width: 0; padding: 8px 6px; }
 .segmented button:hover { color: var(--text-color); }
 .segmented button.active { background: var(--bg-color); color: var(--text-color); box-shadow: 0 1px 3px rgba(0,0,0,.14); }
 .checkbox-row { font-size: 13px; margin-bottom: 4px; }
