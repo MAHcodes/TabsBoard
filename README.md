@@ -143,9 +143,10 @@ rather than trying to repair it.
 
 ## 🙏 Acknowledgements
 
-- **[Monkeytype](https://github.com/monkeytypegame/monkeytype)** (GPL-3.0) — the
-  whole color palette. Every theme here is Monkeytype's hex values, copied
-  verbatim, nothing recolored. 🐵
+- **[Monkeytype](https://github.com/monkeytypegame/monkeytype)** — the whole
+  color palette. Every theme here is Monkeytype's hex values, copied verbatim,
+  nothing recolored. Monkeytype is GPL-3.0; hex color codes aren't copyrightable
+  expression, but the credit is theirs and it's here. 🐵
 - **[Lucide](https://lucide.dev)** — every icon in the app.
   ISC. ✨
 - **[Open-Meteo](https://open-meteo.com)** — weather data and city search.
@@ -157,8 +158,7 @@ out.
 
 ## ⚖️ License
 
-There's no license file yet, so treat TabsBoard as all rights reserved. Say the
-word and I'll pick one.
+MIT — see [LICENSE](LICENSE). Fork it, ship it, sell it, whatever.
 
 ## 🐛 Found a bug?
 
