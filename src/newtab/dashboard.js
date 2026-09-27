@@ -178,7 +178,6 @@
     document.documentElement.classList.add('theme-ready');
     requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('boot-no-sidebar-anim')));
     refreshRecentlyClosed().then(() => { if (sidebarShowingClosed) renderSidebar(); });
-    migrateLegacyBrowserWidgets();
     wireGlobalEvents();
     const verEl = $('#app-version');
     if (verEl && chrome.runtime && chrome.runtime.getManifest) verEl.textContent = 'v' + (chrome.runtime.getManifest().version || '');
@@ -304,7 +303,9 @@
     $('#board-switcher-btn .chev-ic').innerHTML = ICONS.chevronDown;
     $('#settings-close-x').innerHTML = icon('close', 'sm');
     $('#shortcuts-close-x').innerHTML = icon('close', 'sm');
-    $$('.settings-tab .stab-ic').forEach(s => { if (ICONS[s.dataset.icon]) s.innerHTML = ICONS[s.dataset.icon]; });
+    // Any element can ask for a vendored icon by name, so static markup stays
+    // free of inline SVG: <span class="seg-ic" data-icon="grid"></span>
+    $$('[data-icon]').forEach(s => { if (ICONS[s.dataset.icon]) s.innerHTML = ICONS[s.dataset.icon]; });
   }
 
   /* ============ SETTINGS / THEME ============ */

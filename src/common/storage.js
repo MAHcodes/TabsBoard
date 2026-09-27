@@ -5,7 +5,10 @@
  */
 
 const STORAGE_KEY = 'tdb_data';
-const SCHEMA_VERSION = 20;
+/* The data shape is version 1 and always will be until there is a reason to
+   change it — there is no migration ladder. Anything stored under a different
+   version is thrown away and replaced with a fresh install (see init()). */
+const SCHEMA_VERSION = 1;
 
 const DEFAULT_COLLECTION_COLORS = (typeof self !== 'undefined' && self.Themes) ? self.Themes.COLLECTION_COLORS : [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -149,41 +152,6 @@ async function moveWidgetTo(id, row, col) {
   });
 }
 
-/* Repack every board's widgets into explicit row/col coordinates. This is the
-   migration path — it approximates the old auto-flow look (top-left, in
-   `order`, honoring spans) so nothing visually changes on upgrade. It is only
-   ever run for data that lacks coordinates; existing placements are left
-   alone so user-made gaps survive. */
-function repackBoardWidgets(d) {
-  const occPerBoard = {};
-  // Seed each board's occupied set from any widgets that already carry
-  // coordinates, so packing never lands a widget on top of an existing one.
-  const boards = new Set(Object.values(d.widgets || {}).map(w => w.boardId).filter(Boolean));
-  for (const bid of boards) occPerBoard[bid] = occupiedCellsOfBoard(d, bid);
-  for (const wid of Object.keys(d.widgets || {})) {
-    const w = d.widgets[wid];
-    if (!w || w.row || w.col) continue;
-    const bid = w.boardId;
-    if (!occPerBoard[bid]) occPerBoard[bid] = new Set();
-    const occ = occPerBoard[bid];
-    const span = Math.max(1, w.span || 1);
-    const rowSpan = Math.max(1, w.rowSpan || 1);
-    const cols = boardColumnCount(d);
-    let spot = null;
-    for (let r = 1; !spot; r++) {
-      for (let c = 1; c <= cols; c++) {
-        let fits = true;
-        for (let dr = 0; dr < rowSpan && fits; dr++) for (let dc = 0; dc < span; dc++) {
-          if (c + dc > cols || occ.has((r + dr) + ',' + (c + dc))) { fits = false; break; }
-        }
-        if (fits) { spot = { r, c }; break; }
-      }
-    }
-    w.row = spot.r;
-    w.col = spot.c;
-    for (let dr = 0; dr < rowSpan; dr++) for (let dc = 0; dc < span; dc++) occ.add((spot.r + dr) + ',' + (spot.c + dc));
-  }
-}
 
 function defaultState() {
   const wsId = uid();
@@ -258,212 +226,6 @@ function defaultState() {
   };
 }
 
-/* ---------- Migration ---------- */
-
-function migrate(data) {
-  if (!data.version || data.version < 2) {
-    const s = data.meta.settings || {};
-    const newSettings = {
-      themeId: s.darkMode === 'on' ? 'dark' : 'serika',
-      density: s.density || 'comfortable',
-      viewMode: s.viewMode || 'grid',
-      sidebarCollapsed: false,
-      confirmDelete: true,
-      faviconSource: 'google'
-    };
-    data.meta.settings = newSettings;
-    for (const col of Object.values(data.collections || {})) {
-      if (col.pinned === undefined) col.pinned = false;
-      if (col.description === undefined) col.description = '';
-      if (col.sortMode === undefined) col.sortMode = 'manual';
-    }
-    for (const bm of Object.values(data.bookmarks || {})) {
-      if (bm.pinned === undefined) bm.pinned = false;
-    }
-    data.version = 2;
-  }
-  if (data.version < 3) {
-    // v3: introduces the widget board. Every existing collection becomes a
-    // 'collection' widget (span 1), ordered the way collections used to be
-    // (pinned first, then manual order) so the board looks the same as the
-    // old collections grid on first load. Also backfills the new settings
-    // this version introduces.
-    data.widgets = data.widgets || {};
-    const s = data.meta.settings;
-    if (s.animations === undefined) s.animations = true;
-    if (!s.dashboard) s.dashboard = { columns: 4 };
-    if (!s.tabsList) s.tabsList = { groupPinned: true, dimInactive: true, inactiveOpacity: 55, inactiveGrayscale: true };
-
-    const existingCollectionIds = new Set(Object.values(data.widgets).filter(w => w.type === 'collection').map(w => w.collectionId));
-    const cols = Object.values(data.collections || {})
-      .filter(c => !existingCollectionIds.has(c.id))
-      .sort((a, b) => (b.pinned - a.pinned) || (a.order - b.order));
-    let order = Object.keys(data.widgets).length;
-    for (const col of cols) {
-      const wid = uid();
-      data.widgets[wid] = { id: wid, workspaceId: col.workspaceId, type: 'collection', collectionId: col.id, span: 1, order: order++, createdAt: now() };
-    }
-    data.version = 3;
-  }
-  if (data.version < 4) {
-    // v4: introduces multiple named boards per workspace. Every workspace
-    // gets a single default board holding all of its existing widgets, so
-    // the layout looks identical right after the update — "Board 1" is
-    // just the old single board, now with a name and room for siblings.
-    data.boards = data.boards || {};
-    for (const ws of Object.values(data.workspaces || {})) {
-      if (ws.activeBoardId && data.boards[ws.activeBoardId]) continue;
-      const bid = uid();
-      data.boards[bid] = { id: bid, workspaceId: ws.id, name: 'Board 1', order: 0, createdAt: now() };
-      ws.activeBoardId = bid;
-      for (const w of Object.values(data.widgets || {})) {
-        if (w.workspaceId === ws.id && !w.boardId) w.boardId = bid;
-      }
-    }
-    data.version = 4;
-  }
-  if (data.version < 5) {
-    // v5: Speed Dial was removed as a widget type shortly after being
-    // added — this deletes any that got created in that window so no one
-    // is left with a dead, unrenderable widget slot on their board.
-    for (const wid of Object.keys(data.widgets || {})) {
-      if (data.widgets[wid].type === 'speeddial') delete data.widgets[wid];
-    }
-    data.version = 5;
-  }
-  if (data.version < 6) {
-    // v6: replaces the single global "tint with accent color" switch with
-    // a per-widget background color (any widget type, defaulting to no
-    // tint at all).
-    delete data.meta.settings.bgTint;
-    for (const wid of Object.keys(data.widgets || {})) {
-      if (data.widgets[wid].tintColor === undefined) data.widgets[wid].tintColor = null;
-    }
-    data.version = 6;
-  }
-  if (data.version < 7) {
-    // v7: per-board accent color was added and then removed shortly after
-    // — this strips the leftover field from anyone who passed through that
-    // window, so it doesn't linger as dead data.
-    for (const bid of Object.keys(data.boards || {})) {
-      delete data.boards[bid].accent;
-    }
-    data.version = 7;
-  }
-  if (data.version < 8) {
-    // v8: workspace colors are gone — the switcher never actually showed
-    // them anywhere after the color-dot was removed, so the field was
-    // dead weight. Also adds per-bookmark background tint, same idea as
-    // the per-widget one, defaulting to none.
-    for (const wid of Object.keys(data.workspaces || {})) {
-      delete data.workspaces[wid].color;
-    }
-    for (const bid of Object.keys(data.bookmarks || {})) {
-      if (data.bookmarks[bid].tintColor === undefined) data.bookmarks[bid].tintColor = null;
-    }
-    data.version = 8;
-  }
-  if (data.version < 9) {
-    // v9: widgets move to explicit grid placement, so empty cells can be
-    // left open. Backfill every board's widgets with row/col coordinates by
-    // packing them top-left in `order` — the same look as the old flow.
-    repackBoardWidgets(data);
-    data.version = 9;
-  }
-  if (data.version < 10) {
-    // v10: "open bookmarks in the current tab" becomes the default. Existing
-    // users keep whatever opening-in-tabs behavior was baked into their
-    // builds (they had no choice — it always opened a new tab), so give them
-    // a new tab unless they've opted into it moving forward.
-    if (data.meta.settings.openBookmarksInNewTab === undefined) data.meta.settings.openBookmarksInNewTab = false;
-    data.version = 10;
-  }
-  if (data.version < 11) {
-    // v11: new widget defaults, topbar/retention/font options. Backfill
-    // missing keys so every existing user gets sensible values.
-    const s = data.meta.settings;
-    const d11 = {
-      clockFormat: '24', weatherUnits: 'c', pomodoroFocus: 25, pomodoroBreak: 5,
-      countdownDays: 7, rssRefreshInterval: 0, recentlyClosedLimit: 20,
-      trashRetentionDays: 0, confirmRestoreSession: false,
-      showTopbarSearch: true, showTopbarButtons: true, interfaceFontLarge: false,
-    };
-    for (const [k, v] of Object.entries(d11)) { if (s[k] === undefined) s[k] = v; }
-    data.version = 11;
-  }
-  if (data.version < 12) {
-    // v12: auto theme becomes two user-chosen themes (light + dark) instead
-    // of a hardcoded pair. Existing users keep the classic defaults.
-    const s = data.meta.settings;
-    if (s.lightThemeId === undefined) s.lightThemeId = 'serika';
-    if (s.darkThemeId === undefined) s.darkThemeId = 'serika_dark';
-    data.version = 12;
-  }
-  if (data.version < 13) {
-    // v13: history widget options — visit times and how many entries each
-    // History widget lists.
-    const s = data.meta.settings;
-    if (s.historyShowTimes === undefined) s.historyShowTimes = true;
-    if (s.historyCount === undefined) s.historyCount = 10;
-    data.version = 13;
-  }
-  if (data.version < 14) {
-    // v14: History / Most visited collections become live-synced mirrors of
-    // browser data. Collections created by the browser-data add flow are named
-    // exactly "History" / "Most visited", so tag those as synced so the
-    // background sync keeps them fresh.
-    for (const c of Object.values(data.collections || {})) {
-      if (!c || c.syncSource) continue;
-      if (c.name === 'History') c.syncSource = 'history';
-      else if (c.name === 'Most visited') c.syncSource = 'topSites';
-    }
-    data.version = 14;
-  }
-  if (data.version < 15) {
-    // v15: "Most visited" collections size follows a dedicated setting.
-    const s = data.meta.settings;
-    if (s.topSitesCount === undefined) s.topSitesCount = 12;
-    data.version = 15;
-  }
-  if (data.version < 16) {
-    // v16: persist the trash badge's mark-as-read count so the badge stays
-    // dismissed across reloads instead of reappearing every time.
-    const s = data.meta.settings;
-    if (s.trashBadgeSeen === undefined) s.trashBadgeSeen = 0;
-    data.version = 16;
-  }
-    if (data.version < 17) {
-    // v17: blur on popups can be turned off — defaults on so nothing changes
-    // for existing installs.
-    const s = data.meta.settings;
-    if (s.popupBlur === undefined) s.popupBlur = true;
-    data.version = 17;
-  }
-  if (data.version < 18) {
-    // v18: per-user interface font; '' keeps the system default stack.
-    const s = data.meta.settings;
-    if (s.interfaceFont === undefined) s.interfaceFont = '';
-    data.version = 18;
-  }
-  if (data.version < 19) {
-    // v19: font size moves from a boolean "large" flag to a percentage scale.
-    const s = data.meta.settings;
-    if (s.interfaceFontSize === undefined) s.interfaceFontSize = s.interfaceFontLarge === true ? 109 : 100;
-    data.version = 19;
-  }
-  if (data.version < 20) {
-    const s = data.meta.settings;
-    const showTopbarButtons = s.showTopbarButtons !== false;
-    if (s.showShortcutsButton === undefined) s.showShortcutsButton = showTopbarButtons;
-    if (s.showTrashButton === undefined) s.showTrashButton = showTopbarButtons;
-    delete s.showTopbarButtons;
-    s.tabsList = s.tabsList || {};
-    if (s.tabsList.showTabAudio === undefined) s.tabsList.showTabAudio = true;
-    data.version = 20;
-  }
-  return data;
-}
-
 function storageGet() {
   return new Promise((resolve) => {
     chrome.storage.local.get(STORAGE_KEY, (res) => {
@@ -479,22 +241,17 @@ function storageSet(data) {
 }
 
 async function init() {
-  let data = await storageGet();
-  if (!data) {
-    data = defaultState();
-    await storageSet(data);
-  } else if (!data.version || data.version < SCHEMA_VERSION) {
-    data = migrate(data);
-    await storageSet(data);
-  }
-  return data;
+  const data = await storageGet();
+  if (data && data.version === SCHEMA_VERSION) return data;
+  /* No migrations: a version we do not recognize means the shape changed in
+     ways we cannot repair, so start over rather than half-load stale data. */
+  const fresh = defaultState();
+  await storageSet(fresh);
+  return fresh;
 }
 
 async function getState() {
-  const data = await storageGet();
-  if (!data) return init();
-  if (!data.version || data.version < SCHEMA_VERSION) return init();
-  return data;
+  return init();
 }
 
 /* Factory reset: wipes every workspace, board, collection, bookmark, widget,
@@ -799,6 +556,9 @@ function widgetDefaults(type, settings) {
   if (type === 'topSites') return { ...base, count: 8 };
   if (type === 'downloads') return { ...base, count: 8 };
   if (type === 'history') return { ...base, count: 10, days: 1 };
+  // CPU readings are live samples, never stored: a fresh card starts blank and
+  // the widget fills itself in on the next tick.
+  if (type === 'cpu') return { ...base };
   return base;
 }
 
@@ -1266,7 +1026,7 @@ const TabsDB = {
   createWidget, updateWidget, deleteWidget, reorderWidgets,
   createBoard, renameBoard, deleteBoard, setActiveBoard,
   swapWidgetPositions, moveWidgetTo,
-  occupiedCellsOfBoard, firstEmptyCell, assignWidgetPosition, repackBoardWidgets,
+  occupiedCellsOfBoard, firstEmptyCell, assignWidgetPosition,
   exportJSON, importJSON, bookmarksHTMLExport,
   importBrowserBookmarks,
   addBrowserCollection, syncBrowserCollection

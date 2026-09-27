@@ -771,7 +771,8 @@
   const WIDGET_TYPE_LABELS = {
     notes: 'Notes', todo: 'To-Do', clock: 'Clock',
     search: 'Search box', countdown: 'Countdown', pomodoro: 'Pomodoro', timer: 'Timer', stopwatch: 'Stopwatch',
-    weather: 'Weather', rss: 'RSS Feed', topSites: 'Most visited', downloads: 'Recent downloads', history: 'Browsing history'
+    weather: 'Weather', rss: 'RSS Feed', topSites: 'Most visited', downloads: 'Recent downloads', history: 'Browsing history',
+    cpu: 'CPU'
   };
   async function addWidget(type) {
     // Most visited / History are snapshotted into a *real* collection
@@ -801,35 +802,6 @@
     toast(`Created "${res.name}" collection with ${res.count} item${res.count === 1 ? '' : 's'} — it stays in sync with the browser`);
   }
 
-  /* Widgets of the old live-preview era (type topSites/history) are one-time
-     converted into real collections on load — that's the behavior the user
-     asked for, and it also removes their stale "No top sites available" /
-     "No browsing history yet" empty states. Runs once per session, off to
-     the side so it never delays first paint. */
-  let migratedBrowserWidgets = false;
-  async function migrateLegacyBrowserWidgets() {
-    if (migratedBrowserWidgets) return;
-    migratedBrowserWidgets = true;
-    const legacy = widgetsForActiveWS().filter(w => w.type === 'topSites' || w.type === 'history');
-    if (!legacy.length) return;
-    let converted = 0;
-    for (const w of legacy) {
-      const kind = w.type === 'topSites' ? 'topSites' : 'history';
-      const s = STATE.meta.settings || {};
-      const count = kind === 'history'
-        ? Math.max(1, Number(s.historyCount) || 10)
-        : Math.max(1, Number(s.topSitesCount) || 12);
-      const res = await sendMsg('ADD_BROWSER_COLLECTION', { kind, workspaceId: activeWorkspaceId(), count });
-      if (res && res.ok) {
-        await DB.deleteWidget(w.id);
-        converted++;
-      }
-    }
-    if (converted) {
-      await reload();
-      toast(`Converted ${converted} browser widget${converted === 1 ? '' : 's'} into real collection${converted === 1 ? '' : 's'}`);
-    }
-  }
   function openAddWidgetMenu(anchorBtn) {
     const rect = anchorBtn.getBoundingClientRect();
     const menu = el('div', 'dropdown-menu');
@@ -846,7 +818,8 @@
       <div class="ws-item" data-act="rss"><span class="mi-ic">${ICONS.rss}</span>RSS Feed</div>
       <div class="ws-item" data-act="topSites"><span class="mi-ic">${ICONS.grid}</span>Most visited</div>
       <div class="ws-item" data-act="downloads"><span class="mi-ic">${ICONS.download}</span>Downloads</div>
-      <div class="ws-item" data-act="history"><span class="mi-ic">${ICONS.rotateCcwClock}</span>History</div>`;
+      <div class="ws-item" data-act="history"><span class="mi-ic">${ICONS.rotateCcwClock}</span>History</div>
+      <div class="ws-item" data-act="cpu"><span class="mi-ic">${ICONS.cpu}</span>CPU</div>`;
     const close = showDropdown(menu, rect, 200);
     $$('.ws-item', menu).forEach(item => { item.onclick = () => { close(); addWidget(item.dataset.act); }; });
   }

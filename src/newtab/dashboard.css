@@ -372,6 +372,11 @@ svg { width: 100%; height: 100%; }
 .width-row button {
   flex: 1; height: var(--ctrl-h-sm); border-radius: var(--r-xs); border: none; background: var(--sub-alt-color);
   color: var(--sub-color); font-size: 12.5px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.width-row button .mi-ic {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 16px; height: 16px; color: currentColor;   /* follow the button on hover/active */
 }
 .width-row button:hover { background: var(--main-color); color: var(--bg-color); }
 .width-row button.active { background: var(--main-color); color: var(--bg-color); }
@@ -565,8 +570,11 @@ html.density-compact .sidebar-heading .icon-btn.small svg { width: 17px; height:
 .tab-row[draggable="true"] { cursor: grab; }
 .tab-row:hover { background: var(--bg-color); }
 .tab-row.dragging { opacity: .4; cursor: grabbing; }
-.tab-row.tab-inactive { opacity: var(--inactive-tab-opacity, 1); filter: var(--inactive-tab-filter, none); }
-.tab-row.tab-inactive:hover { opacity: 1; filter: none; }
+/* Unloaded tabs stay monochrome at all times — hovering no longer flips them
+   back to full colour. The opacity fade is scoped to the row's children so the
+   hover/selected background still paints at full strength underneath. */
+.tab-row.tab-inactive { filter: var(--inactive-tab-filter, none); }
+.tab-row.tab-inactive > * { opacity: var(--inactive-tab-opacity, 1); transition: opacity .15s ease; }
 .tab-row img.favicon, .bm-favicon { width: 17px; height: 17px; border-radius: var(--r-tiny); flex-shrink: 0; }
 .tab-row .tab-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Audible/muted control: sits just right of the favicon and mirrors the
@@ -579,9 +587,13 @@ html.density-compact .sidebar-heading .icon-btn.small svg { width: 17px; height:
 .tab-row .tab-icons { display: flex; gap: 3px; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
 .tab-row:hover .tab-icons,
 .tab-row:focus-within .tab-icons { opacity: 1; pointer-events: auto; }
-.tab-row .tab-icons button { border: none; background: none; color: var(--sub-color); width: 24px; height: 24px; border-radius: var(--r-xs); display: flex; align-items: center; justify-content: center; }
+.tab-row .tab-icons button { border: none; background: none; color: var(--sub-color); width: 24px; height: 24px; border-radius: var(--r-xs); display: flex; align-items: center; justify-content: center; transition: background-color .12s ease, color .12s ease; }
 .tab-row .tab-icons button svg { width: 13px; height: 13px; }
 .tab-row .tab-icons button:hover { background: var(--bg-color); color: var(--text-color); }
+/* The pinned-tab control is one button in two states: a minus that unloads
+   while there is memory to give back, an × that closes once it is already
+   unloaded. One slot, one control, so it highlights the same either way. */
+.tab-row .tab-icons button.tab-unload:hover,
 .tab-row .tab-icons button.tab-close:hover { background: color-mix(in srgb, var(--main-color) 20%, var(--bg-color)); color: var(--main-color); }
 .tab-row.selected {
   background: color-mix(in srgb, var(--main-color) 18%, var(--bg-color));
@@ -741,6 +753,34 @@ body.dragging-tab .widget-ghost { display: flex; }
 .rss-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--main-color); flex-shrink: 0; margin-top: 6px; }
 .rss-title { flex: 1; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; }
 
+/* CPU widget — one bar per logical processor, a headline percentage, and the
+   core count / temperature beside it. Built from the usual tokens so it picks up
+   every theme and density like the rest of the board. */
+.cpu-body { padding: 14px; flex: 1; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+.cpu-top { display: flex; align-items: baseline; gap: 8px; }
+.cpu-pct { font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+.cpu-unit { font-size: 15px; font-weight: 800; color: var(--sub-color); margin-left: 1px; }
+.cpu-meta { font-size: 11.5px; color: var(--sub-color); font-weight: 600; margin-left: auto; text-align: right; }
+.cpu-bars { display: flex; align-items: flex-end; gap: 3px; height: 34px; }
+.cpu-bar { flex: 1; min-width: 2px; height: 100%; display: flex; align-items: flex-end; background: var(--bg-color); border-radius: var(--r-tiny); overflow: hidden; }
+/* Ticks grow from the bottom, so an idle core reads as a sliver of accent and a
+   busy one fills its whole track. */
+.cpu-bar-fill { width: 100%; height: 0; background: var(--main-color); border-radius: var(--r-tiny); transition: height .35s ease, background-color .2s ease; }
+.cpu-bar.is-high .cpu-bar-fill { background: var(--error-color); }
+.cpu-model { font-size: 10.5px; color: var(--sub-color); opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.density-compact .cpu-body { padding: 10px; gap: 7px; }
+html.density-compact .cpu-pct { font-size: 24px; }
+html.density-compact .cpu-unit { font-size: 12px; }
+html.density-compact .cpu-bars { height: 24px; gap: 2px; }
+html.density-spacious .cpu-body { padding: 20px 16px; gap: 13px; }
+html.density-spacious .cpu-pct { font-size: 36px; }
+html.density-spacious .cpu-bars { height: 44px; }
+html.density-compact.density-dense .cpu-body { padding: 7px 9px; gap: 5px; }
+html.density-compact.density-dense .cpu-pct { font-size: 20px; }
+html.density-compact.density-dense .cpu-unit { font-size: 10px; }
+html.density-compact.density-dense .cpu-bars { height: 18px; }
+html.density-compact.density-dense .cpu-model { display: none; }
+
 /* ---------- Checkbox / Switch component ---------- */
 .checkbox { width: 15px; height: 15px; accent-color: var(--main-color); flex-shrink: 0; }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 13px; padding: 8px 0; }
@@ -794,7 +834,9 @@ body.dragging-tab .widget-ghost { display: flex; }
 .hdm-day { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--sub-color); padding: 9px 4px 3px; margin-top: 2px; border-top: 1px solid var(--border-color); }
 .hdm-day:first-child { border-top: none; margin-top: 0; }
 .hdm-row { display: flex; align-items: center; gap: 9px; padding: 6px 4px; border-bottom: 1px solid var(--border-color); }
-.hdm-row:last-child { border-bottom: none; }
+/* The last visit of a day group is followed by the next day's header, not the
+   end of the list, so :last-child alone never matches it. */
+.hdm-row:last-child, .hdm-row.hdm-row-last { border-bottom: none; }
 .hdm-dot { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--border-color); }
 .hdm-time { font-size: 12.5px; color: var(--text-color); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .hdm-trans { margin-left: auto; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--sub-color); text-align: right; }
@@ -886,6 +928,21 @@ html.density-compact .bm-drop-indicator.horizontal::after { left: 6px; right: 6p
 .widget-add-btn { background: none; border: none; color: var(--sub-color); padding: 4px; border-radius: var(--r-xs); width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .widget-add-btn svg { width: 16px; height: 16px; }
 .widget-add-btn:hover { background: var(--bg-color); color: var(--main-color); }
+
+/* A widget's header actions stay out of the way until you go looking for them.
+   The buttons keep their space (opacity, not display), so the title never shifts;
+   :focus-within keeps them reachable by keyboard, and devices with no hover —
+   touch screens — always show them. */
+.widget-header .widget-menu-btn,
+.widget-header .widget-add-btn { opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+.widget:hover .widget-header .widget-menu-btn,
+.widget:hover .widget-header .widget-add-btn,
+.widget:focus-within .widget-header .widget-menu-btn,
+.widget:focus-within .widget-header .widget-add-btn { opacity: 1; pointer-events: auto; }
+@media (hover: none) {
+  .widget-header .widget-menu-btn,
+  .widget-header .widget-add-btn { opacity: 1; pointer-events: auto; }
+}
 
 /* ---------- Sessions page ---------- */
 .sessions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--gap); }
@@ -1058,6 +1115,9 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 
 .segmented { display: flex; background: var(--sub-alt-color); border-radius: var(--r-ctrl); padding: 3px; gap: 3px; }
 .segmented button { flex: 1; background: none; border: none; padding: 8px; border-radius: var(--r-item); font-size: 12px; color: var(--sub-color); font-weight: 700; cursor: pointer; }
+/* Icon + label inside a segmented control, e.g. the Tiles / Rows choice. */
+.segmented button .seg-ic { display: inline-flex; align-items: center; justify-content: center; vertical-align: -2px; margin-right: 5px; width: 13px; height: 13px; }
+.segmented button .seg-ic svg { width: 100%; height: 100%; }
 #density-toggle button { min-width: 0; padding: 8px 6px; }
 .segmented button:hover { color: var(--text-color); }
 .segmented button.active { background: var(--bg-color); color: var(--text-color); box-shadow: 0 1px 3px rgba(0,0,0,.14); }

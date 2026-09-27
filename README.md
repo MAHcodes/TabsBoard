@@ -1,148 +1,166 @@
-# Tabs Dashboard (v2.0)
+> [!WARNING]
+> **This is a vibe coded app.** I built TabsBoard for myself, got it to a state I
+> liked, and decided to put it out there for everyone. It is not audited, not
+> security-reviewed, and not tested by anyone but me. Use it at your own risk.
+> Back up anything you care about (there's an export button) and please report
+> bugs instead of assuming they are intentional.
 
-A rich, customizable new-tab dashboard: organize bookmarks into color-coded
-collections, drag open tabs straight into them, keep separate workspaces,
-and save/restore tab sessions. Works in Chrome (Manifest V3) and Firefox
-(Manifest V2) from one shared codebase.
+<div align="center">
 
-## What's new in v2.0
+# 🗂️ TabsBoard
 
-- **Fully dynamic theming** — 18 built-in presets (Light, Dark, Nord, Dracula,
-  Solarized, Ocean, Sunset, Forest, and more) plus a custom theme builder.
-  Every theme redefines background, surface, borders, and text together —
-  not just the accent color.
-- **Sessions moved to their own top-nav page** with search, save-current-window,
-  and save-all-windows.
-- **Collapsible sidebar** (`[` shortcut or the arrow button).
-- **Settings reorganized into tabs**: Appearance / Behavior / Data — instead
-  of one long scrolling page.
-- **Keyboard shortcuts moved to their own popup** (no longer buried in Settings).
-- **New, bigger, simpler icon set** throughout — grid/list toggle now shows
-  the icon of the view you'll switch *to*.
-- **Wider collection cards** and a filter box to quickly narrow down collections.
-- **Deeper browser API integration**: pin/mute/duplicate open tabs, move a tab
-  to a new window, open every bookmark in a collection at once (same window
-  or a new one), copy all links in a collection, restore a session into the
-  current window or a fresh one, save tabs across *all* open windows as one
-  session.
-- **More collection/bookmark actions**: pin collections to the top, duplicate
-  a collection (with its bookmarks), cycle sort mode (manual / A–Z / newest /
-  oldest), pin individual bookmarks, copy a bookmark's link, convert a saved
-  session straight into a collection.
+**A new tab page for people with too many tabs.**
 
-## What's included
+Bookmarks in color-coded collections · a board of widgets you arrange yourself ·
+workspaces, saved sessions, and a tab list that can actually get out of your way.
 
-- `src/` — shared source (the source of truth; edit here)
-- `dist/chrome/` — ready-to-load Chrome build (MV3)
-- `dist/firefox/` — ready-to-load Firefox build (MV2)
+**v1.1.0** · Chrome (MV3) + Firefox (MV2) · one shared codebase
 
-Both `dist/` folders are pre-built for you. If you edit anything in `src/`,
-re-run the build (see **Rebuilding** below).
+</div>
 
-## Install — Chrome / Edge / Brave (Chromium)
+---
 
-1. Go to `chrome://extensions`
-2. Enable **Developer mode** (top right)
-3. Click **Load unpacked**
-4. Select the `dist/chrome` folder
-5. Open a new tab — the dashboard should appear
+## ✨ What it does
 
-## Install — Firefox
+- 🗂️ **Collections** — group bookmarks, drop open tabs straight into one, color
+  and pin them, switch a collection between a tile grid and a dense list.
+- 🧩 **Widget board** — drag widgets around a real grid. Leave gaps, resize,
+  span rows, swap anything with anything.
+- 🗂️ **Bookmarks from your browser** — pull your existing Firefox or Chrome
+  bookmarks in, and sync them to a collection whenever you want.
+- 🗃️ **Workspaces & boards** — separate setups per work/personal, several boards
+  inside each, one keystroke to switch.
+- 💾 **Sessions** — save the current window or every window at once, restore into
+  this window or a fresh one, and turn any session into a bookmark collection.
+- 🪦 **Trash** — delete things with a safety net. Empty it when you're ready.
+- 🧹 **Unload tabs** — strip memory-heavy tabs down to their favicon without
+  losing where they were.
+- 🧭 **Command palette** — `Ctrl/⌘ K` to jump to a bookmark, a tab, or any command.
+- ⌨️ **Address bar** — type `tb` then anything to search your bookmarks, tabs, and
+  sessions without leaving the URL bar.
+- 🖱️ **Right-click menu** — add the page, a link, or a selection to TabsBoard.
+- 🎨 **187 themes** — every Monkeytype palette, plus a custom one.
+- 🌍 **Weather, RSS, downloads, history, most-visited, CPU** as widgets.
+- 💾 **Yours, locally** — everything lives in browser storage. No account, no
+  server, no analytics.
 
-1. Go to `about:debugging#/runtime/this-firefox`
-2. Click **Load Temporary Add-on…**
-3. Select any file inside `dist/firefox` (e.g. `manifest.json`)
-4. Open a new tab — the dashboard should appear
+## 🧩 Widgets
 
-> Temporary add-ons are removed when Firefox restarts. For a permanent
-> install you'd package `dist/firefox` as a signed `.xpi` via
-> [web-ext](https://extensionworkshop.com/documentation/develop/getting-started-with-web-ext/)
-> and Mozilla's signing service — not required for local testing.
+`Collection` `Notes` `To-Do` `Clock` `Search` `Countdown` `Pomodoro` `Timer`
+`Stopwatch` `Weather` `RSS` `Most visited` `Downloads` `History` `CPU`
 
-## Features
+> ⚡ The `CPU` widget needs the `system.cpu` API, which is Chrome/ChromeOS only.
+> On Firefox the widget is still there — it just tells you why it can't read
+> anything instead of showing a dead gauge.
 
-**Bookmarks & collections**
-- Color-coded collections with drag-and-drop reordering, pin-to-top, duplicate, cycling sort modes
-- Grid or list view, per collection; wider cards; filter box to narrow the list
-- Drag items from the **Open Tabs** sidebar straight onto a collection to bookmark them
-- Per-bookmark pin, copy-link, edit, delete; open every bookmark in a collection at once (current or new window); copy all links in a collection
-- Bulk select (click checkboxes / shift-click), bulk move, bulk delete
-- Soft-delete: everything goes to **Trash** first, restore anytime, or empty trash
+## 🎨 Themes
 
-**Workspaces**
-- Multiple named, colored workspaces, each with fully isolated collections/bookmarks/sessions
-- Switch via the workspace button top-left
+187 presets, ported straight from [Monkeytype](https://github.com/monkeytypegame/monkeytype)'s
+theme set, plus a custom theme builder if none of them feel like yours.
 
-**Sessions (own top-nav page)**
-- Save the current window's tabs, or every tab across every open window, as a named session
-- Restore into a new window or the current one; duplicate, rename, or convert a session straight into a collection
+## ⌨️ Shortcuts
 
-**Open Tabs sidebar**
-- Collapsible (arrow button or `[`)
-- Per-tab actions: pin/unpin, mute/unmute, duplicate, move to a new window, close, or drag onto a collection to bookmark it
+| Key | Action |
+| --- | --- |
+| `Ctrl/⌘ K` or `/` | Command palette |
+| `?` | Show this list |
+| `T` | Toggle sidebar |
+| `⇧C` | Toggle compact sidebar |
+| `C` | New collection |
+| `V` | Toggle grid / list view |
+| `B` / `⇧B` | Next / previous board |
+| `W` / `⇧W` | Next / previous workspace |
+| `S` | Settings |
+| `G` | Trash (press again to close) |
+| `Esc` | Close dialogs / clear selection |
 
-**Command palette (⌘/Ctrl K)**
-- Fuzzy-ish search across your bookmarks, open tabs, and app actions (new collection, save session, open settings, switch views, etc.)
+Three more live in the browser's own shortcut settings (`chrome://extensions/shortcuts`,
+or the Firefox add-on shortcuts page):
 
-**Quick-add**
-- Toolbar popup (now theme-matched): one click adds the current tab to any collection, or create a new collection on the spot
-- Keyboard shortcut `Ctrl/Cmd+Shift+A` adds the active tab to your first collection instantly
-- Right-click any page or link → **Add to Tabs Dashboard** (with a per-collection submenu)
+| Command | Default |
+| --- | --- |
+| Open TabsBoard | `Alt+⇧D` |
+| Quick-add current tab | `Ctrl/⌘+⇧A` |
+| Toggle sidebar | `Alt+⇧S` |
 
-**Settings** (now split into tabs instead of one long page)
-- *Appearance*: 18 built-in themes + a custom theme builder (pick background/text/accent, save, reuse), density, default view, sidebar default state
-- *Behavior*: confirm-before-permanently-deleting, favicon source (Google / DuckDuckGo / none)
-- *Data*: JSON export/import, bookmarks.html export
+## 📦 Install
 
-**Keyboard shortcuts** (now their own popup, not buried in Settings)
-- `Ctrl/Cmd+K` — command palette
-- `Ctrl/Cmd+Shift+A` — quick-add current tab
-- `N` — new collection
-- `[` — toggle sidebar
-- `V` — toggle grid/list view
-- `Esc` — close dialogs / clear selection
+### 🟢 Chrome
 
-## Data & privacy
+1. Clone this repo (or download it)
+2. `chrome://extensions` → turn on **Developer mode**
+3. **Load unpacked** → pick `dist/chrome/`
 
-Everything is stored locally via `chrome.storage.local` — nothing leaves
-your browser, no accounts, no servers. (Per your preference, settings are
-**not** synced across devices — pure local storage.)
+### 🦊 Firefox
 
-## Rebuilding after editing `src/`
+Grab the prebuilt `TabsBoard-1.1.0-fx.xpi` from this repo, or build it, or load the
+folder directly:
 
-There's no bundler dependency — it's plain HTML/CSS/JS — so "building" is
-just copying `src/` into each `dist/` folder with the right manifest:
+1. `about:debugging#/runtime/this-firefox`
+2. **Load Temporary Add-on…** → pick `dist/firefox/manifest.json`
+
+Temporary installs disappear when you close Firefox. For a permanent install you
+need it signed by Mozilla — see [addons.mozilla.org](https://addons.mozilla.org).
+
+## 🛠️ Build it yourself
+
+`src/` is the source of truth. `dist/` is generated.
 
 ```bash
-rm -rf dist && mkdir -p dist/chrome dist/firefox
-
+# Chrome (MV3)
+rm -rf dist/chrome && mkdir -p dist/chrome
 cp -r src/. dist/chrome/
 rm dist/chrome/manifest.firefox.json dist/chrome/manifest.chrome.json dist/chrome/background/background.html
 cp src/manifest.chrome.json dist/chrome/manifest.json
 
+# Firefox (MV2)
+rm -rf dist/firefox && mkdir -p dist/firefox
 cp -r src/. dist/firefox/
 rm dist/firefox/manifest.firefox.json dist/firefox/manifest.chrome.json
 cp src/manifest.firefox.json dist/firefox/manifest.json
+
+# Pack the Firefox build
+cd dist/firefox && zip -r -X ../../TabsBoard-1.1.0-fx.xpi . -x '.*'
 ```
 
-To package the Firefox build as a versioned XPI (bump the version in
-`src/manifest.firefox.json` first):
+Bump the version in **both** manifests, not just one.
 
-```bash
-cd dist/firefox && rm -f ../../TabsBoard-1.0.2-fx.xpi && zip -r -X ../../TabsBoard-1.0.2-fx.xpi . -x '.*' > /dev/null
+## 🗂️ Layout
+
+```
+src/
+  manifest.chrome.json    MV3 manifest
+  manifest.firefox.json   MV2 manifest
+  background/             service worker / background page
+  common/                 storage, themes, icons, search, color utils
+  newtab/                 the dashboard UI
+dist/                     generated builds
 ```
 
-## Notes on the "drag a tab in" feature
+Data is versioned with a single `SCHEMA_VERSION` (currently `1`). There is no
+migration ladder: if the stored data doesn't match, TabsBoard starts fresh
+rather than trying to repair it.
 
-Browsers don't expose the real tab strip to web pages, so no extension can
-literally let you drag a tab from Chrome's native tab bar into a page. What
-Tabs Dashboard does instead: the **Open Tabs** sidebar lists your current
-window's tabs (via the `tabs` API), and you drag *those rows* onto a
-collection — same feel, without relying on something the browser doesn't allow.
+## 🙏 Acknowledgements
 
-## Known limitations (good next steps)
+- **[Monkeytype](https://github.com/monkeytypegame/monkeytype)** (GPL-3.0) — the
+  whole color palette. Every theme here is Monkeytype's hex values, copied
+  verbatim, nothing recolored. 🐵
+- **[Lucide](https://lucide.dev)** — every icon in the app.
+  ISC. ✨
+- **[Open-Meteo](https://open-meteo.com)** — weather data and city search.
+  CC BY 4.0, attribution appreciated. 🌤️
 
-- Command palette match ranking is simple substring matching, not weighted fuzzy scoring
-- No automated dead-link/duplicate checker yet
-- No cloud/account sync (by design, per current settings — local only)
-- Firefox's temporary add-on install resets on browser restart; packaging as a signed `.xpi` is a follow-up step if you want it permanent
+Everything else was written here. If you spot code that looks like it came from
+somewhere else, that's a bug — please open an issue so I can credit it or rip it
+out.
+
+## ⚖️ License
+
+There's no license file yet, so treat TabsBoard as all rights reserved. Say the
+word and I'll pick one.
+
+## 🐛 Found a bug?
+
+Open an issue. Include your browser, your OS, and what you did just before it
+broke. Screenshots are lovely.

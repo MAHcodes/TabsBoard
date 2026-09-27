@@ -269,6 +269,8 @@
       <div class="ws-item" data-act="mute"><span class="mi-ic">${muted ? ICONS.unmute : ICONS.mute}</span>${muted ? 'Unmute Tab' : 'Mute Tab'}</div>
       ${canUnload ? `<div class="ws-item" data-act="unload"><span class="mi-ic">${ICONS.archive}</span>Unload Tab</div>` : ''}
       <hr>
+      <div class="ws-item" data-act="details"><span class="mi-ic">${ICONS.target}</span>Details<span class="mi-right">${ICONS.chevronRight}</span></div>
+      <hr>
       <div class="ws-item" data-act="pin"><span class="mi-ic">${pinned ? ICONS.pinOff : ICONS.pin}</span>${pinned ? 'Unpin Tab' : 'Pin Tab'}</div>
       <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate Tab</div>
       <div class="ws-item" data-act="movewin"><span class="mi-ic">${ICONS.externalWindow}</span>Move to New Window</div>
@@ -348,6 +350,7 @@
     menu.querySelector('[data-act=pin]').onclick = async () => { closeAll(); await sendMsg('TOGGLE_PIN_TAB', { tabId: tab.id, pinned: !pinned }); await refreshOpenTabs(); renderSidebar(); };
     const unloadBtn = menu.querySelector('[data-act=unload]');
     if (unloadBtn) unloadBtn.onclick = async () => { closeAll(); await unloadTab(tab); };
+    menu.querySelector('[data-act=details]').onclick = () => { closeAll(); openHistoryDetailsModal({ url: tab.url, title: tab.title || tab.url, favicon: tab.favIconUrl || faviconFor(tab.url) }); };
     menu.querySelector('[data-act=select]').onclick = () => { closeAll(); toggleTabSelected(tab.id, { metaKey: true }); };
 
     menu.querySelector('[data-act=close-this]').onclick = async () => {
@@ -521,6 +524,7 @@
 
     restoreFocusState(focus);
     syncLiveCards();
+    syncCpuCards();
     updateBulkBar();
   }
 
@@ -687,6 +691,7 @@
     if (w.type === 'topSites') return renderTopSitesWidget(w);
     if (w.type === 'downloads') return renderDownloadsWidget(w);
     if (w.type === 'history') return renderHistoryWidget(w);
+    if (w.type === 'cpu') return renderCpuWidget(w);
     return el('div');
   }
 
@@ -897,9 +902,12 @@
 
   function viewMenuItemsHtml(col) {
     const current = col.viewMode || STATE.meta.settings.viewMode;
+    // The two layouts get their own glyphs, so the choice reads at a glance
+    // instead of being two words side by side. .mi-ic keeps the sizing and
+    // alignment the rest of this menu already relies on.
     return `<div class="ws-item-label">View</div><div class="width-row">` +
-      `<button data-view="grid" class="${current === 'grid' ? 'active' : ''}">Tiles</button>` +
-      `<button data-view="list" class="${current === 'list' ? 'active' : ''}">Rows</button>` +
+      `<button data-view="grid" class="${current === 'grid' ? 'active' : ''}"><span class="mi-ic">${ICONS.grid}</span>Tiles</button>` +
+      `<button data-view="list" class="${current === 'list' ? 'active' : ''}"><span class="mi-ic">${ICONS.list}</span>Rows</button>` +
       `</div>`;
   }
   function wireViewMenuItems(menu, col, close) {
@@ -1238,6 +1246,142 @@
     return card;
   }
 
+  /* ---- CPU: chrome.system.cpu reports how busy the machine is.
+     Two things make this less trivial than it looks. First, the API is
+     Chrome/ChromeOS only — Firefox has no chrome.system at all — so the widget
+     says so plainly instead of showing a dead card. Second, what it hands back
+     is *cumulative* processor time (total / user / kernel / idle), not a busy
+     percentage, so a single reading says nothing on its own: the widget samples
+     twice and differences the counters, which is also what makes the number
+     settle instead of flickering on every poll. Sampling only runs while a CPU
+     card is actually on the board, so a static dashboard costs nothing. ---- */
+  const CPU_POLL_MS = 1000;
+  const CPU_HIGH_PCT = 85;
+  let cpuCards = [];
+  let cpuTimer = null;
+  let cpuPrev = null;        // previous raw CpuInfo, for the diff
+  let cpuLast = null;        // last computed reading, so a re-render paints instantly
+
+  function cpuSupported() {
+    return typeof chrome !== 'undefined' && !!(chrome.system && chrome.system.cpu && chrome.system.cpu.getInfo);
+  }
+  function readCpuInfo() {
+    return new Promise((resolve) => {
+      const api = chrome.system.cpu;
+      if (!api || !api.getInfo) { resolve(null); return; }
+      let settled = false;
+      const done = (info) => { if (settled) return; settled = true; resolve(info || null); };
+      /* A call that never calls back would otherwise leave the card claiming to
+         read the processors forever. */
+      const bail = setTimeout(() => done(null), CPU_POLL_MS * 2.5);
+      const finish = (info) => { clearTimeout(bail); done(info); };
+      try {
+        // Chrome 91+ returns a promise; older builds are callback-only.
+        const p = api.getInfo();
+        if (p && typeof p.then === 'function') p.then(finish, () => finish(null));
+        else api.getInfo(finish);
+      } catch (e) { finish(null); }
+    });
+  }
+  function cpuBusyBetween(prev, next) {
+    if (!prev || !next) return null;
+    const cores = (next.processors || []).map((p, i) => {
+      const was = (prev.processors || [])[i];
+      if (!was || !was.usage || !p.usage) return 0;
+      const dTotal = (p.usage.total || 0) - (was.usage.total || 0);
+      const dIdle = (p.usage.idle || 0) - (was.usage.idle || 0);
+      if (!(dTotal > 0)) return 0;
+      return Math.max(0, Math.min(1, 1 - (dIdle / dTotal)));
+    });
+    if (!cores.length) return null;
+    return { cores, total: cores.reduce((a, b) => a + b, 0) / cores.length };
+  }
+  function cpuReading() {
+    return readCpuInfo().then((info) => {
+      if (!info) return null;
+      const reading = cpuBusyBetween(cpuPrev, info);
+      cpuPrev = info;
+      if (reading) {
+        reading.numOfProcessors = info.numOfProcessors || reading.cores.length;
+        reading.modelName = info.modelName || '';
+        // Temperatures are reported per thermal zone, and only on ChromeOS.
+        const temps = Array.isArray(info.temperatures) ? info.temperatures.filter(t => typeof t === 'number' && isFinite(t)) : [];
+        reading.tempC = temps.length ? Math.max.apply(null, temps) : null;
+        cpuLast = reading;
+      }
+      return reading;
+    });
+  }
+  function paintCpuCard(card, reading, problem) {
+    const body = card.querySelector('.cpu-body');
+    if (!body) return;
+    if (problem) {
+      body.innerHTML = `<div class="empty-collection-hint">${escapeHtml(problem)}</div>`;
+      return;
+    }
+    if (!reading) {
+      body.innerHTML = `<div class="empty-collection-hint">Reading the processors…</div>`;
+      return;
+    }
+    const pct = Math.round(reading.total * 100);
+    const bits = [];
+    if (reading.numOfProcessors) bits.push(reading.numOfProcessors + (reading.numOfProcessors === 1 ? ' core' : ' cores'));
+    if (reading.tempC != null) bits.push(reading.tempC + '°C');
+    const bars = reading.cores.map((c, i) => {
+      const p = Math.round(c * 100);
+      return `<div class="cpu-bar${p >= CPU_HIGH_PCT ? ' is-high' : ''}" title="Core ${i + 1}: ${p}%"><span class="cpu-bar-fill" style="height:${p}%"></span></div>`;
+    }).join('');
+    body.innerHTML = `
+      <div class="cpu-top">
+        <span class="cpu-pct">${pct}<span class="cpu-unit">%</span></span>
+        <span class="cpu-meta">${escapeHtml(bits.join(' · ') || 'CPU load')}</span>
+      </div>
+      <div class="cpu-bars" role="img" aria-label="Processor load ${pct} percent">${bars}</div>
+      ${reading.modelName ? `<div class="cpu-model" title="${escapeHtml(reading.modelName)}">${escapeHtml(reading.modelName)}</div>` : ''}`;
+  }
+  function ensureCpuPoll() {
+    if (cpuTimer) return;
+    cpuTimer = setInterval(() => {
+      cpuReading().then((reading) => {
+        for (const card of cpuCards) if (card.isConnected) paintCpuCard(card, reading, reading ? null : 'CPU data is unavailable right now');
+      });
+    }, CPU_POLL_MS);
+    /* A percentage needs two readings, and they have to be a poll apart — so the
+      first call here only primes the counters, and the interval produces the
+      first real number. */
+    cpuReading().then(() => {
+      for (const card of cpuCards) if (card.isConnected) paintCpuCard(card, null, null);
+    });
+  }
+  function stopCpuPoll() {
+    if (cpuTimer) { clearInterval(cpuTimer); cpuTimer = null; }
+    cpuPrev = null;   // the counters are meaningless across a long gap
+  }
+  function syncCpuCards() {
+    cpuCards = $$('#board .widget[data-widget-id]').filter(card => {
+      const w = STATE.widgets[card.dataset.widgetId];
+      return w && w.type === 'cpu';
+    });
+    if (cpuCards.length && cpuSupported()) ensureCpuPoll();
+    else stopCpuPoll();
+  }
+  function renderCpuWidget(w) {
+    const { card, header } = widgetShell(w, ICONS.cpu, `<span class="widget-title">CPU</span>`);
+    header.querySelector('[data-act=menu]').onclick = (e) => { e.stopPropagation(); openGenericWidgetMenu(w, e.currentTarget); };
+    const body = el('div', 'widget-body cpu-body');
+    card.appendChild(body);
+    if (!cpuSupported()) {
+      /* Offered on every browser so the widget is discoverable, but Firefox has
+         no system.cpu at all — say so rather than showing a dead gauge. */
+      paintCpuCard(card, null, 'CPU readings need Chrome or ChromeOS — Firefox has no system.cpu API');
+    } else if (cpuLast) {
+      paintCpuCard(card, cpuLast, null);   // repaint with what we already know
+    } else {
+      paintCpuCard(card, null, null);
+    }
+    return card;
+  }
+
   /* ---- Browsing history: chrome.history shows pages visited recently.
      Rows are grouped by day (Today / Yesterday / weekday), show a relative
      visit time and visit count, mark pages typed into the address bar, and
@@ -1425,10 +1569,14 @@
       const shown = visits.slice(-MAX_VISITS);
       const hidden = visits.length - shown.length;
       let lastKey = null;
-      shown.forEach(v => {
+      shown.forEach((v, i) => {
         const g = dayGroupKey(v.visitTime);
         if (g.key !== lastKey) { lastKey = g.key; panel.appendChild(el('div', 'hdm-day', escapeHtml(g.label))); }
-        const row = el('div', 'hdm-row');
+        /* A day's last visit is not the list's last child — the next day header
+           follows it — so it needs to be marked for the border rule. */
+        const next = shown[i + 1];
+        const moreFollow = hidden > 0 || (next && dayGroupKey(next.visitTime).key === g.key);
+        const row = el('div', 'hdm-row' + (moreFollow ? '' : ' hdm-row-last'));
         row.innerHTML = `
           <span class="hdm-dot ${transitionDotClass(v.transition)}" title="${escapeHtml(transitionLabel(v.transition))}"></span>
           <span class="hdm-time">${escapeHtml(formatVisitTime(v.visitTime))}</span>

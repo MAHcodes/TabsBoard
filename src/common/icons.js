@@ -59,6 +59,7 @@
     timer: `<svg viewBox="0 0 24 24" ${S}><line x1="10" x2="14" y1="2" y2="2" /> <line x1="12" x2="15" y1="14" y2="11" /> <circle cx="12" cy="14" r="8" /></svg>`,
     stopwatch: `<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="13" r="8" /> <path d="M12 9v4l2 2" /> <path d="M9 2h6" /> <path d="M12 2v3" /></svg>`,
     target: `<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="12" r="10" /> <circle cx="12" cy="12" r="6" /> <circle cx="12" cy="12" r="2" /></svg>`,
+    cpu: `<svg viewBox="0 0 24 24" ${S}><rect width="16" height="16" x="4" y="4" rx="2" /> <rect width="6" height="6" x="9" y="9" rx="1" /> <path d="M9 2v2" /> <path d="M15 2v2" /> <path d="M9 20v2" /> <path d="M15 20v2" /> <path d="M2 9h2" /> <path d="M2 15h2" /> <path d="M20 9h2" /> <path d="M20 15h2" /></svg>`,
     cloudSun: `<svg viewBox="0 0 24 24" ${S}><path d="M12 2v2" /> <path d="m4.93 4.93 1.41 1.41" /> <path d="M20 12h2" /> <path d="m19.07 4.93-1.41 1.41" /> <path d="M15.947 12.65a4 4 0 0 0-5.925-4.128" /> <path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z" /></svg>`,
     rss: `<svg viewBox="0 0 24 24" ${S}><path d="M4 11a9 9 0 0 1 9 9" /> <path d="M4 4a16 16 0 0 1 16 16" /> <circle cx="5" cy="19" r="1" /></svg>`,
     download: `<svg viewBox="0 0 24 24" ${S}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /> <path d="m7 10 5 5 5-5" /> <path d="M12 15V3" /></svg>`,
