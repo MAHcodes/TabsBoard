@@ -1,9 +1,7 @@
 > [!WARNING]
-> **This is a vibe coded app.** I built TabsBoard for myself, got it to a state I
-> liked, and decided to put it out there for everyone. It is not audited, not
-> security-reviewed, and not tested by anyone but me. Use it at your own risk.
-> Back up anything you care about (there's an export button) and please report
-> bugs instead of assuming they are intentional.
+> **Vibe coded app.** Built for myself, then shared. No audit, no security
+> review, no testing beyond my own use. Use at your own risk, export anything
+> you care about, and please report bugs instead of assuming they're intended.
 
 <div align="center">
 
