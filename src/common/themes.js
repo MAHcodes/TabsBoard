@@ -217,24 +217,119 @@
   // (--bg-color, --main-color, --caret-color, --sub-color, --sub-alt-color,
   // --text-color, --error-color, --error-extra-color,
   // --colorful-error-color, --colorful-error-extra-color).
-  function resolveTheme(themeId, lightThemeId, darkThemeId) {
+
+  /* The eight slots the custom theme builder exposes — the ones this app's
+     stylesheet actually paints from. Monkeytype also carries
+     colorfulError / colorfulErrorExtra, but no rule here reads them, so the
+     builder doesn't offer two dead controls; withDerivedColors() fills them in
+     from main + error instead, keeping every saved custom theme a complete
+     monkeytype-shaped object. */
+  const COLOR_SLOTS = [
+    { key: 'bg', label: 'Background', hint: 'the page' },
+    { key: 'subAlt', label: 'Panels', hint: 'modals, raised surfaces' },
+    { key: 'text', label: 'Text', hint: 'titles, labels' },
+    { key: 'sub', label: 'Muted text', hint: 'hints, borders' },
+    { key: 'main', label: 'Accent', hint: 'active states, links' },
+    { key: 'caret', label: 'Caret', hint: 'cursor in inputs' },
+    { key: 'error', label: 'Error', hint: 'delete, failures' },
+    { key: 'errorExtra', label: 'Error fill', hint: 'invalid drop zones' }
+  ];
+  const ALL_SLOT_KEYS = COLOR_SLOTS.map(s => s.key).concat(['colorfulError', 'colorfulErrorExtra']);
+
+  /* Custom themes live in settings.next to the presets, so they travel with
+     export/import and can fill any of the three theme slots (current, light,
+     dark). Ids are prefixed so a custom id can never collide with a preset id. */
+  const CUSTOM_PREFIX = 'custom-';
+  const MAX_CUSTOM_THEMES = 20;
+  const HEX_RE = /^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
+  function isHex(value) { return typeof value === 'string' && HEX_RE.test(value.trim()); }
+
+  /* Accepts #abc / #aabbcc / with or without the hash, drops any alpha, and
+     returns lowercase 6-digit hex — or fallback when the input isn't a color.
+     `<input type=color>` and hand-typed hex go through the same door. */
+  function normalizeHex(value, fallback) {
+    if (!isHex(value)) return fallback;
+    let h = HEX_RE.exec(value.trim())[1].toLowerCase();
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    return '#' + h.slice(0, 6);
+  }
+
+  function isCustomId(id) { return typeof id === 'string' && id.indexOf(CUSTOM_PREFIX) === 0; }
+
+  function newCustomId() {
+    const rand = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID().replace(/-/g, '').slice(0, 10)
+      : Math.random().toString(36).slice(2, 12);
+    return CUSTOM_PREFIX + rand;
+  }
+
+  /* Fills monkeytype's two unused slots from the ones the builder does expose,
+     so a preview palette (and a saved custom theme) always carries all ten. */
+  function withDerivedColors(palette) {
+    const cu = (typeof root !== 'undefined' && root.ColorUtils) ? root.ColorUtils : null;
+    const out = Object.assign({}, palette);
+    if (!isHex(out.colorfulError)) {
+      out.colorfulError = cu ? cu.mix(out.main, out.error, 0.4) : out.error;
+    }
+    if (!isHex(out.colorfulErrorExtra)) {
+      out.colorfulErrorExtra = cu ? cu.mix(out.colorfulError, out.bg, 0.55) : out.error;
+    }
+    return out;
+  }
+
+  /* Coerces anything (an import, a hand-edited export) into a well-formed
+     custom theme: real custom id, sane name/type, every slot a valid color. */
+  function normalizeCustom(t, index) {
+    if (!t || typeof t !== 'object') return null;
+    const base = PRESET_THEMES[0];
+    const out = {
+      id: isCustomId(t.id) ? t.id : newCustomId(),
+      name: String(t.name == null ? '' : t.name).trim().slice(0, 40) || ('My theme ' + ((index || 0) + 1)),
+      type: t.type === 'light' ? 'light' : 'dark',
+      custom: true
+    };
+    ALL_SLOT_KEYS.forEach(k => { out[k] = normalizeHex(t[k], base[k]); });
+    return out;
+  }
+
+  function customThemes(customList) {
+    return (Array.isArray(customList) ? customList : [])
+      .map((t, i) => normalizeCustom(t, i))
+      .filter(Boolean);
+  }
+
+  /* Presets first, then the user's own — the order every picker renders in. */
+  function allThemes(customList) { return PRESET_THEMES.concat(customThemes(customList)); }
+
+  function findTheme(themeId, customList) {
+    if (!themeId) return null;
+    return allThemes(customList).find(x => x.id === themeId) || null;
+  }
+
+  function resolveTheme(themeId, lightThemeId, darkThemeId, customList) {
     let t;
     if (themeId === 'auto') {
       const prefersDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
       const chosen = prefersDark ? (darkThemeId || 'serika_dark') : (lightThemeId || 'serika');
-      t = PRESET_THEMES.find(x => x.id === chosen) || PRESET_THEMES[0];
+      t = findTheme(chosen, customList) || PRESET_THEMES[0];
     } else {
-      t = PRESET_THEMES.find(x => x.id === themeId) || PRESET_THEMES[0];
+      t = findTheme(themeId, customList) || PRESET_THEMES[0];
     }
     return {
-      id: t.id, name: t.name, type: t.type,
+      id: t.id, name: t.name, type: t.type, custom: !!t.custom,
       bg: t.bg, main: t.main, caret: t.caret, sub: t.sub, subAlt: t.subAlt,
       text: t.text, error: t.error, errorExtra: t.errorExtra,
       colorfulError: t.colorfulError, colorfulErrorExtra: t.colorfulErrorExtra
     };
   }
 
-  const Themes = { PRESET_THEMES, COLLECTION_COLORS, resolveTheme };
+  const Themes = {
+    PRESET_THEMES, COLLECTION_COLORS, COLOR_SLOTS, ALL_SLOT_KEYS,
+    CUSTOM_PREFIX, MAX_CUSTOM_THEMES,
+    resolveTheme, allThemes, findTheme, customThemes, normalizeCustom,
+    newCustomId, isCustomId, isHex, normalizeHex, withDerivedColors
+  };
   if (typeof module !== 'undefined') module.exports = Themes;
   root.Themes = Themes;
 })(typeof self !== 'undefined' ? self : this);

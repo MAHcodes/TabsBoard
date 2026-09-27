@@ -237,6 +237,19 @@
               <label>Presets</label>
               <div id="theme-grid-all" class="theme-grid"></div>
             </div>
+            <div class="settings-group-head">
+              <h3>Your own themes</h3>
+              <p>Build a palette from scratch — the page re-themes as you pick. Saved themes join the grid above, the Auto light/dark slots, and the command palette.</p>
+            </div>
+            <div class="settings-row">
+              <div class="btn-row">
+                <button type="button" class="mini-btn" id="theme-builder-new">New custom theme…</button>
+                <button type="button" class="mini-btn" id="theme-builder-edit">Edit current…</button>
+                <button type="button" class="mini-btn danger" id="theme-builder-delete">Delete current…</button>
+              </div>
+              <div class="hint-text">"Edit" and "Delete" work on your own themes only — they light up once one of them is applied. Auto-fill recalculates the panel, muted text, caret, and error colors from the background, text, and accent you set (<span id="theme-builder-count">0/20</span> saved).</div>
+            </div>
+            <div id="theme-builder" class="theme-builder hidden"></div>
           </div>
         </div>
 
@@ -610,6 +623,7 @@
 <script src="widgets.js"></script>
 <script src="bookmarks.js"></script>
 <script src="palette.js"></script>
+<script src="theme-builder.js"></script>
 <script src="settings.js"></script>
 <script src="dashboard.js"></script>
 </body>

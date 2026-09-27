@@ -163,7 +163,7 @@ function defaultState() {
     meta: {
       activeWorkspaceId: wsId,
       settings: {
-        themeId: 'auto',           // preset id or 'auto' (follows the OS)
+        themeId: 'auto',           // preset id, custom theme id, or 'auto' (follows the OS)
         density: 'comfortable',    // spacious | comfortable | compact | dense
         radius: 'default',         // shape scale: sharp | default | rounded
         searchEngine: 'google',    // fallback engine for address-bar + palette web search
@@ -178,6 +178,7 @@ function defaultState() {
         openBookmarksInNewTab: false, // false = open bookmarks in the current tab, true = open in a new tab
         lightThemeId: 'serika',    // used when themeId is 'auto' and the OS is in light mode
         darkThemeId: 'serika_dark', // used when themeId is 'auto' and the OS is in dark mode
+        customThemes: [],          // user-built themes (Themes builder); any of the three ids above can point at one
         clockFormat: '24',         // '12' | '24' — default for new Clock widgets
         weatherUnits: 'c',         // 'c' | 'f' — default for new Weather widgets
         pomodoroFocus: 25,         // default focus minutes for new Pomodoro widgets

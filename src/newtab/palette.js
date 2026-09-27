@@ -301,18 +301,23 @@
   function paletteThemeItems() {
     const s = STATE.meta.settings;
     const cur = s.themeId;
-    const light = Themes.resolveTheme('auto', s.lightThemeId, undefined);
-    const dark = Themes.resolveTheme('auto', undefined, s.darkThemeId);
+    const custom = s.customThemes || [];
+    const light = Themes.resolveTheme('auto', s.lightThemeId, undefined, custom);
+    const dark = Themes.resolveTheme('auto', undefined, s.darkThemeId, custom);
     const items = [{
       kind: 'theme', label: 'Auto (follow system)', themeId: 'auto',
       chips: [light.bg, light.main, light.text, dark.bg, dark.main, dark.text],
       value: cur === 'auto' ? 'Active' : '', run: () => selectTheme('auto')
     }];
-    Themes.PRESET_THEMES.forEach(t => {
+    Themes.allThemes(custom).forEach(t => {
       items.push({
         kind: 'theme', label: t.name, themeId: t.id, chips: themeChipColors(t),
         value: cur === t.id ? 'Active' : '', run: () => selectTheme(t.id)
       });
+    });
+    items.push({
+      kind: 'action', label: 'Custom theme builder…',
+      run: () => { openSettings(); openSettingsTab('themes'); openThemeBuilder(null); }
     });
     return items;
   }

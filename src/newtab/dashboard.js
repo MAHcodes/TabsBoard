@@ -329,9 +329,15 @@
   let themePreviewing = false;
   function previewTheme(themeId) {
     if (!themeId) return;
-    themePreviewing = true;
     const s = STATE.meta.settings;
-    applyThemeColors(Themes.resolveTheme(themeId, s.lightThemeId, s.darkThemeId));
+    previewPalette(Themes.resolveTheme(themeId, s.lightThemeId, s.darkThemeId, s.customThemes));
+  }
+  /* Same, but straight from a palette object — the theme builder previews the
+     colors it is editing before the theme has an id to be looked up by. */
+  function previewPalette(palette) {
+    if (!palette) return;
+    themePreviewing = true;
+    applyThemeColors(palette);
   }
   function commitThemePreview() { themePreviewing = false; }
   function endThemePreview() {
@@ -342,7 +348,7 @@
 
   function applySettings(reveal = true) {
     const s = STATE.meta.settings;
-    applyThemeColors(Themes.resolveTheme(s.themeId, s.lightThemeId, s.darkThemeId));
+    applyThemeColors(Themes.resolveTheme(s.themeId, s.lightThemeId, s.darkThemeId, s.customThemes));
     const r = document.documentElement.style;
     r.setProperty('--board-cols', String((s.dashboard && s.dashboard.columns) || 4));
     const DENSITY_ROW_MIN = { spacious: '224px', comfortable: '200px', compact: '168px', dense: '150px' };
@@ -660,7 +666,7 @@
         closePalette();
         cancelThemePick();
         hideOverlay('#modal-overlay');
-        hideOverlay('#settings-overlay');
+        closeSettings();
         hideOverlay('#trash-overlay');
         hideOverlay('#shortcuts-overlay');
         if (SELECTED.size) { SELECTED.clear(); selectMode = false; renderBoard(); }

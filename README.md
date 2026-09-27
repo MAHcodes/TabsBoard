@@ -37,7 +37,7 @@ workspaces, saved sessions, and a tab list that can actually get out of your way
 - ⌨️ **Address bar** — type `tb` then anything to search your bookmarks, tabs, and
   sessions without leaving the URL bar.
 - 🖱️ **Right-click menu** — add the page, a link, or a selection to TabsBoard.
-- 🎨 **187 themes** — every Monkeytype palette, plus a custom one.
+- 🎨 **187 themes** — every Monkeytype palette, plus a builder for your own.
 - 🌍 **Weather, RSS, downloads, history, most-visited, CPU** as widgets.
 - 💾 **Yours, locally** — everything lives in browser storage. No account, no
   server, no analytics.
@@ -54,7 +54,13 @@ workspaces, saved sessions, and a tab list that can actually get out of your way
 ## 🎨 Themes
 
 187 presets, ported straight from [Monkeytype](https://github.com/monkeytypegame/monkeytype)'s
-theme set, plus a custom theme builder if none of them feel like yours.
+theme set, plus a builder for your own. The builder edits the eight colors this
+app actually paints from — background, panels, text, muted text, accent, caret,
+and the two error colors — and repaints the page live as you drag the pickers or
+type hex values. A contrast readout tells you when the text won't survive the
+background. Saved themes live beside the presets, so they show up in the grid,
+in the Auto light/dark slots, and in the command palette, and they ride along
+with your JSON export.
 
 ## ⌨️ Shortcuts
 

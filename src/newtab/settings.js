@@ -1,17 +1,23 @@
   /* Settings panel + keyboard-shortcuts popup. Composes with the other newtab
    modules via the shared global scope (see index.html). */
   /* ============ SETTINGS PANEL ============ */
-  function openSettings() { pickingThemeFor = null; renderThemeGrids(); populateFontSelect(); syncSettingsUI(); showOverlay('#settings-overlay'); }
-  function closeSettings() { hideOverlay('#settings-overlay'); }
+  function openSettings() { pickingThemeFor = null; if (themeBuilder) closeThemeBuilder(); renderThemeGrids(); populateFontSelect(); syncSettingsUI(); showOverlay('#settings-overlay'); }
+  // Closing Settings always drops the builder: its DOM must not survive into the
+  // next open, and its live preview goes with it. endThemePreview() is a no-op
+  // when nothing is being previewed.
+  function closeSettings() {
+    if (themeBuilder) { closeThemeBuilder(); endThemePreview(); }
+    hideOverlay('#settings-overlay');
+  }
+
+  function openSettingsTab(tab) {
+    $$('.settings-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    $$('.settings-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
+  }
 
   function wireSettingsPanel() {
     $$('.settings-tab').forEach(btn => {
-      btn.onclick = () => {
-        $$('.settings-tab').forEach(b => b.classList.remove('active'));
-        $$('.settings-panel').forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        $(`#panel-${btn.dataset.tab}`).classList.add('active');
-      };
+      btn.onclick = () => openSettingsTab(btn.dataset.tab);
     });
     $('#settings-btn').onclick = openSettings;
     $('#settings-close-x').onclick = () => { endThemePreview(); closeSettings(); };
@@ -68,6 +74,10 @@
       updateSearchClear();
     };
     updateSearchClear();
+
+    $('#theme-builder-new').onclick = () => openThemeBuilder(null);
+    $('#theme-builder-edit').onclick = () => openThemeBuilder(appliedThemeId());
+    $('#theme-builder-delete').onclick = () => deleteCustomTheme(appliedThemeId());
 
     $$('#density-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ density: b.dataset.val }); await reload(); syncSettingsUI(); });
     $$('#radius-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ radius: b.dataset.val }); await reload(); syncSettingsUI(); });
@@ -172,8 +182,25 @@
   function renderThemeGrids() {
     const input = $('#theme-search-input');
     const q = (input ? input.value : '').trim().toLowerCase();
-    const list = Themes.PRESET_THEMES.filter(t => !q || t.name.toLowerCase().includes(q));
+    const list = Themes.allThemes(savedCustomThemes()).filter(t => !q || t.name.toLowerCase().includes(q));
     renderThemeGrid('#theme-grid-all', list);
+    syncBuilderButtons();
+  }
+
+  /* The builder edits whatever theme is on screen, so its edit/delete buttons
+     only make sense — and only enable — while a custom theme is applied. */
+  function syncBuilderButtons() {
+    const list = savedCustomThemes();
+    const applied = appliedThemeId();
+    const isCustom = Themes.isCustomId(applied) && list.some(t => t.id === applied);
+    const editBtn = $('#theme-builder-edit');
+    const delBtn = $('#theme-builder-delete');
+    if (editBtn) { editBtn.disabled = !isCustom; editBtn.title = isCustom ? 'Edit this custom theme' : 'Only your own themes can be edited'; }
+    if (delBtn) { delBtn.disabled = !isCustom; delBtn.title = isCustom ? 'Delete this custom theme' : 'Only your own themes can be deleted'; }
+    const newBtn = $('#theme-builder-new');
+    if (newBtn) newBtn.disabled = list.length >= Themes.MAX_CUSTOM_THEMES;
+    const count = $('#theme-builder-count');
+    if (count) count.textContent = `${list.length}/${Themes.MAX_CUSTOM_THEMES}`;
   }
 
   /* Font picker. No hardcoded availability list — the dropdown is filled with
@@ -304,9 +331,9 @@
       const key = box.dataset.key;
       const s = STATE.meta.settings;
       const id = key === 'light' ? (s.lightThemeId || 'serika') : (s.darkThemeId || 'serika_dark');
-      const t = Themes.PRESET_THEMES.find(x => x.id === id) || Themes.PRESET_THEMES[0];
+      const t = Themes.findTheme(id, savedCustomThemes()) || Themes.PRESET_THEMES[0];
       const chips = themeChipColors(t);
-      box.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div>`;
+      box.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${escapeHtml(t.name)}</div>`;
       box.style.background = t.bg;
       box.style.borderColor = t.main;
       box.style.color = t.text;
@@ -337,7 +364,14 @@
       card.style.borderColor = t.main;
       card.style.color = t.text;
       const chips = themeChipColors(t);
-      card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${t.name}</div>`;
+      /* Custom themes carry their own two buttons next to the name, so you can
+         open the builder or drop one straight from the grid. */
+      const tools = t.custom ? `<span class="theme-card-tools">
+          <button type="button" data-act="edit" title="Edit ${escapeHtml(t.name)}" aria-label="Edit ${escapeHtml(t.name)}">${ICONS.edit}</button>
+          <button type="button" data-act="del" title="Delete ${escapeHtml(t.name)}" aria-label="Delete ${escapeHtml(t.name)}">${ICONS.trash}</button>
+        </span>` : '';
+      card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div>
+        <div class="theme-swatch-foot"><div class="theme-swatch-label">${escapeHtml(t.name)}</div>${tools}</div>`;
       card.onclick = async () => {
         commitThemePreview();
         const s = STATE.meta.settings;
@@ -356,6 +390,13 @@
           syncSettingsUI();
         }
       };
+      card.querySelectorAll('.theme-card-tools button').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          if (btn.dataset.act === 'edit') openThemeBuilder(t.id);
+          else deleteCustomTheme(t.id);
+        };
+      });
       wrap.appendChild(card);
     });
   }
@@ -369,6 +410,7 @@
     const extras = $('#auto-theme-extras');
     if (extras) extras.classList.toggle('hidden', !autoOn);
     renderAutoThemeBoxes();
+    syncBuilderButtons();
     const grid = $('#theme-grid-all');
     if (grid) grid.classList.toggle('pick-active', !!pickingThemeFor);
     $$('#density-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.density));
