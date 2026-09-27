@@ -1,7 +1,7 @@
 > [!WARNING]
-> **Vibe coded app.** Built for myself, then shared. No audit, no security
-> review, no testing beyond my own use. Use at your own risk, export anything
-> you care about, and please report bugs instead of assuming they're intended.
+> Disclaimer: This project was "vibe coded" primarily for personal use that I decided to open-source, It is provided as-is, without any warranties.
+>
+> **USE AT YOUR OWN RISK**
 
 <div align="center">
 
