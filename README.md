@@ -97,18 +97,31 @@ or the Firefox add-on shortcuts page):
 
 ### 🦊 Firefox
 
-Grab the prebuilt `TabsBoard-1.1.0-fx.xpi` from this repo, or build it, or load the
-folder directly:
+Install it from AMO:
+[addons.mozilla.org/firefox/addon/tabsboard](https://addons.mozilla.org/en-US/firefox/addon/tabsboard/)
+— click **Add to Firefox**. That install is signed by Mozilla, survives restarts,
+and updates on its own.
+
+Or build it yourself and load the folder directly:
 
 1. `about:debugging#/runtime/this-firefox`
 2. **Load Temporary Add-on…** → pick `dist/firefox/manifest.json`
 
-Temporary installs disappear when you close Firefox. For a permanent install you
-need it signed by Mozilla — see [addons.mozilla.org](https://addons.mozilla.org).
+Temporary installs disappear when you close Firefox, and Firefox won't serve an
+unsigned `.xpi` as a permanent install. If you want your own build to stick
+around, push it through [addons.mozilla.org](https://addons.mozilla.org) as an
+unlisted add-on, or sign it yourself with
+[web-ext](https://extensionworkshop.com/documentation/develop/getting-started-with-web-ext/):
+
+```bash
+web-ext sign --api-key "$AMO_KEY" --api-secret "$AMO_SECRET" \
+  --source-dir dist/firefox
+```
 
 ## 🛠️ Build it yourself
 
-`src/` is the source of truth. `dist/` is generated.
+`src/` is the source of truth. `dist/` and the packed `.xpi` are generated and
+gitignored, so run these before either install step.
 
 ```bash
 # Chrome (MV3)
@@ -123,8 +136,8 @@ cp -r src/. dist/firefox/
 rm dist/firefox/manifest.firefox.json dist/firefox/manifest.chrome.json
 cp src/manifest.firefox.json dist/firefox/manifest.json
 
-# Pack the Firefox build
-cd dist/firefox && zip -r -X ../../TabsBoard-1.1.0-fx.xpi . -x '.*'
+# Pack the Firefox build (version comes from the manifest)
+cd dist/firefox && zip -r -X "../../TabsBoard-$(node -p "require('./manifest.json').version")-fx.xpi" . -x '.*'
 ```
 
 Bump the version in **both** manifests, not just one.
