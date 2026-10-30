@@ -133,14 +133,11 @@
   function sessionsForActiveWS() {
     return Object.values(STATE.sessions).filter(s => s.workspaceId === activeWorkspaceId()).sort((a, b) => b.createdAt - a.createdAt);
   }
-  function faviconFor(url) {
-    const src = STATE.meta.settings.faviconSource;
-    if (src === 'none') return '';
-    try {
-      const host = new URL(url).hostname;
-      return src === 'duckduckgo' ? `https://icons.duckduckgo.com/ip3/${host}.ico` : `https://www.google.com/s2/favicons?sz=32&domain=${host}`;
-    } catch { return ''; }
-  }
+  /* Best icon src for a page right now (cached copy if we have one, else a
+     provider URL, else a generated letter tile). Never empty, never broken. */
+  function faviconFor(url, stored) { return Favicons.src(url, stored); }
+  /* Ready-made <img> markup with the cache + fallback chain wired in. */
+  function favImg(pageUrl, stored, cls) { return Favicons.img(pageUrl, stored, cls); }
 
   /* Fuzzy matcher for the command palette: query characters must appear in
      order in the target (not necessarily adjacent), so "gcal" matches "Google
@@ -164,6 +161,7 @@
   /* ============ INIT ============ */
   async function boot() {
     STATE = await DB.getState();
+    await Favicons.init(STATE.meta.settings.faviconSource);
     // The sidebar HTML starts in the open state; settings may pivot it to
     // compact/collapsed in applySettings(), which would transition from the
     // open width on first load. Suppress sidebar transitions until the first
@@ -185,6 +183,7 @@
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === 'local' && changes.tdb_data) {
         STATE = changes.tdb_data.newValue;
+        Favicons.setSource(STATE.meta.settings.faviconSource);
         scheduleRender();
         applySettings();
       }
@@ -221,7 +220,7 @@
     ensureLiveTick();
   }
 
-  async function reload() { STATE = await DB.getState(); scheduleRender(); }
+  async function reload() { STATE = await DB.getState(); Favicons.setSource(STATE.meta.settings.faviconSource); scheduleRender(); }
 
   /* Coalesces full re-renders. Every storage write fires storage.onChanged
      here, and most actions *also* call reload() — without this, each user
@@ -595,6 +594,7 @@
       if (!pickId) return;
       DB.moveBookmarks(Array.from(SELECTED), pickId).then(async () => { SELECTED.clear(); selectMode = false; await reload(); });
     };
+    $('#bulk-open-btn').onclick = () => openSelectedBookmarks(false);
     $('#bulk-delete-btn').onclick = () => { if (SELECTED.size) deleteBookmarksWithUndo(Array.from(SELECTED)); };
     $('#bulk-clear-btn').onclick = () => { SELECTED.clear(); selectMode = false; renderBoard(); };
 
@@ -662,6 +662,13 @@
       // Modifiers — always active, even inside inputs
       if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); return; }
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); quickAddCurrentTab(); return; }
+      // While bookmarks are being selected: Ctrl/Cmd+A selects every visible one, Enter opens them.
+      if (selectMode && currentNav === 'collections' && !document.querySelector('#modal-overlay:not(.hidden), #palette-overlay:not(.hidden), #settings-overlay:not(.hidden)')) {
+        const t0 = (document.activeElement && document.activeElement.tagName) || '';
+        const typing = t0 === 'INPUT' || t0 === 'TEXTAREA' || (document.activeElement && document.activeElement.isContentEditable);
+        if (!typing && mod && !e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); selectAllVisibleBookmarks(); return; }
+        if (!typing && !mod && e.key === 'Enter' && SELECTED.size) { e.preventDefault(); openSelectedBookmarks(e.shiftKey); return; }
+      }
       if (e.key === 'Escape') {
         closePalette();
         cancelThemePick();

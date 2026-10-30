@@ -94,6 +94,12 @@
     $('#setting-open-in-new-tab').onchange = async (e) => { await DB.updateSettings({ openBookmarksInNewTab: e.target.checked }); await reload(); };
     $$('#search-engine-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ searchEngine: b.dataset.val }); await reload(); syncSettingsUI(); });
     $$('#favicon-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ faviconSource: b.dataset.val }); await reload(); syncSettingsUI(); });
+    $('#favicon-cache-clear').onclick = async () => {
+      await Favicons.clear();
+      syncSettingsUI();
+      toast('Favicon cache cleared — icons will re-download as needed');
+      await reload();
+    };
     $('#setting-show-tab-audio').onchange = async (e) => { await DB.updateSettings({ tabsList: { showTabAudio: e.target.checked } }); await reload(); };
     $('#setting-group-pinned').onchange = async (e) => { await DB.updateSettings({ tabsList: { groupPinned: e.target.checked } }); await reload(); };
     $('#setting-dim-inactive').onchange = async (e) => { await DB.updateSettings({ tabsList: { dimInactive: e.target.checked } }); await reload(); };
@@ -428,6 +434,7 @@
     $('#setting-open-in-new-tab').checked = !!s.openBookmarksInNewTab;
     $$('#search-engine-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === (s.searchEngine || 'google')));
     $$('#favicon-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.faviconSource));
+    { const info = $('#favicon-cache-info'); if (info) { const st = Favicons.stats(); info.textContent = st.count ? `${st.count} icon${st.count === 1 ? '' : 's'} cached (${Math.max(1, Math.round(st.bytes / 1024))} KB)` : 'Icons are cached after they first load.'; } }
     const tl = s.tabsList || {};
     $('#setting-show-tab-audio').checked = tl.showTabAudio !== false;
     $('#setting-group-pinned').checked = tl.groupPinned !== false;

@@ -43,19 +43,19 @@
     const item = el('div', (isTile ? 'bookmark-tile' : 'bookmark-item'));
     item.dataset.bookmarkId = bm.id;
     item.draggable = true;
-    const fav = bm.favicon || faviconFor(bm.url);
+    const fav = bm.favicon || '';
     const metaHtml = bm.meta ? (isTile
       ? `<div class="bm-meta" title="${escapeHtml(bm.meta)}">${escapeHtml(bm.meta)}</div>`
       : `<span class="bm-meta" title="${escapeHtml(bm.meta)}">${escapeHtml(bm.meta)}</span>`) : '';
     if (isTile) {
       item.innerHTML = `
         <button class="bm-menu-btn" data-act="menu" title="Bookmark actions">${ICONS.dots}</button>
-        <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
+        ${favImg(bm.url, bm.favicon, 'bm-favicon')}
         <div class="bm-title" title="${escapeHtml(bm.title)}">${escapeHtml(bm.title)}</div>
         ${metaHtml}`;
     } else {
       item.innerHTML = `
-        <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
+        ${favImg(bm.url, bm.favicon, 'bm-favicon')}
         <span class="bm-title" title="${escapeHtml(bm.url)}">${escapeHtml(bm.title)}</span>
         ${metaHtml}
         <button class="bm-menu-btn" data-act="menu" title="Bookmark actions">${ICONS.dots}</button>`;
@@ -106,7 +106,7 @@
         ? `color-mix(in srgb, var(--main-color) 20%, var(--sub-alt-color))`
         : `color-mix(in srgb, var(--main-color) 20%, var(--bg-color))`;
     }
-    const fav = bm.favicon || faviconFor(bm.url);
+    const fav = bm.favicon || '';
     const tagsHtml = (bm.tags || []).slice(0, 2).map(t => `<span class="bm-tag">${escapeHtml(t)}</span>`).join('');
     // Browser-synced collections (History, Most visited) are data rows: they
     // get no visible ⋯ button — management lives in the right-click menu.
@@ -127,14 +127,14 @@
       item.innerHTML = `
         ${selectHtml}
         ${menuHtml}
-        <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
+        ${favImg(bm.url, bm.favicon, 'bm-favicon')}
         <div class="bm-title" title="${escapeHtml(bm.title)}">${escapeHtml(bm.title)}</div>
         ${timeHtml}`;
     } else {
       item.innerHTML = `
         ${selectMode ? `<input type="checkbox" class="bm-select checkbox" ${SELECTED.has(bm.id) ? 'checked' : ''}>` : ''}
         ${bm.pinned ? `<span class="bm-pin-ic">${ICONS.pin}</span>` : ''}
-        <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
+        ${favImg(bm.url, bm.favicon, 'bm-favicon')}
         <span class="bm-title" title="${escapeHtml(bm.url)}">${escapeHtml(bm.title)}</span>
         ${timeHtml}
         ${tagsHtml}
@@ -162,6 +162,7 @@
       }
       if (e.target.classList.contains('bm-select') || selectMode || e.shiftKey || e.metaKey || e.ctrlKey) {
         e.preventDefault();
+        if (e.shiftKey && lastSelectedId && lastSelectedId !== bm.id && selectRange(item, lastSelectedId, bm.id)) return;
         toggleSelect(bm.id);
         return;
       }
@@ -189,7 +190,9 @@
       <div class="ws-item" data-act="copy"><span class="mi-ic">${ICONS.copy}</span>Copy link</div>
       <div class="ws-item" data-act="newwin"><span class="mi-ic">${ICONS.externalWindow}</span>Open in new window</div>
       <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate</div>
+      <div class="ws-item" data-act="refetch"><span class="mi-ic">${ICONS.refresh}</span>${SELECTED.size > 1 && SELECTED.has(bm.id) ? `Refetch title &amp; icon (${SELECTED.size})` : 'Refetch title &amp; icon'}</div>
       <hr>
+      ${SELECTED.size > 1 && SELECTED.has(bm.id) ? `<div class="ws-item" data-act="openselected"><span class="mi-ic">${ICONS.openAll}</span>Open ${SELECTED.size} selected</div>` : ''}
       <div class="ws-item" data-act="select"><span class="mi-ic">${SELECTED.has(bm.id) ? ICONS.check : ICONS.checkSquare}</span>${SELECTED.has(bm.id) ? 'Deselect Bookmark' : 'Select Bookmark'}${SELECTED.size > 1 ? ` (${SELECTED.size} selected)` : ''}</div>
       <hr>
       <div class="ws-item" data-act="delete" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete</div>`;
@@ -206,6 +209,10 @@
     menu.querySelector('[data-act=newwin]').onclick = () => { close(); sendMsg('OPEN_URLS', { urls: [bm.url], newWindow: true }); };
     menu.querySelector('[data-act=dup]').onclick = async () => { close(); await DB.duplicateBookmark(bm.id); await reload(); };
     menu.querySelector('[data-act=select]').onclick = () => { close(); toggleSelect(bm.id); };
+    // refetch asks for site access, which the browser only allows from a click handler — keep this call first.
+    menu.querySelector('[data-act=refetch]').onclick = () => { close(); refetchBookmarkMeta(SELECTED.size > 1 && SELECTED.has(bm.id) ? Array.from(SELECTED) : [bm.id]); };
+    const openSel = menu.querySelector('[data-act=openselected]');
+    if (openSel) openSel.onclick = () => { close(); openSelectedBookmarks(false); };
     menu.querySelector('[data-act=delete]').onclick = () => { close(); deleteBookmarksWithUndo([bm.id]); };
   }
 
@@ -559,14 +566,102 @@
   }
 
   /* ============ SELECTION / BULK ACTIONS ============ */
+  let lastSelectedId = null; // anchor for shift-click range selection
   function toggleSelect(id) {
     if (SELECTED.has(id)) SELECTED.delete(id); else SELECTED.add(id);
+    lastSelectedId = id;
     selectMode = SELECTED.size > 0;
     renderBoard();
+  }
+  /* Shift-click: select everything between the anchor and this bookmark,
+     within the same collection card. Returns false if the anchor isn't in
+     the same card (caller falls back to a plain toggle). */
+  function selectRange(item, fromId, toId) {
+    const card = item.closest('.widget') || $('#board');
+    const ids = Array.from(card.querySelectorAll('[data-bookmark-id]')).map(n => n.dataset.bookmarkId);
+    const a = ids.indexOf(fromId), b = ids.indexOf(toId);
+    if (a < 0 || b < 0) return false;
+    ids.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(id => { if (STATE.bookmarks[id]) SELECTED.add(id); });
+    lastSelectedId = toId;
+    selectMode = SELECTED.size > 0;
+    renderBoard();
+    return true;
+  }
+  /* Ids of every real bookmark currently on screen (after the filter box),
+     in display order. Virtual rows (History / Most visited) aren't included. */
+  function visibleBookmarkIds() {
+    return $$('#board [data-bookmark-id]').map(n => n.dataset.bookmarkId).filter(id => STATE.bookmarks[id]);
+  }
+  function selectAllVisibleBookmarks() {
+    const ids = visibleBookmarkIds();
+    if (!ids.length) { toast('No bookmarks to select'); return; }
+    const all = ids.every(id => SELECTED.has(id));
+    if (all) ids.forEach(id => SELECTED.delete(id)); else ids.forEach(id => SELECTED.add(id));
+    selectMode = SELECTED.size > 0;
+    renderBoard();
+  }
+  function selectedBookmarksInOrder() {
+    const pos = new Map($$('#board [data-bookmark-id]').map((n, i) => [n.dataset.bookmarkId, i]));
+    return Array.from(SELECTED).filter(id => STATE.bookmarks[id])
+      .sort((a, b) => (pos.has(a) ? pos.get(a) : 1e9) - (pos.has(b) ? pos.get(b) : 1e9))
+      .map(id => STATE.bookmarks[id]);
+  }
+  function clearSelection() { SELECTED.clear(); selectMode = false; lastSelectedId = null; renderBoard(); }
+  async function openSelectedBookmarks(newWindow) {
+    const bms = selectedBookmarksInOrder();
+    const urls = bms.map(b => b.url).filter((u, i, arr) => u && arr.indexOf(u) === i);
+    if (!urls.length) { toast('Nothing to open'); return; }
+    if (urls.length > 15 && !(await uiConfirm(`Open ${urls.length} tabs at once?`, { title: 'Open bookmarks', okLabel: 'Open' }))) return;
+    await sendMsg('OPEN_URLS', { urls, newWindow: !!newWindow });
+    toast(`Opened ${urls.length} bookmark${urls.length === 1 ? '' : 's'}${newWindow ? ' in a new window' : ''}`);
+    clearSelection();
+  }
+  async function copySelectedLinks() {
+    const urls = selectedBookmarksInOrder().map(b => b.url);
+    if (!urls.length) return;
+    toast((await copyTextToClipboard(urls.join('\n'))) ? `Copied ${urls.length} link${urls.length === 1 ? '' : 's'}` : "Couldn't copy");
+  }
+
+  /* Re-reads each page's <title> and icon and updates the bookmarks. Must be
+     invoked straight from a click: the first thing it does is ask for site
+     access (browsers only allow that prompt during a user gesture). */
+  let refetching = false;
+  async function refetchBookmarkMeta(ids) {
+    const list = ids.map(id => STATE.bookmarks[id]).filter(b => b && Favicons.hostOf(b.url));
+    if (!list.length) { toast('Nothing to refetch — only web (http/https) bookmarks can be refreshed'); return; }
+    if (refetching) { toast('A refetch is already running'); return; }
+    const granted = await Favicons.requestAccess();
+    refetching = true;
+    toast(list.length === 1 ? 'Refetching…' : `Refetching ${list.length} bookmarks…`);
+    const patches = {};
+    let ok = 0, failed = 0, i = 0;
+    const worker = async () => {
+      while (i < list.length) {
+        const bm = list[i++];
+        try {
+          const meta = await Favicons.refetchMeta(bm.url);
+          const patch = {};
+          if (meta.title && meta.title !== bm.title) patch.title = meta.title;
+          if (meta.favicon && meta.favicon !== bm.favicon) patch.favicon = meta.favicon;
+          if (Object.keys(patch).length) patches[bm.id] = patch;
+          ok++;
+        } catch (e) { failed++; }
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+    refetching = false;
+    if (Object.keys(patches).length) await DB.updateBookmarks(patches);
+    await reload();
+    const changed = Object.keys(patches).length;
+    toast(failed && !ok ? (granted ? `Couldn't read ${failed === 1 ? 'that page' : 'any of those pages'}` : 'Couldn\'t read the page — allow site access when prompted and try again')
+      : `Refreshed ${ok}${changed < ok ? ` (${changed} changed)` : ''}${failed ? ` · ${failed} failed` : ''}`);
   }
   function updateBulkBar() {
     const bar = $('#bulk-bar');
     if (!bar) return;
+    // Drop selections that no longer exist (deleted/moved elsewhere via undo, sync, another tab).
+    SELECTED.forEach(id => { if (!STATE.bookmarks[id]) SELECTED.delete(id); });
+    if (!SELECTED.size && selectMode) selectMode = false;
     bar.classList.toggle('hidden', SELECTED.size === 0);
     $('#bulk-count').textContent = `${SELECTED.size} selected`;
   }
@@ -621,7 +716,7 @@
     sessions.forEach(s => {
       totalTabs += s.tabs.length;
       const card = el('div', 'session-card');
-      const favs = s.tabs.slice(0, 6).map(t => `<img src="${t.favicon || faviconFor(t.url)}" onerror="this.style.visibility='hidden'">`).join('');
+      const favs = s.tabs.slice(0, 6).map(t => favImg(t.url, t.favicon, '')).join('');
       const preview = s.tabs.slice(0, 4).map(t => escapeHtml(t.title || t.url)).join(' · ');
       card.innerHTML = `
         <div class="session-card-top">
@@ -733,7 +828,7 @@
       const color = isCol ? item.data.collection.color : null;
       const iconHtml = isCol
         ? `<span class="trash-item-icon" style="color:${color ? escapeHtml(color) : 'var(--main-color)'}">${ICONS.folder}</span>`
-        : `<span class="trash-item-icon">${item.data.favicon ? `<img src="${item.data.favicon}" alt="" onerror="this.style.display='none'">` : ICONS.link}</span>`;
+        : `<span class="trash-item-icon">${item.data.url ? favImg(item.data.url, item.data.favicon, '') : ICONS.link}</span>`;
       const row = el('div', 'trash-item');
       row.dataset.type = item.type;
       row.innerHTML = `${iconHtml}

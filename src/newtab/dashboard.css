@@ -547,7 +547,7 @@ html.density-compact .sidebar-heading .icon-btn.small svg { width: 17px; height:
 
 .bulk-bar {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 80;
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: min(92vw, 760px);
   background: var(--bg-color); border: var(--border-w) solid var(--border-color);
   border-radius: var(--radius); padding: 9px 12px; font-size: 12px; box-shadow: var(--shadow);
 }

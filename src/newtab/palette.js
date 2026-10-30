@@ -500,7 +500,7 @@
         scored.push({
           kind: 'bookmark',
           label: bm.title || bm.url,
-          favicon: bm.favicon || '',
+          favicon: bm.favicon || '', url: bm.url,
           swatch: bm.tintColor || undefined,
           run: () => openBookmarkUrl(bm),
           match: m,
@@ -517,7 +517,7 @@
         scored.push({
           kind: 'tab',
           label: t.title || t.url,
-          favicon: t.favIconUrl || '',
+          favicon: t.favIconUrl || '', url: t.url,
           run: () => sendMsg('FOCUS_TAB', { tabId: t.id }),
           match: m,
           score: m.score
@@ -542,7 +542,7 @@
     all.forEach((item, i) => {
       const row = el('div', 'palette-item' + (i === paletteIndex ? ' active' : ''));
       const visual = item.favicon
-        ? `<img class="pi-fav" src="${item.favicon}" onerror="this.style.display='none'">`
+        ? favImg(item.url || '', item.favicon, 'pi-fav')
         : item.chips
         ? `<span class="pi-chips">${item.chips.map(c => `<span class="pi-chip" style="background:${c}"></span>`).join('')}</span>`
         : (item.swatch ? `<span class="pi-swatch" style="background:${item.swatch}"></span>` : '');

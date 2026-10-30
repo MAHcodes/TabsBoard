@@ -346,6 +346,20 @@ async function openUrlFromDashboard(msg, sender, done) {
   }
 }
 
+// Opens URLs as background tabs strictly one after another so they land in the
+// order given (firing them all at once lets them arrive in any order), and
+// keeps going if one fails (e.g. a URL the browser refuses to open).
+function createTabsInOrder(urls, done) {
+  let i = 0;
+  const next = () => {
+    if (i >= urls.length) { if (done) done(); return; }
+    try {
+      chrome.tabs.create({ url: urls[i++], active: false }, () => { void chrome.runtime.lastError; next(); });
+    } catch (e) { next(); }
+  };
+  next();
+}
+
 // Message hub used by dashboard/popup for tab-related operations
 // that require the background's persistent access to chrome.tabs.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -670,8 +684,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             sendResponse({ ok: !!win, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : undefined });
           });
         } else {
-          urls.forEach(u => chrome.tabs.create({ url: u, active: false }));
-          sendResponse({ ok: true });
+          createTabsInOrder(urls, () => sendResponse({ ok: true }));
         }
         break;
       }
@@ -683,8 +696,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             sendResponse({ ok: !!win, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : undefined });
           });
         } else {
-          urls.forEach(u => chrome.tabs.create({ url: u, active: false }));
-          sendResponse({ ok: true });
+          createTabsInOrder(urls, () => sendResponse({ ok: true }));
         }
         break;
       }

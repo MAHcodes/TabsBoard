@@ -452,7 +452,14 @@ async function softDeleteCollection(id) {
 
 /* ---------- Bookmarks ---------- */
 
+/* Only keep favicon URLs an extension page can actually load; chrome://,
+   about:, other extensions' URLs and dead blob: URLs just render broken. */
+function cleanFavicon(f) {
+  return (typeof f === 'string' && (/^https?:\/\//i.test(f) || /^data:image\//i.test(f))) ? f : '';
+}
+
 async function createBookmark(collectionId, workspaceId, { title, url, favicon, tags, notes }) {
+  favicon = cleanFavicon(favicon);
   return setState((d) => {
     const id = uid();
     const siblings = Object.values(d.bookmarks).filter(b => b.collectionId === collectionId);
@@ -472,9 +479,23 @@ async function createBookmark(collectionId, workspaceId, { title, url, favicon, 
 }
 
 async function updateBookmark(id, patch) {
+  if (patch && 'favicon' in patch) patch = Object.assign({}, patch, { favicon: cleanFavicon(patch.favicon) });
   return setState((d) => {
     if (d.bookmarks[id]) Object.assign(d.bookmarks[id], patch);
     return d.bookmarks[id];
+  });
+}
+
+/* Apply many bookmark patches ({id: patch}) in ONE write, so refetching 40
+   bookmarks triggers a single re-render instead of 40. */
+async function updateBookmarks(patches) {
+  return setState((d) => {
+    for (const [id, patch] of Object.entries(patches || {})) {
+      if (!d.bookmarks[id]) continue;
+      const p = Object.assign({}, patch);
+      if ('favicon' in p) p.favicon = cleanFavicon(p.favicon);
+      Object.assign(d.bookmarks[id], p);
+    }
   });
 }
 
@@ -1020,7 +1041,7 @@ const TabsDB = {
   createWorkspace, updateWorkspace, deleteWorkspace, setActiveWorkspace, moveCollectionToNewWorkspace, moveCollectionToWorkspace,
   createCollection, updateCollection, reorderCollections, softDeleteCollection,
   toggleCollectionPin, duplicateCollection, setCollectionSortMode, setCollectionViewMode,
-  createBookmark, updateBookmark, moveBookmarks, reorderBookmarks, softDeleteBookmarks, toggleBookmarkPin, duplicateBookmark,
+  createBookmark, updateBookmark, updateBookmarks, moveBookmarks, reorderBookmarks, softDeleteBookmarks, toggleBookmarkPin, duplicateBookmark,
   restoreTrashItem, purgeTrashItem, emptyTrash, purgeExpiredTrash,
   createSession, deleteSession, renameSession, updateSessionTabs, duplicateSession, convertSessionToCollection,
   updateSettings,

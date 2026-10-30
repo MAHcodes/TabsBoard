@@ -80,7 +80,7 @@
         (t.pinned ? 1 : 0) + '|' + (t.discarded ? 1 : 0) + '|' + (t.audible ? 1 : 0) + '|' + ((t.mutedInfo && t.mutedInfo.muted) ? 1 : 0) + '|' + (t.closedAt || 0);
       for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
     }
-    return (sidebarShowingClosed ? 'rc:' : 'ot:') + h + '|' + s.groupPinned + '|' + s.showTabAudio + '|' + s.dimInactive + '|' + s.inactiveOpacity + '|' + s.inactiveGrayscale + '|' + !!STATE.meta.settings.sidebarCompact + '|sel:' + Array.from(SELECTED_TABS).sort().join(',');
+    return (sidebarShowingClosed ? 'rc:' : 'ot:') + h + '|' + s.groupPinned + '|' + s.showTabAudio + '|' + s.dimInactive + '|' + s.inactiveOpacity + '|' + s.inactiveGrayscale + '|' + !!STATE.meta.settings.sidebarCompact + '|' + STATE.meta.settings.faviconSource + '|sel:' + Array.from(SELECTED_TABS).sort().join(',');
   }
   function renderSidebar() {
     // Board edits / workspace switches call this on every pass, but the tab
@@ -139,7 +139,7 @@
        the focused tab, so the active one keeps the plain ×. */
     const canUnload = tab.pinned && canUnloadTab(tab);
     row.innerHTML = `
-      <img class="favicon" src="${tab.favIconUrl || faviconFor(tab.url)}" onerror="this.style.visibility='hidden'">
+      ${favImg(tab.url, tab.favIconUrl, 'favicon')}
       ${showAudio ? `<button class="tab-audio${muted ? ' is-muted' : ''}" data-act="mute" title="${muted ? 'Unmute tab' : 'Mute tab'}">${muted ? ICONS.mute : ICONS.unmute}</button>` : ''}
       <span class="tab-title" title="${escapeHtml(tab.title)}">${escapeHtml(tab.title || tab.url)}</span>
       ${SELECTED_TABS.has(tab.id) ? `<span class="tab-check">${ICONS.check}</span>` : ''}
@@ -350,7 +350,7 @@
     menu.querySelector('[data-act=pin]').onclick = async () => { closeAll(); await sendMsg('TOGGLE_PIN_TAB', { tabId: tab.id, pinned: !pinned }); await refreshOpenTabs(); renderSidebar(); };
     const unloadBtn = menu.querySelector('[data-act=unload]');
     if (unloadBtn) unloadBtn.onclick = async () => { closeAll(); await unloadTab(tab); };
-    menu.querySelector('[data-act=details]').onclick = () => { closeAll(); openHistoryDetailsModal({ url: tab.url, title: tab.title || tab.url, favicon: tab.favIconUrl || faviconFor(tab.url) }); };
+    menu.querySelector('[data-act=details]').onclick = () => { closeAll(); openHistoryDetailsModal({ url: tab.url, title: tab.title || tab.url, favicon: tab.favIconUrl || '' }); };
     menu.querySelector('[data-act=select]').onclick = () => { closeAll(); toggleTabSelected(tab.id, { metaKey: true }); };
 
     menu.querySelector('[data-act=close-this]').onclick = async () => {
@@ -418,7 +418,7 @@
       const row = el('div', 'tab-row' + (item.isWindow ? ' tab-window-row' : ''));
       if (item.isWindow) {
         const favs = (item.tabs || []).slice(0, 4).map(u =>
-          `<img class="favicon" src="${u.favIconUrl || faviconFor(u.url)}" title="${escapeHtml(u.title || u.url)}" onerror="this.style.visibility='hidden'">`
+          favImg(u.url, u.favIconUrl, 'favicon')
         ).join('');
         row.innerHTML = `
           <span class="window-favicons">${favs}</span>
@@ -426,7 +426,7 @@
           <span class="rc-time">${formatRelTime(item.closedAt)}</span>`;
       } else {
         row.innerHTML = `
-          <img class="favicon" src="${item.favIconUrl || faviconFor(item.url)}" onerror="this.style.visibility='hidden'">
+          ${favImg(item.url, item.favIconUrl, 'favicon')}
           <span class="tab-title" title="${escapeHtml(item.url)}">${escapeHtml(item.title || item.url)}</span>
           <span class="rc-time">${formatRelTime(item.closedAt)}</span>`;
       }
@@ -441,7 +441,7 @@
   }
 
   function openRecentlyClosedMenu(item, rect) {
-    const fav = item.favIconUrl || faviconFor(item.url || '');
+    const fav = item.favIconUrl || '';
     const restoreLabel = item.isWindow ? 'Restore window' : 'Restore tab';
     const menu = el('div', 'dropdown-menu');
     menu.innerHTML = `
@@ -546,10 +546,10 @@
         }
       };
       mix(col.name); mix(col.color); mix(col.pinned); mix(col.sortMode);
-      mix(col.viewMode); mix(col.description); mix(col.syncSource);
+      mix(col.viewMode); mix(col.description); mix(col.syncSource); mix(STATE.meta.settings.faviconSource);
       for (const b of bookmarksForCollection(col.id)) {
         mix(b.id); mix(b.title); mix(b.url); mix(b.order);
-        mix(b.pinned); mix(b.tintColor); mix(b.visitTime || 0);
+        mix(b.pinned); mix(b.tintColor); mix(b.visitTime || 0); mix(b.favicon);
         mix(SELECTED.has(b.id) ? 1 : 0);
       }
       return 'col:' + w.id + ':' + h + ':' + bookmarksForCollection(col.id).length;
@@ -1231,7 +1231,7 @@
         const name = d.filename ? d.filename.split('/').pop() : hostnameOf(d.url);
         const row = el('div', 'bs-item');
         row.innerHTML = `
-          <img class="favicon" src="${faviconFor(d.url)}" onerror="this.style.visibility='hidden'">
+          ${favImg(d.url, '', 'favicon')}
           <span class="bs-title" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
           <span class="bs-meta">${formatBytes(d.size)}${d.endTime ? ' · ' + formatRelTime(new Date(d.endTime).getTime()) : ''}</span>`;
         row.addEventListener('click', (e) => {
@@ -1418,7 +1418,7 @@
           listWrap.appendChild(el('div', 'hs-day-label', escapeHtml(key)));
           lastKey = key;
         }
-        const fav = it.favIconUrl || faviconFor(it.url);
+        const fav = it.favIconUrl || '';
         const metaBits = [];
         if (showTimes && t) metaBits.push(formatRelTime(t));
         if (it.visitCount) metaBits.push(it.visitCount + (it.visitCount === 1 ? ' visit' : ' visits'));
@@ -1428,13 +1428,13 @@
         item.draggable = true;
         if (isTile) {
           item.innerHTML = `
-            <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
+            ${favImg(info.url, it.favIconUrl, 'bm-favicon')}
             <div class="bm-title" title="${escapeHtml(info.url)}">${escapeHtml(info.title)}</div>
             ${it.typedCount ? `<div class="hs-typed" title="Typed ${it.typedCount}x into the address bar"></div>` : ''}
             ${metaStr ? `<div class="bm-meta" title="${escapeHtml(metaStr)}">${escapeHtml(metaStr)}</div>` : ''}`;
         } else {
           item.innerHTML = `
-            <img class="bm-favicon" src="${fav}" onerror="this.style.visibility='hidden'">
+            ${favImg(info.url, it.favIconUrl, 'bm-favicon')}
             <span class="bm-title" title="${escapeHtml(info.url)}">${escapeHtml(info.title)}</span>
             ${it.typedCount ? `<span class="hs-typed" title="Typed ${it.typedCount}x into the address bar"></span>` : ''}
             ${metaStr ? `<span class="bm-meta" title="${escapeHtml(metaStr)}">${escapeHtml(metaStr)}</span>` : ''}`;
@@ -1527,7 +1527,7 @@
   }
 
   function openHistoryDetailsModal(info) {
-    const fav = info.favicon || faviconFor(info.url);
+    const fav = info.favicon || '';
     const host = hostnameOf(info.url);
     const MAX_VISITS = 60;
     const alive = { v: true };
@@ -1613,7 +1613,7 @@
       domain.pages.forEach(p => {
         const r = el('div', 'hdm-drow');
         r.innerHTML = `
-          <img class="favicon" src="${p.favIconUrl || faviconFor(p.url)}" onerror="this.style.visibility='hidden'">
+          ${favImg(p.url, p.favIconUrl, 'favicon')}
           <span class="hdm-drow-title" title="${escapeHtml(p.url)}">${escapeHtml(p.title || p.url)}</span>
           <span class="hdm-drow-meta">${p.visitCount} visit${p.visitCount === 1 ? '' : 's'}${p.typedCount ? ' · ' + p.typedCount + ' typed' : ''}</span>`;
         r.addEventListener('click', () => openBookmarkUrl({ url: p.url }));
@@ -1669,7 +1669,7 @@
     openModal(`
       <div class="hdm">
         <div class="hdm-head">
-          <img class="hdm-fav" src="${fav}" onerror="this.style.visibility='hidden'">
+          ${favImg(info.url, fav, 'hdm-fav')}
           <div class="hdm-title-wrap">
             <h2 class="hdm-title" id="hdm-title" title="${escapeHtml(info.url)}">${escapeHtml(info.title || info.url)}</h2>
             <a class="hdm-host" href="${escapeHtml(info.url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>

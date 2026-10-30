@@ -68,6 +68,7 @@
         <input id="collection-filter-input" class="filter-input" type="text" placeholder="Filter collections…">
         <div id="bulk-bar" class="bulk-bar hidden">
           <span id="bulk-count">0 selected</span>
+          <button id="bulk-open-btn" class="primary-btn" title="Open in new tabs (Enter)">Open</button>
           <button id="bulk-move-btn" class="mini-btn">Move to…</button>
           <button id="bulk-delete-btn" class="mini-btn danger">Delete</button>
           <button id="bulk-clear-btn" class="mini-btn">Cancel</button>
@@ -397,6 +398,13 @@
                 <button data-val="none">None</button>
               </div>
             </div>
+            <div class="settings-row">
+              <label>Favicon cache</label>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title" id="favicon-cache-info">Icons are cached after they first load.</span><span class="switch-desc">Cached icons show instantly and work offline. Use this if an icon looks stale.</span></span>
+                <button id="favicon-cache-clear" class="mini-btn">Clear cache</button>
+              </div>
+            </div>
           </div>
           <div class="settings-group">
             <div class="settings-group-head">
@@ -619,6 +627,7 @@
 <script src="../common/themes.js"></script>
 <script src="../common/icons.js"></script>
 <script src="../common/storage.js"></script>
+<script src="../common/favicons.js"></script>
 <script src="../common/search.js"></script>
 <script src="widgets.js"></script>
 <script src="bookmarks.js"></script>
