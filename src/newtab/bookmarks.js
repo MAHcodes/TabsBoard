@@ -960,9 +960,16 @@
       <div class="ws-item" data-act="topSites"><span class="mi-ic">${ICONS.grid}</span>Most visited</div>
       <div class="ws-item" data-act="downloads"><span class="mi-ic">${ICONS.download}</span>Downloads</div>
       <div class="ws-item" data-act="history"><span class="mi-ic">${ICONS.rotateCcwClock}</span>History</div>
-      <div class="ws-item" data-act="cpu"><span class="mi-ic">${ICONS.cpu}</span>CPU</div>`;
+      <div class="ws-item" data-act="cpu"><span class="mi-ic">${ICONS.cpu}</span>CPU</div>${pluginAddMenuHtml()}`;
     const close = showDropdown(menu, rect, 200);
-    $$('.ws-item', menu).forEach(item => { item.onclick = () => { close(); addWidget(item.dataset.act); }; });
+    $$('.ws-item', menu).forEach(item => {
+      item.onclick = () => {
+        close();
+        if (item.dataset.plugin) addPluginWidget(item.dataset.plugin);
+        else if (item.dataset.act === 'plugin-install') openPluginInstallModal({ addAfter: true });
+        else addWidget(item.dataset.act);
+      };
+    });
   }
 
   /* Uses the browser's own search engine via chrome.search (a new tab

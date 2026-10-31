@@ -321,6 +321,7 @@
     document.documentElement.classList.add('boot-no-sidebar-anim');
     injectStaticIcons();
     applySettings(false);
+    initPlugins(); // before the first render so frames created by it get observed
     await refreshOpenTabs();
     renderAll();
     document.documentElement.classList.add('theme-ready');

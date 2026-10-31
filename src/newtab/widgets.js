@@ -568,6 +568,7 @@
       mix(STATE.meta.settings.showPreviews);
       return 'col:' + w.id + ':' + h + ':' + bookmarksForCollection(col.id).length + (only ? ':f' + only.size : '');
     }
+    if (w.type === 'plugin') return pluginRenderSig(w); // ignores w.data so saving never reloads the iframe
     return JSON.stringify(w);
   }
 
@@ -706,6 +707,7 @@
     if (w.type === 'downloads') return renderDownloadsWidget(w);
     if (w.type === 'history') return renderHistoryWidget(w);
     if (w.type === 'cpu') return renderCpuWidget(w);
+    if (w.type === 'plugin') return renderPluginWidget(w); // sandboxed third-party widget (plugins.js)
     return el('div');
   }
 

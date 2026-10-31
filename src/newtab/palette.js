@@ -357,6 +357,7 @@
       { kind: 'action', label: 'Create Most visited collection', run: () => addWidget('topSites') },
       { kind: 'action', label: 'Add Recent downloads widget', run: () => addWidget('downloads') },
       { kind: 'action', label: 'Create History collection', run: () => addWidget('history') },
+      ...pluginPaletteActions(),
       { kind: 'action', label: 'Search the web…', run: searchTheWeb },
       { kind: 'action', label: 'Import browser bookmarks…', run: importBrowserBookmarksViaFilePicker },
       { kind: 'action', label: 'New Workspace', run: () => openWorkspaceModal() },

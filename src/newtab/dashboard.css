@@ -1414,3 +1414,34 @@ html .bookmark-tile.has-thumb .bm-favicon {
 .bookmark-tile.has-thumb .bm-title { text-align: left; padding: 0 4px; }
 html.density-compact .bookmark-tile.has-thumb { padding: 5px 5px 8px; }
 html.density-spacious .bookmark-tile.has-thumb { padding: 8px 8px 12px; }
+
+/* ============ WIDGET PLUGINS (sandboxed iframes) ============ */
+.plugin-body { position: relative; padding: 0; overflow: hidden; }
+.plugin-frame { display: block; flex: 1 1 auto; width: 100%; height: 100%; min-height: 0; border: 0; background: transparent; }
+/* While a press that began in the dashboard is active (drag, resize), frames
+   go click-through — a cross-origin iframe would otherwise swallow the events. */
+html.tb-gesture .plugin-frame { pointer-events: none; }
+.plugin-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center; color: var(--sub-color); font-size: 12px; line-height: 1.5; background: var(--sub-alt-color); }
+.plugin-status-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.plugin-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.plugin-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: var(--border-w) solid var(--border-color); border-radius: var(--radius, 8px); }
+.plugin-row-info { flex: 1 1 auto; min-width: 0; }
+.plugin-row-title { color: var(--text-color); font-weight: 600; }
+.plugin-row-meta { color: var(--sub-color); font-size: 12px; overflow-wrap: anywhere; }
+.plugin-row-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.plugin-ver { color: var(--sub-color); font-weight: 400; font-size: 12px; margin-left: 4px; }
+.plugin-dev-badge, .plugin-warn-badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 500; border: 1px solid var(--sub-color); color: var(--sub-color); }
+.plugin-warn-badge { border-color: var(--error-color); color: var(--error-color); }
+.modal.plugin-modal { max-width: 520px; }
+.modal.plugin-modal textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.plugin-consent { display: flex; flex-direction: column; gap: 10px; }
+.plugin-consent-head { font-size: 15px; color: var(--text-color); }
+.plugin-consent-desc { color: var(--text-color); }
+.plugin-consent-meta { color: var(--sub-color); font-size: 12px; overflow-wrap: anywhere; }
+.plugin-consent code { color: var(--main-color); }
+.plugin-perms { display: flex; flex-direction: column; gap: 8px; }
+.plugin-perm { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: var(--border-w) solid var(--border-color); border-radius: var(--radius, 8px); cursor: pointer; }
+.plugin-perm.risk-medium { border-color: var(--main-color); }
+.plugin-perm-desc { display: block; color: var(--sub-color); font-size: 12px; }
+.plugin-warn, .plugin-error { color: var(--error-color); font-size: 12px; white-space: pre-wrap; }
+.plugin-error:empty { display: none; }

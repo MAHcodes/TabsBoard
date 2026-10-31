@@ -838,6 +838,9 @@ function widgetDefaults(type, settings) {
   // CPU readings are live samples, never stored: a fresh card starts blank and
   // the widget fills itself in on the next tick.
   if (type === 'cpu') return { ...base };
+  // Third-party plugin widget (sandboxed iframe). `data` is the widget's own
+  // private key/value storage (see PluginProtocol); it's capped at runtime.
+  if (type === 'plugin') return { ...base, pluginId: '', data: {} };
   return base;
 }
 
@@ -1018,6 +1021,53 @@ async function convertSessionToCollection(id, name) {
   });
 }
 
+/* ---------- Widget plugins ----------
+   The registry lives in meta.plugins: { [pluginId]: record } where a record is
+   the validated manifest plus consent state (`granted`, `approved`). The UI
+   always reads it back through PluginProtocol.effectivePlugin, which
+   re-validates it, so nothing here is trusted on the way out. */
+
+async function installPlugin(manifest, granted) {
+  return setState((d) => {
+    if (!d.meta.plugins) d.meta.plugins = {};
+    const prev = d.meta.plugins[manifest.id];
+    const perms = Array.isArray(manifest.permissions) ? manifest.permissions : [];
+    d.meta.plugins[manifest.id] = {
+      id: manifest.id, name: manifest.name, version: manifest.version,
+      description: manifest.description || '', author: manifest.author || '',
+      entry: manifest.entry, permissions: perms.slice(),
+      defaultSpan: manifest.defaultSpan || 1, defaultRowSpan: manifest.defaultRowSpan || 1,
+      granted: (granted || []).filter((p, i, a) => perms.includes(p) && a.indexOf(p) === i),
+      approved: true,
+      installedAt: prev && prev.installedAt ? prev.installedAt : now(),
+      updatedAt: now()
+    };
+    return d.meta.plugins[manifest.id];
+  });
+}
+
+async function setPluginGrants(id, granted) {
+  return setState((d) => {
+    const rec = d.meta.plugins && d.meta.plugins[id];
+    if (!rec) return;
+    const perms = Array.isArray(rec.permissions) ? rec.permissions : [];
+    rec.granted = (granted || []).filter((p, i, a) => perms.includes(p) && a.indexOf(p) === i);
+    rec.approved = true;
+    rec.updatedAt = now();
+    return rec;
+  });
+}
+
+/* Removing a plugin also removes the widgets (and their saved data) it powered. */
+async function removePlugin(id) {
+  return setState((d) => {
+    if (d.meta.plugins) delete d.meta.plugins[id];
+    for (const w of Object.values(d.widgets)) {
+      if (w.type === 'plugin' && w.pluginId === id) delete d.widgets[w.id];
+    }
+  });
+}
+
 /* ---------- Settings ---------- */
 
 async function updateSettings(patch) {
@@ -1047,6 +1097,14 @@ async function importJSON(jsonString, mode = 'merge') {
   return setState((d) => {
     if (mode === 'replace') {
       Object.assign(d, incoming);
+      // A backup file is untrusted input: it must not be able to hand a plugin
+      // permissions the user never approved on this install. Imported plugin
+      // records stay installed but are marked for review and won't run until
+      // the user re-approves them (Settings → Widgets, or the widget's card).
+      const plugins = d.meta && d.meta.plugins;
+      if (plugins && typeof plugins === 'object') {
+        for (const rec of Object.values(plugins)) { if (rec && typeof rec === 'object') rec.approved = false; }
+      }
       return;
     }
     // merge mode: add incoming workspaces/boards/collections/bookmarks/sessions
@@ -1303,6 +1361,7 @@ const TabsDB = {
   createSession, deleteSession, renameSession, updateSessionTabs, duplicateSession, convertSessionToCollection,
   updateSettings,
   createWidget, updateWidget, deleteWidget, reorderWidgets,
+  installPlugin, setPluginGrants, removePlugin,
   createBoard, renameBoard, deleteBoard, setActiveBoard,
   swapWidgetPositions, moveWidgetTo,
   occupiedCellsOfBoard, firstEmptyCell, assignWidgetPosition,

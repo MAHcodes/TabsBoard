@@ -12,6 +12,9 @@
   "permissions": ["storage", "unlimitedStorage", "tabs", "alarms", "contextMenus", "sessions", "notifications", "bookmarks", "search", "topSites", "omnibox", "downloads", "downloads.open", "history", "fontSettings", "system.cpu"],
   "host_permissions": ["https://*.gstatic.com/*", "https://icons.duckduckgo.com/*", "https://geocoding-api.open-meteo.com/*", "https://api.open-meteo.com/*"],
   "optional_host_permissions": ["<all_urls>"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src https: http://localhost:* http://127.0.0.1:*"
+  },
   "omnibox": {
     "keyword": "tb"
   },

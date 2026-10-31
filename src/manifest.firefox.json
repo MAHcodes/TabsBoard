@@ -11,6 +11,7 @@
   },
   "permissions": ["storage", "unlimitedStorage", "tabs", "alarms", "contextMenus", "sessions", "notifications", "bookmarks", "search", "topSites", "omnibox", "downloads", "history", "https://*.gstatic.com/*", "https://icons.duckduckgo.com/*", "https://geocoding-api.open-meteo.com/*", "https://api.open-meteo.com/*"],
   "optional_permissions": ["<all_urls>"],
+  "content_security_policy": "script-src 'self'; object-src 'self'; frame-src https: http://localhost:* http://127.0.0.1:*",
   "omnibox": {
     "keyword": "tb"
   },

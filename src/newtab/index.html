@@ -445,6 +445,16 @@
         <div class="settings-panel" id="panel-widgets">
           <div class="settings-group">
             <div class="settings-group-head">
+              <h3>Widget plugins</h3>
+              <p>Third-party widgets run in a sandbox and only get the permissions you allow.</p>
+            </div>
+            <div class="settings-row">
+              <div id="plugin-list" class="plugin-list"></div>
+              <button type="button" class="mini-btn" id="plugin-install-btn">Install plugin…</button>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-head">
               <h3>Browser-data widgets</h3>
               <p>How History and Most visited collections mirror your browsing.</p>
             </div>
@@ -812,7 +822,9 @@
 <script src="../common/thumbs.js"></script>
 <script src="../common/search.js"></script>
 <script src="../common/bmsearch.js"></script>
+<script src="../common/plugin-protocol.js"></script>
 <script src="widgets.js"></script>
+<script src="plugins.js"></script>
 <script src="bookmarks.js"></script>
 <script src="palette.js"></script>
 <script src="theme-builder.js"></script>

@@ -1,7 +1,7 @@
   /* Settings panel + keyboard-shortcuts popup. Composes with the other newtab
    modules via the shared global scope (see index.html). */
   /* ============ SETTINGS PANEL ============ */
-  function openSettings() { pickingThemeFor = null; if (themeBuilder) closeThemeBuilder(); renderThemeGrids(); populateFontSelect(); syncSettingsUI(); showOverlay('#settings-overlay'); }
+  function openSettings() { pickingThemeFor = null; if (themeBuilder) closeThemeBuilder(); renderThemeGrids(); populateFontSelect(); syncSettingsUI(); renderPluginSettings(); showOverlay('#settings-overlay'); }
   // Closing Settings always drops the builder: its DOM must not survive into the
   // next open, and its live preview goes with it. endThemePreview() is a no-op
   // when nothing is being previewed.

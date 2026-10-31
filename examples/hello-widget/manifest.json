@@ -1,0 +1,11 @@
+{
+  "id": "dev.example.hello-counter",
+  "name": "Hello Counter",
+  "version": "1.0.0",
+  "description": "Counts your clicks and remembers the total. Demo widget.",
+  "author": "TabsBoard examples",
+  "entry": "http://localhost:8787/index.html",
+  "permissions": ["storage", "bookmarks.read", "tabs.open", "ui.toast"],
+  "defaultSpan": 1,
+  "defaultRowSpan": 1
+}
