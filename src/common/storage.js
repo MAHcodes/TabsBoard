@@ -1,9 +1,12 @@
 /* TabsBoard — shared storage & data model
  * Works identically under chrome.* (Chrome MV3) and chrome.* alias (Firefox MV2).
- * Everything lives under a single chrome.storage.local key so we can read/write
- * the whole app state atomically and keep sync logic trivial.
+ * The state is persisted in IndexedDB through Dexie (see "Persistence" below):
+ * one row per record, only changed rows are written, and there is no 10 MB
+ * chrome.storage quota to hit. The app still sees one plain state object via
+ * getState() / setState(mutator).
  */
 
+/* Key of the legacy single-blob store. Only read once, to migrate old installs into Dexie. */
 const STORAGE_KEY = 'tdb_data';
 /* The data shape is version 1 and always will be until there is a reason to
    change it — there is no migration ladder. Anything stored under a different
@@ -14,6 +17,35 @@ const DEFAULT_COLLECTION_COLORS = (typeof self !== 'undefined' && self.Themes) ?
   '#6366f1', '#ec4899', '#f59e0b', '#10b981',
   '#06b6d4', '#8b5cf6', '#ef4444', '#84cc16', '#f97316', '#14b8a6', '#a855f7', '#0ea5e9'
 ];
+
+/* Notification preferences (Settings → Notifications). Three channels:
+   - toast*:   the in-app toasts shown in the dashboard
+   - browser*: system notifications raised by the background script
+   - pomodoro*: system notifications when a Pomodoro widget cycle ends
+   Stored as settings.notifications; always read through notificationSettings()
+   so installs / backups that predate these keys still get these defaults. */
+const NOTIFICATION_DEFAULTS = {
+  toastLevel: 'all',            // all | important (errors, warnings, anything with an action such as Undo) | errors | off
+  toastPosition: 'bottom-right', // bottom-right | bottom-left | bottom-center | top-right | top-left | top-center
+  toastDuration: 0,             // ms on screen; 0 = automatic (by message length), -1 = stay until dismissed
+  toastMax: 4,                  // most toasts visible at once
+  toastSize: 'normal',          // small | normal | large
+  toastProgress: true,          // countdown bar along the bottom of each toast
+  toastIcons: true,             // status icon on each toast
+  toastPauseOnHover: true,      // hovering a toast pauses its countdown
+  toastGroupDuplicates: true,   // repeat of a visible message shows ×N instead of stacking
+  browserEnabled: true,         // system notifications from the background script
+  browserSelectionSaved: true,  //   ...when highlighted text is saved from the context menu
+  browserTimeout: 0,            // seconds before auto-clear; 0 = browser default, -1 = stay until dismissed (Chrome only)
+  browserSilent: false,         // no sound
+  pomodoroEnabled: true,        // system notification when a Pomodoro focus/break ends
+  pomodoroOnFocusEnd: true,
+  pomodoroOnBreakEnd: true,
+  pomodoroSound: true
+};
+function notificationSettings(settings) {
+  return Object.assign({}, NOTIFICATION_DEFAULTS, (settings && settings.notifications) || {});
+}
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
@@ -192,6 +224,8 @@ function defaultState() {
         trashRetentionDays: 0,     // days to keep trash items before auto-purge; 0 = keep forever
         confirmRestoreSession: false, // ask before restoring a saved session
         trashBadgeSeen: 0,         // trash badge mark-as-read count; persisted so it stays dismissed
+        showPreviews: true,        // global switch for page-preview thumbnails on grid tiles (each bookmark can override it in Edit details)
+        notifications: Object.assign({}, NOTIFICATION_DEFAULTS), // see NOTIFICATION_DEFAULTS
         showTopbarSearch: true,    // show the "Jump to…" search bar in the header
         showShortcutsButton: true, // show the keyboard-shortcuts button in the header
         showTrashButton: true,     // show the trash button in the header
@@ -227,47 +261,270 @@ function defaultState() {
   };
 }
 
-function storageGet() {
+/* ---------- Persistence: Dexie (IndexedDB) ----------
+
+   The app state keeps the exact same in-memory shape as before — one object
+   with `meta`, `workspaces`, `boards`, `collections`, `widgets`, `bookmarks`,
+   `sessions`, `trash` — so every function in this file (and every caller in
+   the dashboard / background / popup) keeps using getState() and
+   setState(mutator) unchanged.
+
+   What changed is how it is stored. Instead of one `tdb_data` blob that was
+   re-serialised in full on every edit (and capped by the 10 MB
+   chrome.storage quota), each record is its own IndexedDB row, one table per
+   collection of records. setState() runs the mutator inside a single
+   read-write transaction, diffs the result against what it read, and writes
+   only the rows that actually changed. Because the read-modify-write happens
+   in one IndexedDB transaction, writes from the dashboard and the background
+   worker are serialised by the browser instead of racing each other.
+
+   Tables use out-of-line keys: the key is the record's id in its dictionary,
+   exactly like the old object-of-objects layout, so nothing about the data
+   model has to be rewritten. */
+
+const DB_NAME = 'tdb_store';
+const RECORD_TABLES = ['workspaces', 'boards', 'collections', 'widgets', 'bookmarks', 'sessions', 'trash'];
+const META_TABLE = 'meta';          // rows: '__version', '__rev', plus one row per key of state.meta
+const REV_STORAGE_KEY = 'tdb_rev';  // tiny chrome.storage.local value used purely as a cross-context "something changed" signal
+const VERSION_ROW = '__version';
+const REV_ROW = '__rev';
+
+let _tdbDb = null;
+let _tdbReady = null;
+
+function tdbDexie() {
+  if (_tdbDb) return _tdbDb;
+  const Ctor = (typeof Dexie !== 'undefined') ? Dexie : (typeof self !== 'undefined' ? self.Dexie : null);
+  if (!Ctor) throw new Error('Dexie is not loaded — include common/dexie.min.js before storage.js');
+  const store = { [META_TABLE]: '' };
+  RECORD_TABLES.forEach(t => { store[t] = ''; });   // '' = out-of-line primary key (we supply the id)
+  _tdbDb = new Ctor(DB_NAME);
+  _tdbDb.version(1).stores(store);
+  return _tdbDb;
+}
+
+function tdbTables() {
+  const d = tdbDexie();
+  return [d[META_TABLE]].concat(RECORD_TABLES.map(t => d[t]));
+}
+
+/* The legacy single-blob store, only ever read once to migrate old installs. */
+function legacyGet() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(STORAGE_KEY, (res) => {
-      resolve(res && res[STORAGE_KEY] ? res[STORAGE_KEY] : null);
-    });
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return resolve(null);
+    try {
+      chrome.storage.local.get(STORAGE_KEY, (res) => resolve(res && res[STORAGE_KEY] ? res[STORAGE_KEY] : null));
+    } catch (e) { resolve(null); }
+  });
+}
+function legacyRemove() {
+  return new Promise((resolve) => {
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return resolve();
+    try { chrome.storage.local.remove(STORAGE_KEY, () => resolve()); } catch (e) { resolve(); }
   });
 }
 
-function storageSet(data) {
+/* Cross-context change signal. IndexedDB has no cross-context change event in
+   extensions, so after each committed write we bump a tiny key in
+   chrome.storage.local. onChange() listeners (dashboard, background) re-read
+   the state when it fires. */
+function notifyChanged(rev) {
   return new Promise((resolve) => {
-    chrome.storage.local.set({ [STORAGE_KEY]: data }, () => resolve(data));
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return resolve();
+    try { chrome.storage.local.set({ [REV_STORAGE_KEY]: { n: rev, t: Date.now() } }, () => { void (chrome.runtime && chrome.runtime.lastError); resolve(); }); }
+    catch (e) { resolve(); }
   });
+}
+function onChange(cb) {
+  if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.onChanged) return;
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes[REV_STORAGE_KEY]) cb();
+  });
+}
+
+async function readTable(table) {
+  const [keys, vals] = await Promise.all([table.toCollection().primaryKeys(), table.toArray()]);
+  const out = {};
+  for (let i = 0; i < keys.length; i++) out[keys[i]] = vals[i];
+  return out;
+}
+
+/* Reads every table into the in-memory state object. Must be called inside a
+   Dexie transaction that includes all tables. */
+async function readState() {
+  const d = tdbDexie();
+  const [metaRows, ...tables] = await Promise.all([readTable(d[META_TABLE])].concat(RECORD_TABLES.map(t => readTable(d[t]))));
+  const state = { version: metaRows[VERSION_ROW], meta: {} };
+  let rev = 0;
+  for (const [k, v] of Object.entries(metaRows)) {
+    if (k === VERSION_ROW) continue;
+    if (k === REV_ROW) { rev = v || 0; continue; }
+    state.meta[k] = v;
+  }
+  RECORD_TABLES.forEach((t, i) => { state[t] = tables[i]; });
+  return { state, rev };
+}
+
+/* JSON fingerprints of everything currently stored, used to find which rows a
+   mutator actually changed. */
+function fingerprint(state) {
+  const fp = { meta: new Map(), tables: {} };
+  fp.meta.set(VERSION_ROW, JSON.stringify(state.version));
+  for (const [k, v] of Object.entries(state.meta || {})) fp.meta.set(k, JSON.stringify(v));
+  for (const t of RECORD_TABLES) {
+    const m = new Map();
+    for (const [k, v] of Object.entries(state[t] || {})) m.set(k, JSON.stringify(v));
+    fp.tables[t] = m;
+  }
+  return fp;
+}
+
+/* Diff `state` against `before` and write only what changed. Returns the
+   number of rows touched. Inside a Dexie transaction. */
+async function writeDiff(state, before) {
+  const d = tdbDexie();
+  let touched = 0;
+  const syncTable = async (table, current, prev) => {
+    const putKeys = [], putVals = [], delKeys = [];
+    for (const [k, v] of Object.entries(current || {})) {
+      if (v === undefined) continue;
+      if (prev.get(k) !== JSON.stringify(v)) { putKeys.push(k); putVals.push(v); }
+    }
+    for (const k of prev.keys()) {
+      if (!current || !(k in current) || current[k] === undefined) delKeys.push(k);
+    }
+    if (putKeys.length) await table.bulkPut(putVals, putKeys);
+    if (delKeys.length) await table.bulkDelete(delKeys);
+    touched += putKeys.length + delKeys.length;
+  };
+  // meta table: version + one row per state.meta key
+  const metaCurrent = Object.assign({}, state.meta || {}, { [VERSION_ROW]: state.version });
+  const metaPrev = new Map(before.meta);
+  metaPrev.delete(REV_ROW);
+  await syncTable(d[META_TABLE], metaCurrent, metaPrev);
+  for (const t of RECORD_TABLES) await syncTable(d[t], state[t], before.tables[t]);
+  return touched;
+}
+
+/* Writes a complete state into empty tables (fresh install, or legacy migration). */
+async function writeFull(state) {
+  const d = tdbDexie();
+  const metaKeys = [VERSION_ROW, REV_ROW], metaVals = [SCHEMA_VERSION, 0];
+  for (const [k, v] of Object.entries(state.meta || {})) { metaKeys.push(k); metaVals.push(v); }
+  await d[META_TABLE].bulkPut(metaVals, metaKeys);
+  for (const t of RECORD_TABLES) {
+    const keys = Object.keys(state[t] || {});
+    if (keys.length) await d[t].bulkPut(keys.map(k => state[t][k]), keys);
+  }
+}
+
+/* Opens the database and, the first time (per context), makes sure it holds a
+   valid state: seeds it from the old `tdb_data` blob if one exists (one-time
+   migration, verified before the old copy is deleted), otherwise from a fresh
+   default state. Safe to call from several contexts at once — the seed runs
+   in a transaction that re-checks whether someone else got there first. */
+function ensureReady() {
+  if (_tdbReady) return _tdbReady;
+  _tdbReady = (async () => {
+    const d = tdbDexie();
+    await d.open();
+    if ((await d[META_TABLE].get(VERSION_ROW)) === SCHEMA_VERSION) return;
+    const legacy = await legacyGet();
+    const migrating = !!(legacy && legacy.version === SCHEMA_VERSION);
+    /* No migration ladder for the data *shape* (see SCHEMA_VERSION): a legacy
+       blob of an unknown version, or no data at all, means a fresh install.
+       Only the storage *engine* moved, and a blob of the current shape is
+       carried over intact. */
+    const seed = migrating ? legacy : defaultState();
+    let seeded = false;
+    await d.transaction('rw', tdbTables(), async () => {
+      if ((await d[META_TABLE].get(VERSION_ROW)) === SCHEMA_VERSION) return; // another context already seeded
+      await Promise.all(tdbTables().map(t => t.clear()));
+      await writeFull(seed);
+      seeded = true;
+    });
+    if (seeded && migrating) {
+      // Only drop the old blob once every record demonstrably made it across.
+      const ok = await d.transaction('r', tdbTables(), async () => {
+        const { state } = await readState();
+        return RECORD_TABLES.every(t => Object.keys(state[t] || {}).length === Object.keys(seed[t] || {}).length);
+      });
+      if (ok) await legacyRemove();
+    }
+  })();
+  _tdbReady.catch(() => { _tdbReady = null; });   // let the next call retry (e.g. a transient open error)
+  return _tdbReady;
 }
 
 async function init() {
-  const data = await storageGet();
-  if (data && data.version === SCHEMA_VERSION) return data;
-  /* No migrations: a version we do not recognize means the shape changed in
-     ways we cannot repair, so start over rather than half-load stale data. */
-  const fresh = defaultState();
-  await storageSet(fresh);
-  return fresh;
+  return getState();
 }
 
 async function getState() {
-  return init();
+  await ensureReady();
+  const d = tdbDexie();
+  const { state } = await d.transaction('r', tdbTables(), () => readState());
+  return state;
 }
 
 /* Factory reset: wipes every workspace, board, collection, bookmark, widget,
    session, and setting back to a pristine install. Returns the fresh state. */
 async function clearAll() {
+  await ensureReady();
+  const d = tdbDexie();
   const fresh = defaultState();
-  await storageSet(fresh);
+  let rev = 0;
+  await d.transaction('rw', tdbTables(), async () => {
+    const cur = await d[META_TABLE].get(REV_ROW);
+    await Promise.all(tdbTables().map(t => t.clear()));
+    await writeFull(fresh);
+    rev = (cur || 0) + 1;
+    await d[META_TABLE].put(rev, REV_ROW);
+  });
+  await notifyChanged(rev);
   return fresh;
 }
 
+/* Runs `mutatorFn(state)` against the current state and persists what it
+   changed. The read, the mutation and the write all happen in ONE IndexedDB
+   transaction, so concurrent writers (dashboard + background) can't clobber
+   each other. The mutator must be synchronous — it runs inside the
+   transaction. Returns the mutator's return value, or the state if it
+   returned nothing. */
 async function setState(mutatorFn) {
-  const data = await getState();
-  const result = mutatorFn(data);
-  await storageSet(data);
-  return result !== undefined ? result : data;
+  await ensureReady();
+  const d = tdbDexie();
+  let result, state, rev = 0, touched = 0;
+  await d.transaction('rw', tdbTables(), async () => {
+    const read = await readState();
+    state = read.state;
+    const before = fingerprint(state);
+    result = mutatorFn(state);
+    state.version = SCHEMA_VERSION;   // a "replace" import must not be able to change the stored schema version
+    touched = await writeDiff(state, before);
+    if (touched) {
+      rev = read.rev + 1;
+      await d[META_TABLE].put(rev, REV_ROW);
+    }
+  });
+  if (touched) await notifyChanged(rev);
+  return result !== undefined ? result : state;
+}
+
+/* Storage overview for the Settings → Data panel. */
+async function storageStats() {
+  await ensureReady();
+  const d = tdbDexie();
+  const counts = {};
+  for (const t of RECORD_TABLES) counts[t] = await d[t].count();
+  let usage = null, quota = null, persisted = null;
+  try {
+    if (typeof navigator !== 'undefined' && navigator.storage) {
+      if (navigator.storage.estimate) { const e = await navigator.storage.estimate(); usage = e.usage; quota = e.quota; }
+      if (navigator.storage.persisted) persisted = await navigator.storage.persisted();
+    }
+  } catch (e) { /* estimate is best-effort */ }
+  return { counts, usage, quota, persisted };
 }
 
 /* ---------- Workspaces ---------- */
@@ -1036,8 +1293,8 @@ function escapeHtml(s) {
 }
 
 const TabsDB = {
-  uid, DEFAULT_COLLECTION_COLORS,
-  init, getState, setState, clearAll,
+  uid, DEFAULT_COLLECTION_COLORS, NOTIFICATION_DEFAULTS, notificationSettings,
+  init, getState, setState, clearAll, onChange, storageStats,
   createWorkspace, updateWorkspace, deleteWorkspace, setActiveWorkspace, moveCollectionToNewWorkspace, moveCollectionToWorkspace,
   createCollection, updateCollection, reorderCollections, softDeleteCollection,
   toggleCollectionPin, duplicateCollection, setCollectionSortMode, setCollectionViewMode,

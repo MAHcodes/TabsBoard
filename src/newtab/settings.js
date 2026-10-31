@@ -10,6 +10,78 @@
     hideOverlay('#settings-overlay');
   }
 
+  /* ---------- Notifications panel ----------
+     Each control maps to one key of settings.notifications (see
+     NOTIFICATION_DEFAULTS in storage.js). Segmented values are strings in the
+     markup; `num` ones are stored as numbers. */
+  const NOTIF_SEGMENTS = {
+    'notif-toast-level': ['toastLevel', false],
+    'notif-toast-position': ['toastPosition', false],
+    'notif-toast-size': ['toastSize', false],
+    'notif-toast-duration': ['toastDuration', true],
+    'notif-toast-max': ['toastMax', true],
+    'notif-browser-timeout': ['browserTimeout', true]
+  };
+  const NOTIF_SWITCHES = {
+    'notif-toast-progress': 'toastProgress',
+    'notif-toast-icons': 'toastIcons',
+    'notif-toast-pause': 'toastPauseOnHover',
+    'notif-toast-group': 'toastGroupDuplicates',
+    'notif-browser-enabled': 'browserEnabled',
+    'notif-browser-selection': 'browserSelectionSaved',
+    'notif-browser-silent': 'browserSilent',
+    'notif-pomo-enabled': 'pomodoroEnabled',
+    'notif-pomo-focus': 'pomodoroOnFocusEnd',
+    'notif-pomo-break': 'pomodoroOnBreakEnd',
+    'notif-pomo-sound': 'pomodoroSound'
+  };
+  async function saveNotificationSetting(key, value) {
+    await DB.updateSettings({ notifications: { [key]: value } });
+    await reload();
+    syncSettingsUI();
+  }
+  function wireNotificationSettings() {
+    for (const [id, [key, num]] of Object.entries(NOTIF_SEGMENTS)) {
+      $$(`#${id} button`).forEach(b => b.onclick = () => saveNotificationSetting(key, num ? parseInt(b.dataset.val, 10) : b.dataset.val));
+    }
+    for (const [id, key] of Object.entries(NOTIF_SWITCHES)) {
+      const input = $('#' + id);
+      if (input) input.onchange = (e) => saveNotificationSetting(key, e.target.checked);
+    }
+    $('#notif-test-toast').onclick = () => {
+      const level = DB.notificationSettings(STATE.meta.settings).toastLevel;
+      if (level === 'off') { toast('In-app notifications are turned off'); return; }
+      toast('Settings saved', { type: 'success' });
+      toast('Heads up — this is a warning', { type: 'warning' });
+      toast("Couldn't do that — this is an example error", { type: 'error' });
+    };
+    $('#notif-test-browser').onclick = async () => {
+      const res = await sendMsg('TEST_NOTIFICATION');
+      if (!res || res.error) toast("Couldn't send a notification — is the extension's notification permission blocked?");
+      else if (res.skipped) toast('Browser notifications are turned off above');
+    };
+    $('#notif-reset').onclick = async () => {
+      await DB.updateSettings({ notifications: Object.assign({}, DB.NOTIFICATION_DEFAULTS) });
+      await reload();
+      syncSettingsUI();
+      toast('Notification settings reset');
+    };
+  }
+  function syncNotificationSettingsUI(s) {
+    const n = DB.notificationSettings(s);
+    for (const [id, [key]] of Object.entries(NOTIF_SEGMENTS)) {
+      $$(`#${id} button`).forEach(b => b.classList.toggle('active', String(b.dataset.val) === String(n[key])));
+    }
+    for (const [id, key] of Object.entries(NOTIF_SWITCHES)) {
+      const input = $('#' + id);
+      if (input) input.checked = !!n[key];
+    }
+    // Sub-options are meaningless while their master switch is off.
+    const dim = (ids, on) => ids.forEach(id => { const r = $('#' + id) && $('#' + id).closest('.switch-row'); if (r) r.style.opacity = on ? '' : '.5'; });
+    dim(['notif-browser-selection', 'notif-browser-silent'], n.browserEnabled);
+    dim(['notif-pomo-focus', 'notif-pomo-break', 'notif-pomo-sound'], n.pomodoroEnabled);
+  }
+
   function openSettingsTab(tab) {
     $$('.settings-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     $$('.settings-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
@@ -96,10 +168,13 @@
     $$('#favicon-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ faviconSource: b.dataset.val }); await reload(); syncSettingsUI(); });
     $('#favicon-cache-clear').onclick = async () => {
       await Favicons.clear();
-      syncSettingsUI();
-      toast('Favicon cache cleared — icons will re-download as needed');
+      await Thumbs.clear();
+      await syncSettingsUI();
+      toast('Cache cleared — icons re-download as needed; refetch bookmarks to restore previews');
       await reload();
     };
+    $('#setting-show-previews').onchange = async (e) => { await DB.updateSettings({ showPreviews: e.target.checked }); await reload(); };
+    wireNotificationSettings();
     $('#setting-show-tab-audio').onchange = async (e) => { await DB.updateSettings({ tabsList: { showTabAudio: e.target.checked } }); await reload(); };
     $('#setting-group-pinned').onchange = async (e) => { await DB.updateSettings({ tabsList: { groupPinned: e.target.checked } }); await reload(); };
     $('#setting-dim-inactive').onchange = async (e) => { await DB.updateSettings({ tabsList: { dimInactive: e.target.checked } }); await reload(); };
@@ -434,7 +509,27 @@
     $('#setting-open-in-new-tab').checked = !!s.openBookmarksInNewTab;
     $$('#search-engine-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === (s.searchEngine || 'google')));
     $$('#favicon-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.faviconSource));
-    { const info = $('#favicon-cache-info'); if (info) { const st = Favicons.stats(); info.textContent = st.count ? `${st.count} icon${st.count === 1 ? '' : 's'} cached (${Math.max(1, Math.round(st.bytes / 1024))} KB)` : 'Icons are cached after they first load.'; } }
+    { const pv = $('#setting-show-previews'); if (pv) pv.checked = s.showPreviews !== false; }
+    syncNotificationSettingsUI(s);
+    { const si = $('#storage-info');
+      if (si && DB.storageStats) DB.storageStats().then(st => {
+        const c = st.counts, mb = (n) => (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + ' MB';
+        const parts = [`${c.bookmarks} bookmark${c.bookmarks === 1 ? '' : 's'}`, `${c.collections} collection${c.collections === 1 ? '' : 's'}`, `${c.widgets} widget${c.widgets === 1 ? '' : 's'}`];
+        if (c.sessions) parts.push(`${c.sessions} session${c.sessions === 1 ? '' : 's'}`);
+        if (c.trash) parts.push(`${c.trash} in trash`);
+        si.textContent = parts.join(' · ') + (st.usage != null ? ` — using ${mb(st.usage)} of browser storage.` : '.');
+      }).catch(() => { si.textContent = 'Storage details unavailable.'; });
+    }
+    { const info = $('#favicon-cache-info');
+      if (info) {
+        const st = Favicons.stats();
+        Thumbs.stats().then(ts => {
+          const parts = [];
+          if (st.count) parts.push(`${st.count} icon${st.count === 1 ? '' : 's'} (${Math.max(1, Math.round(st.bytes / 1024))} KB)`);
+          if (ts.count) parts.push(`${ts.count} preview${ts.count === 1 ? '' : 's'} (${Math.max(1, Math.round(ts.bytes / 1024))} KB)`);
+          info.textContent = parts.length ? `Cached: ${parts.join(' · ')}. Works offline; clear it if something looks stale.` : 'Icons and previews are cached after they first load.';
+        });
+      } }
     const tl = s.tabsList || {};
     $('#setting-show-tab-audio').checked = tl.showTabAudio !== false;
     $('#setting-group-pinned').checked = tl.groupPinned !== false;

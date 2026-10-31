@@ -470,6 +470,8 @@
     return false;
   }
 
+  function searchHost(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; } }
+
   function renderPaletteResults(query) {
     const results = $('#palette-results');
     results.innerHTML = '';
@@ -486,41 +488,44 @@
         scored.push({ ...c, match: m, score: m.score + (c.children ? 3 : 0) });
       }
       // The palette promises "jump to a bookmark", so surface matching
-      // bookmarks from every collection (title and URL both count).
+      // bookmarks from every collection. They're ranked per word across title,
+      // tags, site, URL, description and notes (see common/bmsearch.js), with
+      // typo tolerance and operators like tag:foo / site:github.com / -word.
       // Deduplicated by full URL so the same link never shows twice.
       const seenUrls = new Set();
-      Object.values(STATE.bookmarks).forEach(bm => {
-        const urlKey = bm.url.trim().toLowerCase();
-        if (!urlKey || seenUrls.has(urlKey)) return;
+      const uniqueBms = Object.values(STATE.bookmarks).filter(bm => {
+        const urlKey = (bm.url || '').trim().toLowerCase();
+        if (!urlKey || seenUrls.has(urlKey)) return false;
         seenUrls.add(urlKey);
-        const mt = fuzzyMatch(q, bm.title || '');
-        const mu = fuzzyMatch(q, bm.url || '');
-        const m = mt && mu ? (mt.score >= mu.score ? mt : mu) : (mt || mu);
-        if (!m) return;
+        return true;
+      });
+      BookmarkSearch.rank(q, uniqueBms, { limit: 24 }).forEach(r => {
+        const bm = r.item;
         scored.push({
           kind: 'bookmark',
           label: bm.title || bm.url,
           favicon: bm.favicon || '', url: bm.url,
+          // Show WHY it matched when it wasn't the title; otherwise the host, to tell look-alikes apart.
+          value: r.field ? `${r.field}` : searchHost(bm.url),
           swatch: bm.tintColor || undefined,
           run: () => openBookmarkUrl(bm),
-          match: m,
-          score: m.score
+          match: { indices: r.indices },
+          score: r.score
         });
       });
       // And open tabs, so the palette can double as a tab switcher.
       const seenTabIds = new Set();
-      OPEN_TABS.forEach(t => {
-        if (seenTabIds.has(t.id)) return;
-        seenTabIds.add(t.id);
-        const m = fuzzyMatch(q, t.title || t.url) || fuzzyMatch(q, t.url || '');
-        if (!m) return;
+      const tabs = OPEN_TABS.filter(t => !seenTabIds.has(t.id) && seenTabIds.add(t.id));
+      BookmarkSearch.rank(q, tabs, { limit: 12, map: t => ({ title: t.title || t.url, url: t.url }) }).forEach(r => {
+        const t = r.item;
         scored.push({
           kind: 'tab',
           label: t.title || t.url,
           favicon: t.favIconUrl || '', url: t.url,
+          value: r.field ? `${r.field}` : searchHost(t.url),
           run: () => sendMsg('FOCUS_TAB', { tabId: t.id }),
-          match: m,
-          score: m.score
+          match: { indices: r.indices },
+          score: r.score
         });
       });
       scored.sort((a, b) => b.score - a.score);

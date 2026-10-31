@@ -107,6 +107,9 @@
         : `color-mix(in srgb, var(--main-color) 20%, var(--bg-color))`;
     }
     const fav = bm.favicon || '';
+    // Tooltip: tile shows title (+ page description); rows show the URL (+ description).
+    const tipBase = isTile ? bm.title : bm.url;
+    const tipText = bm.description ? `${tipBase}\n\n${bm.description}` : tipBase;
     const tagsHtml = (bm.tags || []).slice(0, 2).map(t => `<span class="bm-tag">${escapeHtml(t)}</span>`).join('');
     // Browser-synced collections (History, Most visited) are data rows: they
     // get no visible ⋯ button — management lives in the right-click menu.
@@ -124,18 +127,22 @@
       const selectHtml = selectMode
         ? `<input type="checkbox" class="bm-select checkbox bm-select-tile" ${SELECTED.has(bm.id) ? 'checked' : ''}>`
         : (bm.pinned ? `<span class="bm-pin-ic">${ICONS.pin}</span>` : '');
+      const hasThumb = !!bm.thumbAt && bookmarkShowsPreview(bm);
+      if (hasThumb) item.classList.add('has-thumb');
       item.innerHTML = `
         ${selectHtml}
         ${menuHtml}
-        ${favImg(bm.url, bm.favicon, 'bm-favicon')}
-        <div class="bm-title" title="${escapeHtml(bm.title)}">${escapeHtml(bm.title)}</div>
+        ${hasThumb
+          ? `<div class="bm-thumb-wrap"><img class="bm-thumb" data-thumb="${escapeHtml(bm.id)}" alt="" decoding="async">${favImg(bm.url, bm.favicon, 'bm-favicon')}</div>`
+          : favImg(bm.url, bm.favicon, 'bm-favicon')}
+        <div class="bm-title" title="${escapeHtml(tipText)}">${escapeHtml(bm.title)}</div>
         ${timeHtml}`;
     } else {
       item.innerHTML = `
         ${selectMode ? `<input type="checkbox" class="bm-select checkbox" ${SELECTED.has(bm.id) ? 'checked' : ''}>` : ''}
         ${bm.pinned ? `<span class="bm-pin-ic">${ICONS.pin}</span>` : ''}
         ${favImg(bm.url, bm.favicon, 'bm-favicon')}
-        <span class="bm-title" title="${escapeHtml(bm.url)}">${escapeHtml(bm.title)}</span>
+        <span class="bm-title" title="${escapeHtml(tipText)}">${escapeHtml(bm.title)}</span>
         ${timeHtml}
         ${tagsHtml}
         ${menuHtml}`;
@@ -178,6 +185,15 @@
     return item;
   }
 
+  /* Should this bookmark's saved page preview be drawn? The per-bookmark
+     choice (Edit details → Page preview) wins over the global "Show page
+     previews" setting: 'show' / 'hide' override it, anything else follows it. */
+  function bookmarkShowsPreview(bm) {
+    if (bm.thumbMode === 'hide') return false;
+    if (bm.thumbMode === 'show') return true;
+    return STATE.meta.settings.showPreviews !== false;
+  }
+
   function openBookmarkMenu(bm, rect, titleEl) {
     const menu = el('div', 'dropdown-menu');
     menu.innerHTML = `
@@ -190,7 +206,7 @@
       <div class="ws-item" data-act="copy"><span class="mi-ic">${ICONS.copy}</span>Copy link</div>
       <div class="ws-item" data-act="newwin"><span class="mi-ic">${ICONS.externalWindow}</span>Open in new window</div>
       <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate</div>
-      <div class="ws-item" data-act="refetch"><span class="mi-ic">${ICONS.refresh}</span>${SELECTED.size > 1 && SELECTED.has(bm.id) ? `Refetch title &amp; icon (${SELECTED.size})` : 'Refetch title &amp; icon'}</div>
+      <div class="ws-item" data-act="refetch"><span class="mi-ic">${ICONS.refresh}</span>${SELECTED.size > 1 && SELECTED.has(bm.id) ? `Refetch page info (${SELECTED.size})` : 'Refetch page info'}</div>
       <hr>
       ${SELECTED.size > 1 && SELECTED.has(bm.id) ? `<div class="ws-item" data-act="openselected"><span class="mi-ic">${ICONS.openAll}</span>Open ${SELECTED.size} selected</div>` : ''}
       <div class="ws-item" data-act="select"><span class="mi-ic">${SELECTED.has(bm.id) ? ICONS.check : ICONS.checkSquare}</span>${SELECTED.has(bm.id) ? 'Deselect Bookmark' : 'Select Bookmark'}${SELECTED.size > 1 ? ` (${SELECTED.size} selected)` : ''}</div>
@@ -232,13 +248,22 @@
     const commit = async () => {
       if (done) return; done = true;
       const val = input.value.trim() || bm.url;
-      if (val !== bm.title) await DB.updateBookmark(bm.id, { title: val });
+      if (val === bm.title) { restore(); return; }   // nothing changed: no data change means no re-render, so put the title back ourselves
+      await DB.updateBookmark(bm.id, { title: val });
       await reload();
     };
-    const cancel = () => { if (done) return; done = true; reload(); };
+    /* Put the original title element back in place of the input. Going through
+       reload() is not enough for cancel/no-change: the board skips rebuilding
+       a card whose data didn't change, which left the input stuck on screen. */
+    const restore = () => { if (input.isConnected) input.replaceWith(titleEl); };
+    const cancel = () => { if (done) return; done = true; restore(); };
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); commit(); }
-      else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+      else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();   // keep the global Escape handler (clears selection, closes panels) out of an inline edit
+        cancel();
+      }
     });
     input.addEventListener('blur', commit);
     input.addEventListener('click', (e) => e.stopPropagation());
@@ -521,6 +546,13 @@
       <div class="field"><label>Collection</label><select id="mb-collection">${options}</select></div>
       <div class="field"><label>Tags (comma separated)</label><input type="text" id="mb-tags" value="${existing ? escapeHtml((existing.tags || []).join(', ')) : ''}"></div>
       <div class="field"><label>Notes</label><textarea id="mb-notes">${existing ? escapeHtml(existing.notes || '') : ''}</textarea></div>
+      ${existing ? `<div class="field"><label>Page preview (thumbnail)</label>
+        <select id="mb-thumb-mode">
+          <option value="default" ${(existing.thumbMode !== 'show' && existing.thumbMode !== 'hide') ? 'selected' : ''}>Use global setting (${STATE.meta.settings.showPreviews !== false ? 'on' : 'off'})</option>
+          <option value="show" ${existing.thumbMode === 'show' ? 'selected' : ''}>Always show</option>
+          <option value="hide" ${existing.thumbMode === 'hide' ? 'selected' : ''}>Never show</option>
+        </select>
+        <div class="hint-text">${existing.thumbAt ? 'Applies to grid tiles for this bookmark only.' : 'No preview saved yet — right-click the bookmark → Refetch page info to fetch one.'}</div></div>` : ''}
       <div class="modal-actions">
         <button id="mb-cancel" class="mini-btn">Cancel</button>
         <button id="mb-save" class="primary-btn">Save</button>
@@ -536,7 +568,8 @@
         const tags = $('#mb-tags').value.split(',').map(t => t.trim()).filter(Boolean);
         const notes = $('#mb-notes').value;
         if (existing) {
-          await DB.updateBookmark(existing.id, { title, url, tags, notes });
+          const tm = $('#mb-thumb-mode') ? $('#mb-thumb-mode').value : 'default';
+          await DB.updateBookmark(existing.id, { title, url, tags, notes, thumbMode: (tm === 'show' || tm === 'hide') ? tm : null });
           if (collectionId !== existing.collectionId) await DB.moveBookmarks([existing.id], collectionId);
         } else {
           await DB.createBookmark(collectionId, activeWorkspaceId(), { title, url, tags, notes });
@@ -632,9 +665,11 @@
     if (refetching) { toast('A refetch is already running'); return; }
     const granted = await Favicons.requestAccess();
     refetching = true;
-    toast(list.length === 1 ? 'Refetching…' : `Refetching ${list.length} bookmarks…`);
+    const total = list.length;
+    const wantPreviews = STATE.meta.settings.showPreviews !== false;
+    const progress = toast(total === 1 ? 'Refetching page info…' : `Refetching 0 of ${total}…`, { type: 'loading', sticky: true });
     const patches = {};
-    let ok = 0, failed = 0, i = 0;
+    let ok = 0, failed = 0, done = 0, previews = 0, i = 0;
     const worker = async () => {
       while (i < list.length) {
         const bm = list[i++];
@@ -643,9 +678,14 @@
           const patch = {};
           if (meta.title && meta.title !== bm.title) patch.title = meta.title;
           if (meta.favicon && meta.favicon !== bm.favicon) patch.favicon = meta.favicon;
+          if (meta.description !== (bm.description || '')) patch.description = meta.description;
+          if (meta.siteName !== (bm.siteName || '')) patch.siteName = meta.siteName;
+          if (wantPreviews && meta.image && await Thumbs.fetchAndStore(bm.id, meta.image)) { patch.thumbAt = Date.now(); previews++; }
           if (Object.keys(patch).length) patches[bm.id] = patch;
           ok++;
         } catch (e) { failed++; }
+        done++;
+        if (total > 1) progress.update(`Refetching ${done} of ${total}…`);
       }
     };
     await Promise.all([worker(), worker(), worker()]);
@@ -653,8 +693,14 @@
     if (Object.keys(patches).length) await DB.updateBookmarks(patches);
     await reload();
     const changed = Object.keys(patches).length;
-    toast(failed && !ok ? (granted ? `Couldn't read ${failed === 1 ? 'that page' : 'any of those pages'}` : 'Couldn\'t read the page — allow site access when prompted and try again')
-      : `Refreshed ${ok}${changed < ok ? ` (${changed} changed)` : ''}${failed ? ` · ${failed} failed` : ''}`);
+    if (failed && !ok) {
+      progress.update(granted ? `Couldn't read ${failed === 1 ? 'that page' : 'any of those pages'}` : "Couldn't read the page — allow site access when prompted and try again", { type: 'error', sticky: false });
+    } else {
+      const bits = [`${changed} updated`];
+      if (previews) bits.push(`${previews} preview${previews === 1 ? '' : 's'}`);
+      if (failed) bits.push(`${failed} unreachable`);
+      progress.update(total === 1 ? (changed ? 'Page info updated' : 'Already up to date') : `Refetched ${ok} of ${total} — ${bits.join(' · ')}`, { type: failed ? 'warning' : 'success', sticky: false });
+    }
   }
   function updateBulkBar() {
     const bar = $('#bulk-bar');

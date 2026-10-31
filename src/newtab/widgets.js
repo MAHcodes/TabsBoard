@@ -464,6 +464,7 @@
 
   /* ============ BOARD (widgets) ============ */
   const filterQueryFor = { collections: '', sessions: '' };
+  let bmFilter = new Map(); // collectionId -> Set of bookmark ids to show while the filter box is active
 
   function renderBoard() {
     $('#view-collections').classList.remove('hidden');
@@ -471,13 +472,22 @@
     renderBoardSwitcher();
     const board = $('#board');
     const focus = captureFocusState();
-    const q = filterQueryFor.collections.trim().toLowerCase();
+    // The filter box searches collection names AND the bookmarks inside them
+    // (title, tags, site, URL, description, notes — same engine as the palette).
+    // A collection whose name matches shows in full; one that only matches
+    // through some of its bookmarks shows just those bookmarks.
+    const q = filterQueryFor.collections.trim();
+    bmFilter = new Map();
     const widgets = widgetsForActiveWS().filter(w => {
-      if (q && w.type === 'collection') {
-        const col = STATE.collections[w.collectionId];
-        return col && col.name.toLowerCase().includes(q);
-      }
-      return !q; // filter box only searches collection names
+      if (!q) return true;
+      if (w.type !== 'collection') return false; // widgets other than collections have nothing to match
+      const col = STATE.collections[w.collectionId];
+      if (!col) return false;
+      if (BookmarkSearch.matches(q, { title: col.name })) return true;
+      const hits = bookmarksForCollection(col.id).filter(b => BookmarkSearch.matches(q, b)).map(b => b.id);
+      if (!hits.length) return false;
+      bmFilter.set(col.id, new Set(hits));
+      return true;
     });
 
     // Reconcile: reuse cards whose rendered data hasn't changed instead of
@@ -547,12 +557,16 @@
       };
       mix(col.name); mix(col.color); mix(col.pinned); mix(col.sortMode);
       mix(col.viewMode); mix(col.description); mix(col.syncSource); mix(STATE.meta.settings.faviconSource);
+      const only = bmFilter.get(col.id);
       for (const b of bookmarksForCollection(col.id)) {
+        if (only && !only.has(b.id)) continue;
         mix(b.id); mix(b.title); mix(b.url); mix(b.order);
         mix(b.pinned); mix(b.tintColor); mix(b.visitTime || 0); mix(b.favicon);
+        mix(b.description); mix(b.thumbAt || 0); mix(b.thumbMode);
         mix(SELECTED.has(b.id) ? 1 : 0);
       }
-      return 'col:' + w.id + ':' + h + ':' + bookmarksForCollection(col.id).length;
+      mix(STATE.meta.settings.showPreviews);
+      return 'col:' + w.id + ':' + h + ':' + bookmarksForCollection(col.id).length + (only ? ':f' + only.size : '');
     }
     return JSON.stringify(w);
   }
@@ -949,7 +963,8 @@
   function renderCollectionWidget(w) {
     const col = STATE.collections[w.collectionId];
     if (!col) return el('div');
-    const bms = bookmarksForCollection(col.id);
+    const only = bmFilter.get(col.id);
+    const bms = bookmarksForCollection(col.id).filter(b => !only || only.has(b.id));
     const viewMode = col.viewMode || STATE.meta.settings.viewMode;
     const titleHtml = `
       <span class="widget-title" title="${escapeHtml(col.name)}">${escapeHtml(col.name)}</span>
@@ -1875,6 +1890,10 @@
     try {
       if (!('Notification' in window)) return;
       const isBreak = w.mode === 'focus'; // the mode that just finished
+      // Settings → Notifications → Pomodoro
+      const pn = DB.notificationSettings(STATE.meta.settings);
+      if (!pn.pomodoroEnabled) return;
+      if (isBreak ? !pn.pomodoroOnFocusEnd : !pn.pomodoroOnBreakEnd) return;
       const title = isBreak ? 'Pomodoro complete' : 'Break over';
       const body = isBreak
         ? `Time for a ${w.breakMinutes || 5} min break.`
@@ -1884,7 +1903,7 @@
         : () => Promise.resolve(Notification.permission);
       permission().then((p) => {
         if (p !== 'granted') return;
-        new Notification(title, { body, silent: false, icon: chrome.runtime.getURL('icons/icon128.png') });
+        new Notification(title, { body, silent: !pn.pomodoroSound, icon: chrome.runtime.getURL('icons/icon128.png') });
       });
     } catch { /* notifications unavailable — silently skip */ }
   }

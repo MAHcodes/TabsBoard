@@ -4,11 +4,11 @@
  * so the exact same file works unmodified in both builds.
  */
 
-// Chrome MV3 service worker: pull in storage.js via importScripts.
-// Firefox MV2 background page instead loads storage.js via a <script> tag
-// in background.html, so TabsDB is already a global there.
+// Chrome MV3 service worker: pull in Dexie + storage.js via importScripts.
+// Firefox MV2 background page instead loads them via <script> tags in
+// background.html, so TabsDB is already a global there.
 if (typeof importScripts === 'function' && typeof TabsDB === 'undefined') {
-  importScripts('../common/storage.js');
+  importScripts('../common/dexie.min.js', '../common/storage.js');
 }
 const DB = (typeof TabsDB !== 'undefined') ? TabsDB : self.TabsDB;
 
@@ -245,6 +245,36 @@ async function rebuildContextMenus() {
   });
 }
 
+/* System notifications, honoring Settings → Notifications → Browser.
+   `kind` names the event ('selectionSaved', or 'test' which only respects the
+   master switch). Resolves { shown } / { skipped } / { error }. Never throws. */
+const NOTIFICATION_KINDS = { selectionSaved: 'browserSelectionSaved', test: null };
+async function showNotification(kind, message) {
+  try {
+    if (!chrome.notifications || !chrome.notifications.create) return { error: 'unsupported' };
+    const state = await DB.getState();
+    const n = DB.notificationSettings(state.meta.settings);
+    if (!n.browserEnabled) return { skipped: true };
+    const flag = NOTIFICATION_KINDS[kind];
+    if (flag && !n[flag]) return { skipped: true };
+
+    const opts = { type: 'basic', iconUrl: 'icons/icon128.png', title: 'TabsBoard', message };
+    // These two options are Chrome-only; Firefox rejects unknown properties outright.
+    const isFirefox = !!(chrome.runtime.getManifest && chrome.runtime.getManifest().browser_specific_settings);
+    if (!isFirefox) {
+      if (n.browserSilent) opts.silent = true;
+      if (n.browserTimeout === -1) opts.requireInteraction = true;
+    }
+    const id = await new Promise((resolve) => {
+      chrome.notifications.create(opts, (nid) => { void (chrome.runtime && chrome.runtime.lastError); resolve(nid); });
+    });
+    if (id && n.browserTimeout > 0) setTimeout(() => { try { chrome.notifications.clear(id); } catch (e) { /* already gone */ } }, n.browserTimeout * 1000);
+    return { shown: true };
+  } catch (e) {
+    return { error: String(e && e.message || e) };
+  }
+}
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const id = info.menuItemId;
   if (typeof id !== 'string' || !id.startsWith('tdb-')) return;
@@ -267,14 +297,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         favicon: tab && tab.favIconUrl,
         notes: (info.selectionText || '').slice(0, 1000)
       });
-      if (chrome.notifications && chrome.notifications.create) {
-        chrome.notifications.create({
-          type: 'basic',
-          iconUrl: 'icons/icon128.png',
-          title: 'TabsBoard',
-          message: 'Selection saved to "' + first.name + '"'
-        });
-      }
+      await showNotification('selectionSaved', 'Selection saved to "' + first.name + '"');
     }
     return;
   }
@@ -700,6 +723,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
         break;
       }
+      case 'TEST_NOTIFICATION': {
+        sendResponse(await showNotification('test', 'This is how browser notifications look with your settings.'));
+        break;
+      }
       case 'REBUILD_MENUS': {
         await rebuildContextMenus();
         sendResponse({ ok: true });
@@ -861,8 +888,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // Keep context menus in sync whenever collections change from the dashboard,
 // and re-sync alarms when settings (like the RSS refresh interval) change.
 let alarmSyncTimer = null;
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local' || !changes.tdb_data) return;
+let lastSyncCounts = null;   // { history, top } from the previous state, to spot count changes
+// Seed it on every worker start so a wake-up caused by an unrelated write
+// isn't mistaken for a changed count (which would trigger a needless sync).
+DB.getState().then((st) => {
+  const s = st.meta.settings || {};
+  if (!lastSyncCounts) lastSyncCounts = { history: s.historyCount, top: s.topSitesCount };
+}).catch(() => {});
+DB.onChange(async () => {
   rebuildContextMenus();
   // Debounced so a burst of writes (e.g. bulk bookmark import) doesn't
   // churn alarms.
@@ -872,9 +905,13 @@ chrome.storage.onChanged.addListener((changes, area) => {
   // count setting changed, resize those collections right away (the 5-min
   // alarm otherwise waits until the next tick).
   refreshSyncCollectionsFlag();
-  const ns = changes.tdb_data.newValue.meta && changes.tdb_data.newValue.meta.settings;
-  const os = changes.tdb_data.oldValue && changes.tdb_data.oldValue.meta && changes.tdb_data.oldValue.meta.settings;
-  if (ns && (!os || os.historyCount !== ns.historyCount || os.topSitesCount !== ns.topSitesCount)) scheduleBrowserDataSync(600);
+  let ns = null;
+  try { ns = (await DB.getState()).meta.settings; } catch (e) { /* db unavailable: skip */ }
+  if (!ns) return;
+  const counts = { history: ns.historyCount, top: ns.topSitesCount };
+  const changed = !lastSyncCounts || lastSyncCounts.history !== counts.history || lastSyncCounts.top !== counts.top;
+  lastSyncCounts = counts;
+  if (changed) scheduleBrowserDataSync(600);
 });
 
 /* Live update push for open dashboards.

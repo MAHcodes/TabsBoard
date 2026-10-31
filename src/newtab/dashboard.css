@@ -455,7 +455,7 @@ html.density-spacious .sidebar.compact:not(.collapsed) { width: 72px; padding: 1
 html.density-spacious .sidebar.compact .tab-row { padding: 12px 0; }
 html.density-spacious .sidebar.compact .tab-row img.favicon { width: 24px; height: 24px; }
 html.density-spacious .sidebar.compact .sidebar-heading .icon-btn,
-html.density-spacious .sidebar.compact .sidebar-heading .icon-btn.small { height: 31px; }
+html.density-spacious .sidebar.compact .sidebar-heading .icon-btn.small { height: 48px; }
 html.density-spacious .sidebar.compact .sidebar-heading .icon-btn .icon,
 html.density-spacious .sidebar.compact .sidebar-heading .icon-btn svg { width: 24px; height: 24px; }
 html.density-spacious .sidebar.compact .tab-row .tab-audio { width: 20px; height: 20px; }
@@ -464,7 +464,7 @@ html.density-compact.density-dense .sidebar.compact:not(.collapsed) { width: 52p
 html.density-compact.density-dense .sidebar.compact .tab-row { padding: 4px 0; }
 html.density-compact.density-dense .sidebar.compact .tab-row img.favicon { width: 15px; height: 15px; }
 html.density-compact.density-dense .sidebar.compact .sidebar-heading .icon-btn,
-html.density-compact.density-dense .sidebar.compact .sidebar-heading .icon-btn.small { height: 25px; }
+html.density-compact.density-dense .sidebar.compact .sidebar-heading .icon-btn.small { height: 23px; }
 html.density-compact.density-dense .sidebar.compact .sidebar-heading .icon-btn .icon,
 html.density-compact.density-dense .sidebar.compact .sidebar-heading .icon-btn svg { width: 15px; height: 15px; }
 html.density-compact.density-dense .sidebar.compact .tab-row .tab-audio { width: 16px; height: 16px; }
@@ -1062,7 +1062,11 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 /* Font picker: full-width select styled like the other settings controls. */
 .settings-row .select-wrap select { width: 100%; height: var(--ctrl-h); padding: 0 11px; background: var(--sub-alt-color); border: var(--border-w) solid var(--border-color); border-radius: var(--r-ctrl); color: var(--text-color); font-size: 13px; font-weight: 700; font-family: inherit; }
 .settings-row .select-wrap select:hover { border-color: var(--main-color); }
-.danger-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.danger-row, .action-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.action-row .action-row-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.action-row .mini-btn { flex-shrink: 0; }
+/* Buttons are always a single line; a long neighbour shrinks, the label never wraps. */
+.mini-btn, .primary-btn, .btn-danger { white-space: nowrap; }
 .danger-row .danger-row-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .danger-row .switch-title { color: var(--error-color); }
 .danger-row .mini-btn { flex-shrink: 0; }
@@ -1269,11 +1273,96 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 .palette-empty { padding: 22px; text-align: center; color: var(--sub-color); font-size: 13px; }
 
 /* ---------- Toasts ---------- */
-.toast-region { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; }
-.toast { background: var(--text-color); color: var(--bg-color); padding: 10px 17px; border-radius: var(--r-ctrl); font-size: 13px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 10px; animation: toast-in .15s ease-out; transition: opacity .15s ease, transform .15s ease; }
-.toast-out { opacity: 0; transform: translateY(6px); }
-.toast button { background: none; border: none; color: inherit; text-decoration: underline; font-size: 12px; }
-@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+/* ---------- Toasts ---------- */
+.toast-region {
+  position: fixed; right: 20px; bottom: 20px; z-index: 200; width: min(380px, calc(100vw - 32px));
+  display: flex; flex-direction: column; gap: 10px; align-items: stretch; pointer-events: none;
+}
+.toast {
+  --toast-accent: color-mix(in srgb, var(--text-color) 65%, var(--sub-color));
+  pointer-events: auto; position: relative; overflow: hidden; box-sizing: border-box;
+  display: flex; align-items: center; gap: 12px; padding: 11px 10px 11px 12px;
+  background: var(--sub-alt-color); color: var(--text-color); font-size: 13px; line-height: 1.4;
+  border: var(--border-w) solid var(--border-color); border-radius: var(--radius);
+  box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--toast-accent) 12%, transparent);
+  animation: toast-in .2s cubic-bezier(.2, .8, .2, 1); transition: opacity .16s ease, transform .16s ease;
+}
+.toast-success { --toast-accent: var(--main-color); }
+.toast-error { --toast-accent: var(--error-color); }
+.toast-warning { --toast-accent: #e0a030; }
+.toast-loading { --toast-accent: var(--main-color); }
+.toast-out { opacity: 0; transform: translateX(14px); }
+.toast-bump { animation: toast-bump .22s ease; }
+.toast-ic {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--toast-accent); background: color-mix(in srgb, var(--toast-accent) 17%, transparent);
+}
+.toast-ic svg { width: 15px; height: 15px; }
+.toast-loading .toast-ic svg { animation: toast-spin .8s linear infinite; }
+.toast-msg { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.toast-count {
+  flex-shrink: 0; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px;
+  color: var(--toast-accent); background: color-mix(in srgb, var(--toast-accent) 17%, transparent);
+}
+.toast-action {
+  flex-shrink: 0; white-space: nowrap; border: none; cursor: pointer; font: inherit; font-size: 12px; font-weight: 800;
+  padding: 5px 11px; border-radius: var(--r-xs); color: var(--toast-accent);
+  background: color-mix(in srgb, var(--toast-accent) 15%, transparent); transition: background-color .12s ease;
+}
+.toast-action:hover { background: color-mix(in srgb, var(--toast-accent) 28%, transparent); }
+.toast-close {
+  flex-shrink: 0; width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: none; cursor: pointer;
+  background: transparent; color: var(--sub-color); border-radius: var(--r-xs); opacity: .7; transition: opacity .12s ease, background-color .12s ease, color .12s ease;
+}
+.toast-close svg { width: 13px; height: 13px; }
+.toast-close:hover { opacity: 1; color: var(--text-color); background: color-mix(in srgb, var(--sub-color) 22%, transparent); }
+.toast-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px; transform-origin: left center;
+  background: var(--toast-accent); opacity: .55; transform: scaleX(1);
+}
+.toast-action:focus-visible, .toast-close:focus-visible { outline: 2px solid var(--toast-accent); outline-offset: 1px; }
+html.density-compact .toast { padding: 8px 8px 8px 10px; gap: 10px; font-size: 12.5px; }
+html.density-compact .toast-ic { width: 22px; height: 22px; }
+html.density-compact .toast-ic svg { width: 13px; height: 13px; }
+html.density-compact.density-dense .toast { padding: 6px 7px 6px 9px; font-size: 12px; }
+html.density-spacious .toast { padding: 14px 12px 14px 14px; gap: 14px; font-size: 14px; }
+html.density-spacious .toast-ic { width: 30px; height: 30px; }
+html.density-spacious .toast-ic svg { width: 17px; height: 17px; }
+@keyframes toast-in { from { opacity: 0; transform: translateX(18px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes toast-bump { 40% { transform: scale(1.025); } }
+@keyframes toast-progress { to { transform: scaleX(0); } }
+@keyframes toast-spin { to { transform: rotate(360deg); } }
+/* Notification preferences (Settings → Notifications): position, size, bar, icons. */
+.toast-region[data-pos="bottom-left"] { right: auto; left: 20px; }
+.toast-region[data-pos="bottom-center"] { right: auto; left: 50%; transform: translateX(-50%); }
+.toast-region[data-pos="top-right"] { bottom: auto; top: 20px; }
+.toast-region[data-pos="top-left"] { bottom: auto; top: 20px; right: auto; left: 20px; }
+.toast-region[data-pos="top-center"] { bottom: auto; top: 20px; right: auto; left: 50%; transform: translateX(-50%); }
+.toast-region[data-pos$="left"] .toast { animation-name: toast-in-left; }
+.toast-region[data-pos$="left"] .toast-out { transform: translateX(-14px); }
+.toast-region[data-pos$="center"] .toast { animation-name: toast-in-up; }
+.toast-region[data-pos="top-center"] .toast { animation-name: toast-in-down; }
+.toast-region[data-pos$="center"] .toast-out { transform: translateY(8px); }
+.toast-region[data-size="small"] { width: min(300px, calc(100vw - 32px)); }
+.toast-region[data-size="small"] .toast { padding: 7px 8px 7px 10px; gap: 9px; font-size: 12px; }
+.toast-region[data-size="small"] .toast-ic { width: 20px; height: 20px; }
+.toast-region[data-size="small"] .toast-ic svg { width: 12px; height: 12px; }
+.toast-region[data-size="large"] { width: min(460px, calc(100vw - 32px)); }
+.toast-region[data-size="large"] .toast { padding: 15px 14px 15px 16px; gap: 14px; font-size: 14.5px; }
+.toast-region[data-size="large"] .toast-ic { width: 32px; height: 32px; }
+.toast-region[data-size="large"] .toast-ic svg { width: 18px; height: 18px; }
+.toast-region[data-progress="off"] .toast-bar { display: none !important; }
+.toast-region[data-icons="off"] .toast-ic { display: none; }
+@keyframes toast-in-left { from { opacity: 0; transform: translateX(-18px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes toast-in-up { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes toast-in-down { from { opacity: 0; transform: translateY(-12px) scale(.98); } to { opacity: 1; transform: none; } }
+/* Narrow windows: full width, and clear of the centred bulk-selection bar. */
+@media (max-width: 1200px) { body:has(.bulk-bar:not(.hidden)) .toast-region { bottom: 84px; } }
+@media (max-width: 640px) {
+  .toast-region, .toast-region[data-pos], .toast-region[data-size] { right: 12px; left: 12px; width: auto; transform: none; }
+  .toast-region, .toast-region[data-pos^="bottom"] { bottom: 12px; top: auto; }
+  .toast-region[data-pos^="top"] { top: 12px; bottom: auto; }
+}
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -1287,3 +1376,41 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 ::selection { background: color-mix(in srgb, var(--main-color) 40%, transparent); color: var(--text-color); }
 
 kbd { background: var(--bg-color); border: var(--border-w) solid var(--border-color); border-bottom-width: calc(var(--border-w) * 2); border-radius: var(--r-chip); padding: 2px 6px; font-size: 11px; font-weight: 600; color: var(--text-color); }
+
+/* ---------- Sidebar: one metric set for rows + heading controls ----------
+   The open-tabs rows and the heading's back/history buttons used to size
+   themselves independently, so at Spacious the heading glyphs shrank to 12px
+   (a fixed 30px button minus its padding) and the "Open tabs" title sat 4px
+   off the tab titles. Both now read the same per-density tokens, so glyphs
+   line up with favicons and the title lines up with tab titles at every
+   density. The icons-only rail keeps its own rules above. */
+:root { --tab-px: 7px; --tab-py: 8px; --tab-fav: 17px; --tab-gap: 9px; }
+html.density-compact { --tab-px: 6px; --tab-py: 5px; }
+html.density-compact.density-dense { --tab-px: 5px; --tab-py: 4px; --tab-fav: 15px; --tab-gap: 7px; }
+html.density-spacious { --tab-px: 9px; --tab-py: 11px; --tab-fav: 20px; }
+.sidebar:not(.compact) .sidebar-heading { gap: calc(var(--tab-gap) - var(--tab-px)); }
+html .sidebar:not(.compact) .sidebar-heading .icon-btn.small {
+  box-sizing: border-box; flex-shrink: 0; height: auto;
+  width: calc(var(--tab-fav) + var(--tab-px) * 2); padding: var(--tab-py) var(--tab-px);
+}
+html .sidebar:not(.compact) .sidebar-heading .icon-btn.small .icon,
+html .sidebar:not(.compact) .sidebar-heading .icon-btn.small svg { width: var(--tab-fav); height: var(--tab-fav); }
+
+/* ---------- Page previews on grid tiles ---------- */
+.bookmark-tile.has-thumb { padding: 6px 6px 10px; gap: 6px; }
+.bm-thumb-wrap { position: relative; width: 100%; margin-bottom: 9px; }
+.bm-thumb {
+  display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: calc(var(--r-ctrl) - 3px);
+  background: color-mix(in srgb, var(--sub-color) 22%, transparent); opacity: 0; transition: opacity .2s ease;
+}
+.bm-thumb[data-thumb-state="ready"] { opacity: 1; }
+.bm-thumb[data-thumb-state="missing"] { opacity: .5; }
+/* The favicon becomes a small badge overlapping the preview's bottom-left corner.
+   (html prefix: out-ranks the per-density favicon sizes above.) */
+html .bookmark-tile.has-thumb .bm-favicon {
+  position: absolute; left: 6px; bottom: -9px; width: 20px; height: 20px; padding: 2px; box-sizing: border-box;
+  background: var(--sub-alt-color); border-radius: 6px; box-shadow: 0 0 0 1px var(--border-color);
+}
+.bookmark-tile.has-thumb .bm-title { text-align: left; padding: 0 4px; }
+html.density-compact .bookmark-tile.has-thumb { padding: 5px 5px 8px; }
+html.density-spacious .bookmark-tile.has-thumb { padding: 8px 8px 12px; }

@@ -52,18 +52,41 @@
   }
   function hash(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
 
-  /* Generated tile: coloured rounded square with the site's first letter.
-     Always loads (data: URI), so no icon can ever end up blank or broken. */
+  /* Generated tile: rounded square in the theme's accent colour with the
+     site's first letter in the theme's background colour. A data: URI can't see
+     CSS variables, so the live theme colours are baked in and the tiles are
+     rebuilt by refreshTheme() when the theme changes. */
   const letterCache = new Map();
+  const letterUris = new Set();                // every tile URI we've handed out (to find them on theme change)
+  function themeColors() {
+    let main = '', bg = '';
+    try {
+      const cs = getComputedStyle(document.documentElement);
+      main = cs.getPropertyValue('--main-color').trim();
+      bg = cs.getPropertyValue('--bg-color').trim();
+    } catch (e) { /* no DOM */ }
+    return { main: main || '#e2b714', bg: bg || '#323437' };
+  }
   function letter(url) {
     const host = hostOf(url) || String(url || '?');
     if (letterCache.has(host)) return letterCache.get(host);
     const ch = (host.replace(/^www\./, '')[0] || '?').toUpperCase();
-    const hue = hash(host) % 360;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="hsl(${hue},45%,42%)"/><text x="16" y="22.5" font-family="system-ui,Segoe UI,Arial,sans-serif" font-size="18" font-weight="600" text-anchor="middle" fill="#fff">${esc(ch)}</text></svg>`;
+    const { main, bg } = themeColors();
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="${esc(main)}"/><text x="16" y="22.5" font-family="system-ui,Segoe UI,Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="${esc(bg)}">${esc(ch)}</text></svg>`;
     const uri = 'data:image/svg+xml,' + encodeURIComponent(svg);
     letterCache.set(host, uri);
+    letterUris.add(uri);
     return uri;
+  }
+  /* Call after the theme's CSS variables change: rebuild tiles and swap the
+     ones already on screen. */
+  function refreshTheme() {
+    const old = new Set(letterUris);
+    letterCache.clear();
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('img[data-fav-url]').forEach(i => {
+      if (old.has(i.getAttribute('src'))) i.src = letter(i.dataset.favUrl);
+    });
   }
 
   function providerUrl(which, host) {
@@ -327,22 +350,41 @@
     return out.filter((u, i) => out.indexOf(u) === i && /^https?:/i.test(u));
   }
 
-  /* Returns { title, favicon (url), iconData } — any field may be '' if it
-     couldn't be determined. Throws on network/permission failure. */
+  function metaContent(doc, selectors) {
+    for (const sel of selectors) {
+      const m = doc.querySelector(sel);
+      const v = m && (m.getAttribute('content') || '').replace(/\s+/g, ' ').trim();
+      if (v) return v;
+    }
+    return '';
+  }
+  function absUrl(u, base) {
+    try { const a = new URL(u, base); return /^https?:$/.test(a.protocol) ? a.href : ''; } catch (e) { return ''; }
+  }
+
+  /* Returns { title, description, siteName, image (absolute url), favicon (url),
+     iconData } — any field may be '' if the page doesn't declare it. Throws on
+     network/permission failure. */
   async function refetchMeta(pageUrl) {
     if (!hostOf(pageUrl)) throw new Error('Not a web page');
     const ctl = new AbortController();
     const res = await withTimeout(fetch(pageUrl, { credentials: 'omit', redirect: 'follow', signal: ctl.signal, headers: { Accept: 'text/html,application/xhtml+xml' } }), FETCH_TIMEOUT, ctl);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const ctype = res.headers.get('content-type') || '';
-    let title = '', icons = [];
+    let title = '', description = '', siteName = '', image = '', icons = [];
     if (/html|xml/i.test(ctype) || !ctype) {
       const html = await readCapped(res, 300 * 1024);
       const doc = new DOMParser().parseFromString(html, 'text/html');
-      const og = doc.querySelector('meta[property="og:title"], meta[name="twitter:title"]');
-      const t = (doc.querySelector('title') && doc.querySelector('title').textContent) || (og && og.getAttribute('content')) || '';
+      const base = res.url || pageUrl;
+      const t = (doc.querySelector('title') && doc.querySelector('title').textContent)
+        || metaContent(doc, ['meta[property="og:title"]', 'meta[name="twitter:title"]']);
       title = t.replace(/\s+/g, ' ').trim();
-      icons = pickIcon(doc, res.url || pageUrl);
+      description = metaContent(doc, ['meta[property="og:description"]', 'meta[name="description"]', 'meta[name="twitter:description"]']).slice(0, 300);
+      siteName = metaContent(doc, ['meta[property="og:site_name"]', 'meta[name="application-name"]']).slice(0, 80);
+      const img = metaContent(doc, ['meta[property="og:image:secure_url"]', 'meta[property="og:image"]', 'meta[name="twitter:image"]', 'meta[name="twitter:image:src"]']);
+      if (img) image = absUrl(img, base);
+      if (!image) { const l = doc.querySelector('link[rel="image_src"][href]'); if (l) image = absUrl(l.getAttribute('href'), base); }
+      icons = pickIcon(doc, base);
     } else {
       try { icons = [new URL('/favicon.ico', res.url || pageUrl).href]; } catch (e) { /* ignore */ }
     }
@@ -351,11 +393,11 @@
       try { iconData = await downloadIcon(u); favicon = u; break; } catch (e) { /* next */ }
     }
     if (iconData) put(pageUrl, iconData);
-    return { title, favicon, iconData };
+    return { title, description, siteName, image, favicon, iconData };
   }
 
   if (typeof document !== 'undefined') document.addEventListener('error', onImgError, true);
   if (typeof window !== 'undefined') window.addEventListener('pagehide', () => { if (dirty) save(); });
 
-  self.Favicons = { init, setSource, src, img, letter, candidates, ensure, put, clear, stats, hostOf, usable, hasAccess, requestAccess, refetchMeta };
+  self.Favicons = { init, setSource, refreshTheme, src, img, letter, candidates, ensure, put, clear, stats, hostOf, usable, hasAccess, requestAccess, refetchMeta };
 })();

@@ -34,18 +34,166 @@
     return new Promise((resolve) => chrome.runtime.sendMessage({ type, ...payload }, resolve));
   }
 
-  function toast(text, actionLabel, actionFn) {
+  /* ---------- Toasts ----------
+     toast(message)                                   plain notice
+     toast(message, 'View trash', fn)                 with an action button (legacy form)
+     toast(message, { type, action:{label,fn}, sticky, duration })
+     Returns a handle { update(message, opts), dismiss() } so a long task can show
+     progress in ONE toast and finish it as success/error instead of stacking.
+     Types: success | error | warning | info | loading — inferred from the wording
+     when not given, so older call sites pick sensible styling for free. Text is
+     always set as text (never HTML), so names with markup in them can't inject. */
+  const TOAST_ICONS = {
+    success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 17h.01"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 11v6M12 7h.01"/></svg>',
+    loading: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9" /></svg>'
+  };
+  /* Which toasts the user wants to see (Settings → Notifications → In-app). */
+  function toastAllowed(type, hasAction, level) {
+    if (level === 'off') return false;
+    if (level === 'errors') return type === 'error';
+    if (level === 'important') return type === 'error' || type === 'warning' || type === 'loading' || hasAction;
+    return true;
+  }
+  /* Position / size / progress bar / icons live on the region as data
+     attributes so CSS does the rest; re-applied whenever settings change. */
+  function applyToastRegionPrefs() {
     const region = $('#toast-region');
-    const t = el('div', 'toast');
-    t.innerHTML = `<span>${text}</span>`;
-    const dismiss = () => { t.classList.add('toast-out'); setTimeout(() => t.remove(), 160); };
-    const auto = setTimeout(dismiss, 5000);
-    if (actionLabel) {
-      const b = el('button', '', actionLabel);
-      b.onclick = () => { clearTimeout(auto); actionFn && actionFn(); t.remove(); };
-      t.appendChild(b);
+    if (!region || !STATE) return;
+    const n = DB.notificationSettings(STATE.meta.settings);
+    region.dataset.pos = n.toastPosition;
+    region.dataset.size = n.toastSize;
+    region.dataset.progress = n.toastProgress ? 'on' : 'off';
+    region.dataset.icons = n.toastIcons ? 'on' : 'off';
+  }
+  const TOAST_ERR_RE = /couldn'?t|could not|can'?t |cannot|failed|invalid|not supported|not granted|unavailable|too long|is required|only your own|delete one first|unreachable|cancelled/i;
+  const TOAST_OK_RE = /\b(copied|saved|added|created|moved|merged|deleted|removed|imported|restored|synced|duplicated|cleared|emptied|refreshed|refetched|opened|unloaded|forgot|sorted|updated|bookmarked)\b|theme set to|up to date/i;
+  function inferToastType(text) {
+    if (/…$/.test(text)) return 'loading';
+    if (TOAST_ERR_RE.test(text)) return 'error';
+    if (TOAST_OK_RE.test(text)) return 'success';
+    return 'info';
+  }
+  function toast(text, a, b) {
+    const region = $('#toast-region');
+    const opts = (a && typeof a === 'object') ? a : { action: a ? { label: a, fn: b } : null };
+    let msg = String(text == null ? '' : text);
+    const ncfg = DB.notificationSettings(STATE && STATE.meta && STATE.meta.settings);
+    applyToastRegionPrefs();
+
+    // Filtered out by the user's level. A suppressed toast still hands back a
+    // working handle: if a long task's final state (e.g. an error) is allowed,
+    // update() raises a real toast for it.
+    if (!toastAllowed(opts.type || inferToastType(msg), !!opts.action, ncfg.toastLevel)) {
+      return {
+        _real: null,
+        update(nextText, nextOpts) {
+          if (this._real) return this._real.update(nextText, nextOpts);
+          const o = nextOpts || {};
+          const nt = String(nextText == null ? '' : nextText);
+          if (toastAllowed(o.type || inferToastType(nt), !!o.action, ncfg.toastLevel)) this._real = toast(nt, Object.assign({}, o));
+        },
+        bump() {},
+        dismiss() { if (this._real) this._real.dismiss(); }
+      };
     }
+
+    // Same message already showing (e.g. clicking "Copy link" repeatedly): count it instead of stacking.
+    if (ncfg.toastGroupDuplicates && !opts.action && !opts.sticky) {
+      const dup = Array.from(region.children).find(n => n._h && n.dataset.msg === msg && !n.classList.contains('toast-loading') && !n.classList.contains('toast-out'));
+      if (dup) { dup._h.bump(); return dup._h; }
+    }
+    // Keep the stack short: drop the oldest finished toast(s) first.
+    const kids = Array.from(region.children).filter(n => !n.classList.contains('toast-out'));
+    for (let i = 0; kids.length - i >= ncfg.toastMax; i++) {
+      const old = kids.find(n => !n.classList.contains('toast-loading')) || kids[0];
+      if (old && old._h) old._h.dismiss();
+      kids.splice(kids.indexOf(old), 1);
+    }
+
+    const t = el('div', 'toast');
+    t.innerHTML = `<span class="toast-ic"></span><div class="toast-msg"></div><span class="toast-count" hidden></span><button type="button" class="toast-action" hidden></button><button type="button" class="toast-close" aria-label="Dismiss notification">${ICONS.close}</button><span class="toast-bar"></span>`;
+    const iconEl = t.querySelector('.toast-ic'), msgEl = t.querySelector('.toast-msg'), countEl = t.querySelector('.toast-count');
+    const actionEl = t.querySelector('.toast-action'), barEl = t.querySelector('.toast-bar');
+    let count = 1, type = '', timer = null, remaining = 0, startedAt = 0, sticky = false, gone = false, actionFn = null;
+
+    const durationFor = () => {
+      if (opts.duration) return opts.duration;
+      if (ncfg.toastDuration > 0) return ncfg.toastDuration;   // the user's fixed duration
+      if (type === 'error') return 7000;
+      if (type === 'warning' || actionFn) return 6500;
+      return Math.min(6000, 3200 + msg.length * 28);
+    };
+    const clearTimer = () => { if (timer) { clearTimeout(timer); timer = null; } };
+    const arm = (ms) => {
+      clearTimer();
+      if (sticky || gone) { barEl.style.display = 'none'; return; }
+      remaining = ms; startedAt = Date.now();
+      barEl.style.display = '';
+      barEl.style.animation = 'none'; void barEl.offsetWidth;          // restart the countdown bar
+      barEl.style.animation = `toast-progress ${ms}ms linear forwards`;
+      barEl.style.animationPlayState = 'running';
+      timer = setTimeout(dismiss, ms);
+    };
+    const pause = () => { if (!timer) return; clearTimer(); remaining -= Date.now() - startedAt; barEl.style.animationPlayState = 'paused'; };
+    const resume = () => { if (sticky || gone || timer || remaining <= 0) return; startedAt = Date.now(); barEl.style.animationPlayState = 'running'; timer = setTimeout(dismiss, remaining); };
+    function dismiss() {
+      if (gone) return;
+      gone = true; clearTimer();
+      t.classList.add('toast-out');
+      setTimeout(() => t.remove(), document.documentElement.classList.contains('no-anim') ? 0 : 170);
+    }
+    const paint = (nextType, nextText, nextOpts) => {
+      type = nextType;
+      msgEl.textContent = nextText;
+      t.dataset.msg = nextText;
+      t.className = 'toast toast-' + type + (gone ? ' toast-out' : '');
+      t.setAttribute('role', type === 'error' ? 'alert' : 'status');
+      iconEl.innerHTML = TOAST_ICONS[type];
+      const act = nextOpts && nextOpts.action;
+      actionFn = act ? act.fn : null;
+      actionEl.hidden = !act;
+      if (act) actionEl.textContent = act.label;
+    };
+
+    actionEl.onclick = () => { try { actionFn && actionFn(); } finally { dismiss(); } };
+    t.querySelector('.toast-close').onclick = dismiss;
+    t.addEventListener('mouseenter', () => { if (ncfg.toastPauseOnHover) pause(); }); t.addEventListener('mouseleave', resume);
+    t.addEventListener('focusin', pause); t.addEventListener('focusout', resume);
+
+    sticky = !!opts.sticky || ncfg.toastDuration === -1;   // -1 = stay until dismissed
+    paint(opts.type || inferToastType(msg), msg, opts);
+    if (type === 'loading' && opts.sticky === undefined) sticky = true;
+    arm(durationFor());
+
+    const handle = {
+      update(nextText, nextOpts) {
+        if (gone) return;
+        const o = nextOpts || {};
+        const nt = String(nextText == null ? '' : nextText);
+        const prevType = type;
+        const nType = o.type || (nt !== msg ? inferToastType(nt) : type);
+        msg = nt;
+        if ('action' in o || o.type) opts.action = o.action; // new state may carry its own action
+        paint(nType, nt, { action: o.action });
+        if (o.sticky !== undefined) sticky = !!o.sticky;
+        else if (prevType === 'loading' && nType !== 'loading') sticky = ncfg.toastDuration === -1;
+        else if (nType === 'loading') sticky = true;
+        if (sticky) { clearTimer(); barEl.style.display = 'none'; } else if (!timer) arm(o.duration || durationFor());
+      },
+      bump() {
+        count++;
+        countEl.hidden = false; countEl.textContent = '×' + count;
+        t.classList.remove('toast-bump'); void t.offsetWidth; t.classList.add('toast-bump');
+        arm(durationFor());
+      },
+      dismiss
+    };
+    t._h = handle;
     region.appendChild(t);
+    return handle;
   }
 
   /* Appends a dropdown-menu (like a .dropdown-menu built by el()) to the
@@ -162,6 +310,8 @@
   async function boot() {
     STATE = await DB.getState();
     await Favicons.init(STATE.meta.settings.faviconSource);
+    // Previews for bookmarks that are gone (and not restorable from the trash) are dead weight.
+    { const trashed = JSON.stringify(STATE.trash || {}); Thumbs.gc(id => !!STATE.bookmarks[id] || trashed.includes(id)); }
     // The sidebar HTML starts in the open state; settings may pivot it to
     // compact/collapsed in applySettings(), which would transition from the
     // open width on first load. Suppress sidebar transitions until the first
@@ -180,13 +330,13 @@
     const verEl = $('#app-version');
     if (verEl && chrome.runtime && chrome.runtime.getManifest) verEl.textContent = 'v' + (chrome.runtime.getManifest().version || '');
     handleDeepLink();
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && changes.tdb_data) {
-        STATE = changes.tdb_data.newValue;
-        Favicons.setSource(STATE.meta.settings.faviconSource);
-        scheduleRender();
-        applySettings();
-      }
+    // Storage lives in IndexedDB now; DB.onChange fires (in every open
+    // dashboard and the background) after any committed write.
+    DB.onChange(async () => {
+      STATE = await DB.getState();
+      Favicons.setSource(STATE.meta.settings.faviconSource);
+      scheduleRender();
+      applySettings();
     });
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg && msg.type === 'TOGGLE_SIDEBAR_REQUEST') toggleSidebar();
@@ -320,6 +470,8 @@
     r.setProperty('--error-extra-color', palette.errorExtra);
     r.setProperty('--colorful-error-color', palette.colorfulError);
     r.setProperty('--colorful-error-extra-color', palette.colorfulErrorExtra);
+    // Fallback favicon tiles bake the accent colour into a data: URI, so rebuild them.
+    if (self.Favicons) Favicons.refreshTheme();
   }
 
   /* Live theme preview (MonkeyType-style): pointing at / arrowing onto a theme
@@ -348,6 +500,7 @@
   function applySettings(reveal = true) {
     const s = STATE.meta.settings;
     applyThemeColors(Themes.resolveTheme(s.themeId, s.lightThemeId, s.darkThemeId, s.customThemes));
+    applyToastRegionPrefs();
     const r = document.documentElement.style;
     r.setProperty('--board-cols', String((s.dashboard && s.dashboard.columns) || 4));
     const DENSITY_ROW_MIN = { spacious: '224px', comfortable: '200px', compact: '168px', dense: '150px' };
@@ -678,6 +831,9 @@
         hideOverlay('#shortcuts-overlay');
         if (SELECTED.size) { SELECTED.clear(); selectMode = false; renderBoard(); }
         if (SELECTED_TABS.size) { SELECTED_TABS.clear(); renderSidebar(); }
+        // Escape also leaves any text field that still has focus (filter boxes,
+        // add-item inputs, notes) so single-key shortcuts work again.
+        { const ae = document.activeElement; if (ae && ae !== document.body && ae.matches && ae.matches('input:not([type=checkbox]):not([type=radio]), textarea')) ae.blur(); }
         return;
       }
 

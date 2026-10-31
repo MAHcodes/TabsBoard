@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<div id="toast-region" class="toast-region" aria-live="polite"></div>
+<div id="toast-region" class="toast-region" role="region" aria-label="Notifications" aria-live="polite"></div>
 
 <header class="topbar">
   <div class="topbar-left">
@@ -65,7 +65,7 @@
         </button>
         <button id="new-collection-btn" class="primary-btn"><span class="btn-ic"></span> New Collection</button>
         <button id="add-widget-btn" class="mini-btn"><span class="btn-ic-sm"></span> Add Widget</button>
-        <input id="collection-filter-input" class="filter-input" type="text" placeholder="Filter collections…">
+        <input id="collection-filter-input" class="filter-input" type="text" placeholder="Filter collections &amp; bookmarks…">
         <div id="bulk-bar" class="bulk-bar hidden">
           <span id="bulk-count">0 selected</span>
           <button id="bulk-open-btn" class="primary-btn" title="Open in new tabs (Enter)">Open</button>
@@ -124,6 +124,7 @@
           <button class="settings-tab" data-tab="sidebar"><span class="stab-ic" data-icon="layers"></span><span class="stab-label">Sidebar</span></button>
           <button class="settings-tab" data-tab="widgets"><span class="stab-ic" data-icon="widget"></span><span class="stab-label">Widgets</span></button>
           <button class="settings-tab" data-tab="behavior"><span class="stab-ic" data-icon="settings"></span><span class="stab-label">Behavior</span></button>
+          <button class="settings-tab" data-tab="notifications"><span class="stab-ic" data-icon="warn"></span><span class="stab-label">Notifications</span></button>
           <button class="settings-tab" data-tab="data"><span class="stab-ic" data-icon="save"></span><span class="stab-label">Data</span></button>
         </nav>
         <div class="settings-footer">TabsBoard <span id="app-version"></span></div>
@@ -399,11 +400,17 @@
               </div>
             </div>
             <div class="settings-row">
-              <label>Favicon cache</label>
               <div class="switch-row">
-                <span class="switch-text"><span class="switch-title" id="favicon-cache-info">Icons are cached after they first load.</span><span class="switch-desc">Cached icons show instantly and work offline. Use this if an icon looks stale.</span></span>
-                <button id="favicon-cache-clear" class="mini-btn">Clear cache</button>
+                <span class="switch-text"><span class="switch-title">Show page previews</span><span class="switch-desc">Show a thumbnail on grid tiles for bookmarks you've refetched (right-click → Refetch page info).</span></span>
+                <label class="switch"><input type="checkbox" id="setting-show-previews"><span class="switch-track"><span class="switch-thumb"></span></span></label>
               </div>
+            </div>
+            <div class="settings-row action-row">
+              <div class="action-row-text">
+                <div class="switch-title">Icon &amp; preview cache</div>
+                <div class="switch-desc" id="favicon-cache-info">Icons and previews are cached after they first load.</div>
+              </div>
+              <button id="favicon-cache-clear" class="mini-btn">Clear cache</button>
             </div>
           </div>
           <div class="settings-group">
@@ -520,6 +527,170 @@
           </div>
         </div>
 
+        <div class="settings-panel" id="panel-notifications">
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>In-app notifications</h3>
+              <p>The small messages that pop up in the dashboard — "Link copied", "Moved to…", Undo prompts, errors.</p>
+            </div>
+            <div class="settings-row">
+              <label>Show notifications</label>
+              <div class="segmented" id="notif-toast-level">
+                <button data-val="all">All</button>
+                <button data-val="important">Important only</button>
+                <button data-val="errors">Errors only</button>
+                <button data-val="off">Off</button>
+              </div>
+              <div class="hint-text">Important = errors, warnings and anything with a button such as Undo. Off also hides Undo prompts.</div>
+            </div>
+            <div class="settings-row">
+              <label>Position</label>
+              <div class="segmented" id="notif-toast-position">
+                <button data-val="top-left">Top left</button>
+                <button data-val="top-center">Top center</button>
+                <button data-val="top-right">Top right</button>
+                <button data-val="bottom-left">Bottom left</button>
+                <button data-val="bottom-center">Bottom center</button>
+                <button data-val="bottom-right">Bottom right</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>Size</label>
+              <div class="segmented" id="notif-toast-size">
+                <button data-val="small">Small</button>
+                <button data-val="normal">Normal</button>
+                <button data-val="large">Large</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>Stay on screen for</label>
+              <div class="segmented" id="notif-toast-duration">
+                <button data-val="0">Automatic</button>
+                <button data-val="3000">3 s</button>
+                <button data-val="5000">5 s</button>
+                <button data-val="8000">8 s</button>
+                <button data-val="15000">15 s</button>
+                <button data-val="-1">Until dismissed</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>Show at most</label>
+              <div class="segmented" id="notif-toast-max">
+                <button data-val="1">1</button>
+                <button data-val="2">2</button>
+                <button data-val="4">4</button>
+                <button data-val="6">6</button>
+                <button data-val="8">8</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Countdown bar</span><span class="switch-desc">A thin bar along the bottom showing how long a notification has left.</span></span>
+                <label class="switch"><input type="checkbox" id="notif-toast-progress"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Status icons</span><span class="switch-desc">Show a check / warning / error icon on each notification.</span></span>
+                <label class="switch"><input type="checkbox" id="notif-toast-icons"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Pause on hover</span><span class="switch-desc">Hovering a notification stops its timer until you move away.</span></span>
+                <label class="switch"><input type="checkbox" id="notif-toast-pause"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Group repeated messages</span><span class="switch-desc">Show ×2, ×3… on one notification instead of stacking identical ones.</span></span>
+                <label class="switch"><input type="checkbox" id="notif-toast-group"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+            <div class="settings-row action-row">
+              <div class="action-row-text">
+                <div class="switch-title">Try it out</div>
+                <div class="switch-desc">Shows a success, a warning and an error notification with your current settings.</div>
+              </div>
+              <button id="notif-test-toast" class="mini-btn">Show test</button>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Browser notifications</h3>
+              <p>System notifications raised by the extension in the background, outside the dashboard.</p>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Browser notifications</span><span class="switch-desc">Master switch for every system notification from the background.</span></span>
+                <label class="switch"><input type="checkbox" id="notif-browser-enabled"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Selection saved</span><span class="switch-desc">Notify when highlighted text is saved as a bookmark note from the right-click menu.</span></span>
+                <label class="switch"><input type="checkbox" id="notif-browser-selection"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>Stay on screen for</label>
+              <div class="segmented" id="notif-browser-timeout">
+                <button data-val="0">Browser default</button>
+                <button data-val="5">5 s</button>
+                <button data-val="10">10 s</button>
+                <button data-val="-1">Until dismissed</button>
+              </div>
+              <div class="hint-text">"Until dismissed" is honored by Chrome only; Firefox always uses its own timing.</div>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Silent</span><span class="switch-desc">Show browser notifications without playing a sound.</span></span>
+                <label class="switch"><input type="checkbox" id="notif-browser-silent"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+            <div class="settings-row action-row">
+              <div class="action-row-text">
+                <div class="switch-title">Try it out</div>
+                <div class="switch-desc" id="notif-browser-note">Sends a test system notification with your current settings.</div>
+              </div>
+              <button id="notif-test-browser" class="mini-btn">Send test</button>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Pomodoro</h3>
+              <p>System notifications when a Pomodoro widget finishes a focus session or a break. The browser asks for permission the first time one fires.</p>
+            </div>
+            <div class="settings-row">
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Pomodoro notifications</span><span class="switch-desc">Master switch for notifications from Pomodoro widgets.</span></span>
+                <label class="switch"><input type="checkbox" id="notif-pomo-enabled"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">When a focus session ends</span><span class="switch-desc">Tell me it's time for a break.</span></span>
+                <label class="switch"><input type="checkbox" id="notif-pomo-focus"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">When a break ends</span><span class="switch-desc">Tell me it's time to get back to focus.</span></span>
+                <label class="switch"><input type="checkbox" id="notif-pomo-break"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+              <div class="switch-row">
+                <span class="switch-text"><span class="switch-title">Play a sound</span><span class="switch-desc">Off = deliver Pomodoro notifications silently.</span></span>
+                <label class="switch"><input type="checkbox" id="notif-pomo-sound"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+              </div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-row action-row">
+              <div class="action-row-text">
+                <div class="switch-title">Reset notification settings</div>
+                <div class="switch-desc">Restore every option on this page to its default.</div>
+              </div>
+              <button id="notif-reset" class="mini-btn">Reset</button>
+            </div>
+          </div>
+        </div>
+
         <div class="settings-panel" id="panel-data">
           <div class="settings-group">
             <div class="settings-group-head">
@@ -539,6 +710,15 @@
                 <label class="mini-btn file-btn">Import JSON backup<input id="import-json-input" type="file" accept="application/json" hidden></label>
               </div>
               <div class="hint-text">Imported data is merged in as a new workspace — nothing existing is overwritten.</div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Storage</h3>
+              <p>Your data is kept in the browser's IndexedDB, one record per row, with no 10 MB cap.</p>
+            </div>
+            <div class="settings-row">
+              <div class="hint-text" id="storage-info">Reading storage…</div>
             </div>
           </div>
           <div class="settings-group">
@@ -626,9 +806,12 @@
 <script src="../common/color-utils.js"></script>
 <script src="../common/themes.js"></script>
 <script src="../common/icons.js"></script>
+<script src="../common/dexie.min.js"></script>
 <script src="../common/storage.js"></script>
 <script src="../common/favicons.js"></script>
+<script src="../common/thumbs.js"></script>
 <script src="../common/search.js"></script>
+<script src="../common/bmsearch.js"></script>
 <script src="widgets.js"></script>
 <script src="bookmarks.js"></script>
 <script src="palette.js"></script>
