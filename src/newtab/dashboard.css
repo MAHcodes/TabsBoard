@@ -1166,6 +1166,11 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 #density-toggle button { min-width: 0; padding: 8px 6px; }
 .segmented button:hover { color: var(--text-color); }
 .segmented button.active { background: var(--bg-color); color: var(--text-color); box-shadow: 0 1px 3px rgba(0,0,0,.14); }
+/* Lay the six-option presets out over two rows so every label fits on one line
+   (e.g. "Until dismissed" no longer wraps by itself). */
+#notif-toast-position, #notif-toast-duration { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#notif-browser-timeout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#notif-toast-position button, #notif-toast-duration button, #notif-browser-timeout button { min-width: 0; white-space: nowrap; }
 .checkbox-row { font-size: 13px; margin-bottom: 4px; }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 

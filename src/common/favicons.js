@@ -39,7 +39,10 @@
   function hostOf(url) {
     try {
       const u = new URL(url);
-      return /^https?:$/.test(u.protocol) ? u.hostname.toLowerCase() : '';
+      // u.host includes a non-default port, so services on different ports of
+      // the same host (e.g. localhost:3000 vs localhost:4000) keep separate
+      // favicons instead of sharing whichever one was cached first.
+      return /^https?:$/.test(u.protocol) ? u.host.toLowerCase() : '';
     } catch (e) { return ''; }
   }
   function esc(s) {
