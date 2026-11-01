@@ -94,9 +94,14 @@
 <!-- Command palette -->
 <div id="palette-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Command palette">
   <div class="palette">
-    <input id="palette-input" type="text" placeholder="Search bookmarks, tabs, settings, themes, and commands…" autocomplete="off" aria-label="Command palette search" />
+    <div class="palette-head">
+      <span class="palette-head-ic" data-icon="search" aria-hidden="true"></span>
+      <input id="palette-input" type="text" placeholder="Search bookmarks, tabs, themes, settings, and commands…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="palette-results" aria-autocomplete="list" aria-label="Command palette search" />
+      <kbd class="palette-head-kbd" aria-hidden="true">esc</kbd>
+    </div>
     <div id="palette-crumb" class="palette-crumb hidden"></div>
-    <div id="palette-results" class="palette-results"></div>
+    <div id="palette-results" class="palette-results" role="listbox" aria-label="Results"></div>
+    <div id="palette-foot" class="palette-foot" aria-hidden="true"></div>
   </div>
 </div>
 

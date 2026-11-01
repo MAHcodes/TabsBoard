@@ -1308,27 +1308,47 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 .trash-empty .trash-empty-ic svg { width: 100%; height: 100%; }
 
 /* ---------- Command palette ---------- */
-.palette { background: var(--sub-alt-color); border-radius: var(--radius); box-shadow: var(--shadow); width: min(600px, 92vw); overflow: hidden; border: var(--border-w) solid var(--border-color); }
-.palette input { width: 100%; border: none; outline: none; padding: 17px 19px; font-size: 15px; background: transparent; color: var(--text-color); border-bottom: var(--border-w) solid var(--border-color); caret-color: var(--caret-color); }
-.palette-results { max-height: 50vh; overflow-y: auto; padding: 6px; }
-.palette-crumb { display: flex; align-items: center; gap: 4px; padding: 10px 14px 2px; font-size: 11px; color: var(--sub-color); flex-wrap: wrap; }
+.palette { background: var(--sub-alt-color); border-radius: var(--radius); box-shadow: var(--shadow); width: min(640px, 92vw); overflow: hidden; border: var(--border-w) solid var(--border-color); display: flex; flex-direction: column; }
+.palette-head { display: flex; align-items: center; gap: 2px; padding-left: 16px; padding-right: 14px; border-bottom: var(--border-w) solid var(--border-color); }
+.palette-head-ic { display: inline-flex; flex-shrink: 0; color: var(--sub-color); }
+.palette-head-ic svg { width: 17px; height: 17px; }
+.palette-head-kbd { flex-shrink: 0; font-size: 10px; text-transform: uppercase; color: var(--sub-color); }
+.palette input { flex: 1; min-width: 0; width: 100%; border: none; outline: none; padding: 17px 12px; font-size: 15px; background: transparent; color: var(--text-color); caret-color: var(--caret-color); }
+.palette input::placeholder { color: var(--sub-color); opacity: .75; }
+.palette-results { max-height: min(52vh, 460px); overflow-y: auto; overscroll-behavior: contain; padding: 6px; scroll-padding: 28px 6px 6px; }
+.palette-crumb { display: flex; align-items: center; gap: 4px; padding: 9px 14px 3px; font-size: 11px; color: var(--sub-color); flex-wrap: wrap; }
 .palette-crumb.hidden { display: none; }
-.crumb-seg { cursor: pointer; padding: 3px 7px; border-radius: var(--r-chip); background: var(--bg-color); font-weight: 700; }
-.crumb-seg:hover { color: var(--main-color); }
+.crumb-seg { cursor: pointer; padding: 3px 8px; border-radius: var(--r-chip); background: var(--bg-color); color: var(--text-color); opacity: .72; font-weight: 700; user-select: none; }
+.crumb-seg:hover { color: var(--main-color); opacity: 1; }
+.crumb-seg.current { opacity: 1; }
 .crumb-sep { opacity: .5; }
-.palette-item { display: flex; align-items: center; gap: 10px; padding: 10px 11px; border-radius: var(--r-item); font-size: 13px; }
-.palette-item.active, .palette-item:hover { background: var(--bg-color); }
-.palette-item .pi-kind { font-size: 10px; text-transform: uppercase; color: var(--sub-color); background: var(--bg-color); padding: 2px 7px; border-radius: var(--r-chip); font-weight: 700; flex-shrink: 0; }
+.palette-section { padding: 10px 11px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--sub-color); user-select: none; }
+.palette-section:first-child { padding-top: 4px; }
+.palette-item { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: var(--r-item); font-size: 13px; cursor: pointer; }
+.palette-item.active { background: var(--bg-color); }
+.palette-item .pi-ic { display: inline-flex; flex-shrink: 0; color: var(--sub-color); }
+.palette-item .pi-ic svg { width: 15px; height: 15px; }
+.palette-item.active .pi-ic { color: var(--main-color); }
+.palette-item .pi-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.palette-item .pi-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; max-width: 100%; }
+.palette-item .pi-hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: 11px; color: var(--sub-color); opacity: .85; }
 .palette-item .pi-fav { width: 14px; height: 14px; border-radius: var(--r-tiny); flex-shrink: 0; object-fit: contain; background: var(--bg-color); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); }
 .palette-item .pi-swatch { width: 14px; height: 14px; border-radius: var(--r-tiny); flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+.palette-item .pi-chips { display: inline-flex; gap: 2px; flex-shrink: 0; }
 .palette-item .pi-chip { width: 13px; height: 13px; border-radius: var(--r-tiny); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .2); }
-.palette-item .pi-caret { color: var(--sub-color); font-size: 15px; font-weight: 700; flex-shrink: 0; }
-.palette-item .pi-val { font-size: 11px; color: var(--sub-color); background: var(--bg-color); padding: 2px 8px; border-radius: var(--r-chip); font-weight: 700; flex-shrink: 0; }
+.palette-item .pi-caret { color: var(--sub-color); font-size: 15px; line-height: 1; font-weight: 700; flex-shrink: 0; }
+.palette-item .pi-check { display: inline-flex; flex-shrink: 0; color: var(--main-color); }
+.palette-item .pi-check svg { width: 14px; height: 14px; }
+.palette-item .pi-val { font-size: 11px; color: var(--sub-color); background: var(--bg-color); padding: 2px 8px; border-radius: var(--r-chip); font-weight: 700; flex-shrink: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-item.active .pi-val { background: var(--sub-alt-color); }
 .palette-item mark { background: color-mix(in srgb, var(--main-color) 32%, transparent); color: var(--text-color); border-radius: var(--r-chip); padding: 0 1px; }
 .palette-item mark.hl-start { border-radius: var(--r-chip) 0 0 var(--r-chip); padding-right: 0; margin-left: 1px; }
 .palette-item mark.hl-mid { border-radius: 0; padding: 0; }
 .palette-item mark.hl-end { border-radius: 0 var(--r-chip) var(--r-chip) 0; padding-left: 0; margin-right: 1px; }
-.palette-empty { padding: 22px; text-align: center; color: var(--sub-color); font-size: 13px; }
+.palette-empty { padding: 26px 22px; text-align: center; color: var(--sub-color); font-size: 13px; }
+.palette-foot { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 14px; border-top: var(--border-w) solid var(--border-color); font-size: 11px; color: var(--sub-color); user-select: none; }
+.palette-foot:empty { display: none; }
+.palette-foot kbd { font-size: 10px; padding: 1px 5px; margin-right: 3px; }
 
 /* ---------- Toasts ---------- */
 /* ---------- Toasts ---------- */

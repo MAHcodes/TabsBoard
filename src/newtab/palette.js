@@ -1,7 +1,8 @@
   /* Command palette + modal overlay plumbing. Shared with the other newtab
    modules through the page's single global scope (old-school classic-script
    composition — see index.html, loaded after common/). The purely-functional
-   matcher/highlighter lives in common/search.js under SearchUtils. */
+   matcher/highlighter and the tree flatten/rank/section helpers live in
+   common/search.js under SearchUtils (unit-tested in tests/search.test.js). */
   const { fuzzyMatch, highlightLabel } = SearchUtils;
 
   /* ============ MODAL / PALETTE plumbing ============ */
@@ -199,14 +200,30 @@
     });
   }
 
+  /* ============ COMMAND PALETTE ============
+     A navigable tree (root → Themes / Settings / Add widget → options) that
+     also flattens into one searchable list: typing at the root finds commands,
+     groups, themes, individual setting values, bookmarks and open tabs, with
+     section headings. Typing inside a group searches just that group.
+     Folders are lazy (`children` may be a function) so check marks and values
+     are always read fresh from STATE instead of from a stale snapshot. */
+  let paletteItems = [];        // items currently rendered, in row order
+  let paletteIndex = 0;         // active row
+  let paletteUserMoved = false; // true once the user arrowed/hovered: only then do theme rows live-preview
+  let palNav = [];              // folder stack: { folder, title, parentIndex } — empty = root
+  let paletteLastMouse = null;
+
   function openPalette() {
+    palNav = []; paletteIndex = 0; paletteUserMoved = false;
     showOverlay('#palette-overlay');
     const input = $('#palette-input');
     input.value = ''; input.focus();
-    resetPaletteNav();
     renderPaletteResults('');
   }
   function closePalette() { endThemePreview(); hideOverlay('#palette-overlay'); }
+  function togglePalette() {
+    if ($('#palette-overlay').classList.contains('hidden')) openPalette(); else closePalette();
+  }
 
   /* Registry of every user-facing setting so the command palette can expose
      them all: each setting becomes a "cycle" command plus one command per
@@ -287,150 +304,175 @@
   ];
   const PALETTE_SETTINGS_BY_ID = Object.fromEntries(PALETTE_SETTINGS.map(d => [d.id, d]));
 
-  /* The palette is a navigable tree: root → Themes / Settings groups → options.
-     Searching flattens every leaf so "change anything by typing" still works. */
+  /* The Settings folder: groups → settings → options. */
   const PALETTE_SETTING_GROUPS = [
-    { name: 'Appearance', keys: ['density', 'radius', 'borders', 'floatingBars', 'animations', 'popupBlur', 'fontSize'] },
-    { name: 'Layout', keys: ['viewMode', 'columns', 'showTopbarSearch', 'showShortcutsButton', 'showTrashButton'] },
-    { name: 'Sidebar', keys: ['sidebarCollapsed', 'sidebarCompact', 'showTabAudio', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'recentlyClosedLimit'] },
-    { name: 'Behavior', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'searchEngine', 'confirmRestoreSession'] },
-    { name: 'Widgets', keys: ['clockFormat', 'weatherUnits', 'pomodoroFocus', 'pomodoroBreak', 'countdownDays', 'rssRefreshInterval', 'historyShowTimes', 'historyCount', 'topSitesCount'] },
-    { name: 'Data', keys: ['trashRetentionDays'] }
+    { name: 'Appearance', icon: 'palette', keys: ['density', 'radius', 'borders', 'floatingBars', 'animations', 'popupBlur', 'fontSize'] },
+    { name: 'Layout', icon: 'columns', keys: ['viewMode', 'columns', 'showTopbarSearch', 'showShortcutsButton', 'showTrashButton'] },
+    { name: 'Sidebar', icon: 'panelLeftClose', keys: ['sidebarCollapsed', 'sidebarCompact', 'showTabAudio', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'recentlyClosedLimit'] },
+    { name: 'Behavior', icon: 'target', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'searchEngine', 'confirmRestoreSession'] },
+    { name: 'Widgets', icon: 'widget', keys: ['clockFormat', 'weatherUnits', 'pomodoroFocus', 'pomodoroBreak', 'countdownDays', 'rssRefreshInterval', 'historyShowTimes', 'historyCount', 'topSitesCount'] },
+    { name: 'Data', icon: 'archive', keys: ['trashRetentionDays'] }
   ];
 
+  /* label, widget type, icon — one table drives the "Add widget" group. */
+  const PALETTE_WIDGETS = [
+    ['Add Notes widget', 'notes', 'notes'], ['Add To-Do widget', 'todo', 'checkSquare'],
+    ['Add Clock widget', 'clock', 'clock'], ['Add Search widget', 'search', 'search'],
+    ['Add Countdown widget', 'countdown', 'hourglass'], ['Add Pomodoro widget', 'pomodoro', 'target'],
+    ['Add Timer widget', 'timer', 'timer'], ['Add Stopwatch widget', 'stopwatch', 'stopwatch'],
+    ['Add Weather widget', 'weather', 'cloudSun'], ['Add RSS feeds widget', 'rss', 'rss'],
+    ['Create Most visited collection', 'topSites', 'globe'], ['Add Recent downloads widget', 'downloads', 'download'],
+    ['Create History collection', 'history', 'rotateCcwClock']
+  ];
+
+  /* Which section heading each kind gets in search results. */
+  const PALETTE_KIND_SECTION = { action: 'Commands', folder: 'Groups', theme: 'Themes', setting: 'Settings', bookmark: 'Bookmarks', tab: 'Tabs' };
+  const PALETTE_SECTION_CAPS = { Commands: 8, Groups: 5, Themes: 6, Settings: 8, Bookmarks: 8, Tabs: 5 };
+
+  /* Shared with the Settings theme grids (settings.js) through the global scope. */
   function themeChipColors(t) { return [t.bg, t.main, t.caret, t.sub, t.subAlt, t.text]; }
+
+  function paletteSystemPrefersDark() {
+    return typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
+  }
 
   function paletteThemeItems() {
     const s = DB.settingsOf(STATE);
     const cur = s.themeId;
     const custom = s.customThemes || [];
-    const light = Themes.resolveTheme('auto', s.lightThemeId, undefined, custom);
-    const dark = Themes.resolveTheme('auto', undefined, s.darkThemeId, custom);
-    const items = [{
-      kind: 'theme', label: 'Auto (follow system)', themeId: 'auto',
-      chips: [light.bg, light.main, light.text, dark.bg, dark.main, dark.text],
-      value: cur === 'auto' ? 'Active' : '', run: () => selectTheme('auto')
-    }];
-    Themes.allThemes(custom).forEach(t => {
-      items.push({
-        kind: 'theme', label: t.name, themeId: t.id, chips: themeChipColors(t),
-        value: cur === t.id ? 'Active' : '', run: () => selectTheme(t.id)
-      });
+    // The Auto row previews the user's own light + dark picks. (It used to ask
+    // resolveTheme('auto') for each, which only ever returns the slot matching
+    // the *system* scheme — so one of the two chip sets was wrong.)
+    const light = Themes.findTheme(s.lightThemeId, custom) || Themes.defaultTheme(false);
+    const dark = Themes.findTheme(s.darkThemeId, custom) || Themes.defaultTheme(true);
+    const mk = (t, heading) => ({
+      kind: 'theme', heading, label: t.name, themeId: t.id, chips: themeChipColors(t),
+      themeType: t.type, keywords: `${t.type} theme`, checked: cur === t.id,
+      run: () => selectTheme(t.id)
     });
+    const all = Themes.allThemes(custom);
+    const items = [{
+      kind: 'theme', heading: 'System', label: 'Auto (follow system)', themeId: 'auto',
+      chips: [light.bg, light.main, light.text, dark.bg, dark.main, dark.text],
+      hint: 'light + dark', keywords: 'system automatic theme', checked: cur === 'auto',
+      run: () => selectTheme('auto')
+    }];
     items.push({
-      kind: 'action', label: 'Custom theme builder…',
+      kind: 'action', heading: 'Custom', icon: 'plus', label: 'Custom theme builder…',
       run: () => { openSettings(); openSettingsTab('themes'); openThemeBuilder(null); }
+    });
+    all.filter(t => t.custom).forEach(t => items.push(mk(t, 'Custom')));
+    const order = paletteSystemPrefersDark() ? ['dark', 'light'] : ['light', 'dark'];
+    order.forEach(type => {
+      all.filter(t => !t.custom && t.type === type).forEach(t => items.push(mk(t, type === 'dark' ? 'Dark themes' : 'Light themes')));
     });
     return items;
   }
 
   function paletteSettingOptions(def) {
-    const s = DB.settingsOf(STATE);
-    const cur = def.get(s);
+    const cur = def.get(DB.settingsOf(STATE));
     return def.options.map(o => ({
-      kind: 'setting', label: o.label, value: o.value === cur ? 'Active' : '', select: true,
-      run: async () => { await DB.updateSettings(def.set(o.value)); }
+      kind: 'setting', label: o.label, checked: o.value === cur, select: true,
+      run: async () => { await DB.updateSettings(def.set(o.value)); await reload(); }
     }));
   }
 
   function paletteSettingItem(def) {
-    const s = DB.settingsOf(STATE);
-    const cur = def.get(s);
-    const idx = def.options.findIndex(o => o.value === cur);
+    const cur = def.get(DB.settingsOf(STATE));
+    const opt = def.options.find(o => o.value === cur);
     return {
-      kind: 'folder', label: def.label, value: idx >= 0 ? def.options[idx].label : String(cur),
-      children: paletteSettingOptions(def)
+      kind: 'folder', icon: 'settings', label: def.label, settingId: def.id,
+      value: opt ? opt.label : String(cur),
+      children: () => paletteSettingOptions(def)
+    };
+  }
+
+  function paletteSettingsFolder() {
+    return {
+      kind: 'folder', heading: 'Customize', icon: 'settings', label: 'Settings', keywords: 'preferences options configure',
+      children: () => PALETTE_SETTING_GROUPS.map(g => ({
+        kind: 'folder', icon: g.icon, label: g.name,
+        children: () => g.keys.map(k => paletteSettingItem(PALETTE_SETTINGS_BY_ID[k]))
+      }))
     };
   }
 
   function paletteRootItems() {
-    const cmds = [
-      { kind: 'action', label: 'New Collection', run: () => openCollectionModal() },
-      { kind: 'action', label: 'Add Notes widget', run: () => addWidget('notes') },
-      { kind: 'action', label: 'Add To-Do widget', run: () => addWidget('todo') },
-      { kind: 'action', label: 'Add Clock widget', run: () => addWidget('clock') },
-      { kind: 'action', label: 'Add Search widget', run: () => addWidget('search') },
-      { kind: 'action', label: 'Add Countdown widget', run: () => addWidget('countdown') },
-      { kind: 'action', label: 'Add Pomodoro widget', run: () => addWidget('pomodoro') },
-      { kind: 'action', label: 'Add Timer widget', run: () => addWidget('timer') },
-      { kind: 'action', label: 'Add Stopwatch widget', run: () => addWidget('stopwatch') },
-      { kind: 'action', label: 'Add Weather widget', run: () => addWidget('weather') },
-      { kind: 'action', label: 'Add RSS feeds widget', run: () => addWidget('rss') },
-      { kind: 'action', label: 'Create Most visited collection', run: () => addWidget('topSites') },
-      { kind: 'action', label: 'Add Recent downloads widget', run: () => addWidget('downloads') },
-      { kind: 'action', label: 'Create History collection', run: () => addWidget('history') },
-      ...pluginPaletteActions(),
-      { kind: 'action', label: 'Search the web…', run: searchTheWeb },
-      { kind: 'action', label: 'Import browser bookmarks…', run: importBrowserBookmarksViaFilePicker },
-      { kind: 'action', label: 'New Workspace', run: () => openWorkspaceModal() },
-      { kind: 'action', label: 'New Board', run: () => newBoardFromPalette() },
-      { kind: 'action', label: 'Save current tabs as session', run: saveWindowSession },
-      { kind: 'action', label: 'Open Settings', run: openSettings },
-      { kind: 'action', label: 'Open Trash', run: () => openTrashPanel() },
-      { kind: 'action', label: 'Show keyboard shortcuts', run: openShortcuts },
-      { kind: 'action', label: 'Toggle sidebar', run: toggleSidebar },
-      { kind: 'action', label: 'Toggle grid / list view', run: toggleViewMode },
-      { kind: 'action', label: 'Go to Collections', run: () => switchNav('collections') },
-      { kind: 'action', label: 'Go to Sessions', run: () => switchNav('sessions') }
+    const s = DB.settingsOf(STATE);
+    const curTheme = s.themeId === 'auto' ? { name: 'Auto' } : Themes.findTheme(s.themeId, s.customThemes);
+    const act = (heading, icon, label, run, extra) => Object.assign({ kind: 'action', heading, icon, label, run }, extra || {});
+
+    const items = [
+      { kind: 'folder', heading: 'Customize', icon: 'palette', label: 'Themes', keywords: 'colors colours appearance dark light',
+        value: curTheme ? curTheme.name : '', children: paletteThemeItems },
+      paletteSettingsFolder(),
+
+      act('Create', 'folder', 'New Collection', () => openCollectionModal()),
+      { kind: 'folder', heading: 'Create', icon: 'widget', label: 'Add widget', keywords: 'new widgets',
+        children: () => [
+          ...PALETTE_WIDGETS.map(([label, type, ic]) => act(null, ic, label, () => addWidget(type))),
+          ...pluginPaletteActions().map(a => Object.assign({ icon: 'widget' }, a))
+        ] },
+      act('Create', 'briefcase', 'New Workspace', () => openWorkspaceModal()),
+      act('Create', 'layers', 'New Board', () => newBoardFromPalette()),
+      act('Create', 'save', 'Save current tabs as session', saveWindowSession),
+      act('Create', 'folderInput', 'Import browser bookmarks…', importBrowserBookmarksViaFilePicker),
+
+      act('Navigate', 'folder', 'Go to Collections', () => switchNav('collections')),
+      act('Navigate', 'clock', 'Go to Sessions', () => switchNav('sessions')),
+      act('Navigate', 'settings', 'Open Settings', openSettings, { keywords: 'preferences options' }),
+      act('Navigate', 'trash', 'Open Trash', () => openTrashPanel(), { keywords: 'deleted bin restore' }),
+      act('Navigate', 'keyboard', 'Show keyboard shortcuts', openShortcuts, { keywords: 'keys hotkeys help' })
     ];
     Object.values(STATE.workspaces).sort((a, b) => a.order - b.order).forEach(ws => {
-      cmds.push({ kind: 'action', label: `Go to workspace · ${ws.name}`, run: () => jumpToWorkspace(ws.id) });
+      items.push(act('Navigate', 'briefcase', `Go to workspace · ${ws.name}`, () => jumpToWorkspace(ws.id)));
     });
     boardsForActiveWS().forEach(board => {
-      cmds.push({ kind: 'action', label: `Go to board · ${board.name}`, run: () => jumpToBoard(board.id) });
+      items.push(act('Navigate', 'layers', `Go to board · ${board.name}`, () => jumpToBoard(board.id)));
     });
-    cmds.push(
-      { kind: 'folder', label: 'Themes', children: paletteThemeItems() },
-      { kind: 'folder', label: 'Settings', children: PALETTE_SETTING_GROUPS.map(g => ({
-        kind: 'folder', label: g.name, children: g.keys.map(k => paletteSettingItem(PALETTE_SETTINGS_BY_ID[k]))
-      })) }
+    items.push(
+      act('View', 'panelLeftClose', 'Toggle sidebar', toggleSidebar, { keywords: 'hide show tabs panel' }),
+      act('View', 'grid', 'Toggle grid / list view', toggleViewMode, { keywords: 'tiles rows layout' }),
+      act('View', 'search', 'Search the web…', searchTheWeb)
     );
-    return cmds;
+    return items;
   }
 
-  /* ---------- Palette navigation (tree) ---------- */
-  let palNav = [];           // stack of { title, items } — empty = root level
-  function paletteLevel() { return palNav.length ? palNav[palNav.length - 1].items : paletteRootItems(); }
-
-  function paletteCrumbHtml() {
-    if (palNav.length === 0) return '';
-    const trail = palNav.map((n, i) => `<span class="crumb-seg" data-i="${i}">${escapeHtml(n.title)}</span>`).join('<span class="crumb-sep">›</span>');
-    return `<span class="crumb-seg" data-i="-1">All</span><span class="crumb-sep">›</span>${trail}`;
+  /* ---------- Navigation (folder stack) ---------- */
+  function paletteLevel() {
+    return palNav.length ? SearchUtils.childrenOf(palNav[palNav.length - 1].folder) : paletteRootItems();
   }
-
-  function renderPaletteCrumb() {
-    const crumb = $('#palette-crumb');
-    if (!$('#palette-input').value.trim() && palNav.length) {
-      crumb.classList.remove('hidden');
-      crumb.innerHTML = paletteCrumbHtml();
-      $$('.crumb-seg[data-i]', crumb).forEach(c => c.onclick = () => {
-        palNav.length = parseInt(c.dataset.i, 10) + 1;
-        paletteIndex = 0;
-        renderPaletteResults('');
-      });
-    } else {
-      crumb.classList.add('hidden');
-    }
-  }
+  const paletteInput = () => $('#palette-input');
 
   function pushPaletteNav(folder) {
-    palNav.push({ title: folder.label, items: folder.children || [] });
-    $('#palette-input').value = '';
-    paletteIndex = 0;
+    // `folder.chain` (set on flattened search results) holds the folders above
+    // it, so "Density" found by typing at the root opens as Settings › Appearance › Density.
+    // The row to restore on Back is only meaningful when we were browsing: after a
+    // search, the old index pointed into the *results* list.
+    const returnTo = paletteInput().value.trim() ? 0 : paletteIndex;
+    const entries = (folder.chain || []).map(f => ({ folder: f, title: f.label, parentIndex: 0 }));
+    entries.push({ folder, title: folder.label, parentIndex: 0 });
+    entries[0].parentIndex = returnTo;
+    palNav = palNav.concat(entries);
+    paletteInput().value = '';
+    // Open on the current value (checked theme / option) rather than the top.
+    paletteIndex = Math.max(0, paletteLevel().findIndex(i => i.checked));
+    paletteUserMoved = false;
     renderPaletteResults('');
   }
   function popPaletteNav() {
     if (!palNav.length) return false;
-    palNav.pop();
-    paletteIndex = 0;
+    paletteIndex = palNav.pop().parentIndex || 0;
+    paletteInput().value = '';
+    paletteUserMoved = false;
     renderPaletteResults('');
     return true;
   }
-  function resetPaletteNav() { palNav = []; paletteIndex = 0; }
 
   async function selectTheme(themeId) {
     commitThemePreview();
     await DB.updateSettings({ themeId });
+    await reload();
   }
 
   async function newBoardFromPalette() {
@@ -451,50 +493,52 @@
     }
   }
 
-
-  let paletteItems = [];
-  let paletteIndex = 0;
-  let paletteWheelAt = 0;
-  let paletteXPrimed = false;
-
-  function scrollPaletteActiveIntoView() {
-    const active = $$('.palette-item')[paletteIndex];
-    if (active) active.scrollIntoView({ block: 'nearest' });
-  }
-
-  function paletteStageEscape() {
-    if ($('.palette-item.active')) {
-      endThemePreview();
-      $$('.palette-item').forEach(r => r.classList.remove('active'));
-      highlightPalette($$('.palette-item'), -1);
-      return true;
-    }
-    closePalette();
-    return false;
-  }
-
   function searchHost(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; } }
 
-  function renderPaletteResults(query) {
-    const results = $('#palette-results');
-    results.innerHTML = '';
-    const q = query.trim();
-
-    let all;
-    if (q) {
-      // Search filters only the current level — at the root that surfaces
-      // group options like Themes/Settings, not a flattened "public search".
-      const scored = [];
-      for (const c of paletteLevel()) {
-        const m = fuzzyMatch(q, c.label);
-        if (!m) continue;
-        scored.push({ ...c, match: m, score: m.score + (c.children ? 3 : 0) });
+  /* Typed text that isn't a command: offer to search the web / open it. */
+  function paletteWebItem(q) {
+    const looksLikeUrl = /^(https?:\/\/|www\.)\S+$/i.test(q) || /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(q);
+    return {
+      kind: 'action', section: 'Web', icon: looksLikeUrl ? 'externalWindow' : 'globe',
+      label: looksLikeUrl ? `Go to ${q}` : `Search the web for “${q}”`,
+      run: async () => {
+        const res = await sendMsg('SEARCH_WEB', { text: q });
+        if (!res || !res.ok) {
+          const engine = DB.settingsOf(STATE).searchEngine || 'google';
+          sendMsg('OPEN_URL', { url: (SEARCH_URLS[engine] || SEARCH_URLS.google) + encodeURIComponent(q), forceNewTab: true });
+        }
       }
-      // The palette promises "jump to a bookmark", so surface matching
-      // bookmarks from every collection. They're ranked per word across title,
-      // tags, site, URL, description and notes (see common/bmsearch.js), with
-      // typo tolerance and operators like tag:foo / site:github.com / -word.
-      // Deduplicated by full URL so the same link never shows twice.
+    };
+  }
+
+  function paletteTabItem(t) {
+    return { kind: 'tab', label: t.title || t.url, url: t.url, favicon: t.favIconUrl || '', run: () => sendMsg('FOCUS_TAB', { tabId: t.id }) };
+  }
+
+  /* Build the rows for `query` ('' = browse the current level). */
+  function paletteBuildItems(q) {
+    const level = paletteLevel();
+    const atRoot = !palNav.length;
+    if (!q) {
+      const all = level.map(i => Object.assign({}, i, { section: i.heading || null }));
+      if (atRoot) OPEN_TABS.slice(0, 5).forEach(t => all.push(Object.assign(paletteTabItem(t), { section: 'Open tabs' })));
+      return all;
+    }
+
+    // Search flattens the current level's whole subtree, so at the root every
+    // theme and individual setting value is reachable by typing.
+    const ranked = SearchUtils.rankItems(q, SearchUtils.flattenTree(level)).map(i => {
+      const out = Object.assign({}, i, { section: PALETTE_KIND_SECTION[i.kind] || 'Commands' });
+      if (i.kind === 'theme') { if (i.themeType) out.hint = i.themeType; }
+      else if (i.path && i.path.length) out.hint = i.path.join(' › ');
+      out.label = i.searchLabel != null ? i.searchLabel : i.label;
+      return out;
+    });
+
+    if (atRoot) {
+      // Bookmarks from every collection, ranked per word across title, tags,
+      // site, URL, description and notes (common/bmsearch.js: typo tolerance,
+      // tag:foo / site:github.com / -word). De-duplicated by full URL.
       const seenUrls = new Set();
       const uniqueBms = Object.values(STATE.bookmarks).filter(bm => {
         const urlKey = (bm.url || '').trim().toLowerCase();
@@ -504,71 +548,143 @@
       });
       BookmarkSearch.rank(q, uniqueBms, { limit: 24 }).forEach(r => {
         const bm = r.item;
-        scored.push({
-          kind: 'bookmark',
-          label: bm.title || bm.url,
-          favicon: bm.favicon || '', url: bm.url,
-          // Show WHY it matched when it wasn't the title; otherwise the host, to tell look-alikes apart.
-          value: r.field ? `${r.field}` : searchHost(bm.url),
+        ranked.push({
+          kind: 'bookmark', section: 'Bookmarks', label: bm.title || bm.url,
+          favicon: bm.favicon || '', url: bm.url, hint: searchHost(bm.url),
+          value: r.field || '',                     // WHY it matched, when it wasn't the title
           swatch: bm.tintColor || undefined,
-          run: () => openBookmarkUrl(bm),
-          match: { indices: r.indices },
-          score: r.score
+          run: () => openBookmarkUrl(bm), match: { indices: r.indices }, score: r.score
         });
       });
-      // And open tabs, so the palette can double as a tab switcher.
+      // Open tabs, so the palette doubles as a tab switcher.
       const seenTabIds = new Set();
       const tabs = OPEN_TABS.filter(t => !seenTabIds.has(t.id) && seenTabIds.add(t.id));
       BookmarkSearch.rank(q, tabs, { limit: 12, map: t => ({ title: t.title || t.url, url: t.url }) }).forEach(r => {
-        const t = r.item;
-        scored.push({
-          kind: 'tab',
-          label: t.title || t.url,
-          favicon: t.favIconUrl || '', url: t.url,
-          value: r.field ? `${r.field}` : searchHost(t.url),
-          run: () => sendMsg('FOCUS_TAB', { tabId: t.id }),
-          match: { indices: r.indices },
-          score: r.score
-        });
+        ranked.push(Object.assign(paletteTabItem(r.item), {
+          section: 'Tabs', hint: searchHost(r.item.url), value: r.field || '',
+          match: { indices: r.indices }, score: r.score
+        }));
       });
-      scored.sort((a, b) => b.score - a.score);
-      all = scored.slice(0, 24);
-    } else {
-      // Browse mode: render the current tree level (+ a few open tabs at root).
-      const level = paletteLevel();
-      all = [...level];
-      if (!palNav.length) {
-        OPEN_TABS.slice(0, 5).forEach(t => all.push({ kind: 'tab', label: t.title || t.url, run: () => sendMsg('FOCUS_TAB', { tabId: t.id }) }));
-      }
+      ranked.sort((a, b) => b.score - a.score);
     }
-    renderPaletteCrumb();
 
-    if (!all.length) { paletteItems = []; results.appendChild(el('div', 'palette-empty', 'No matches')); return; }
-
-    paletteItems = all;
-    paletteIndex = Math.min(paletteIndex, all.length - 1);
-    all.forEach((item, i) => {
-      const row = el('div', 'palette-item' + (i === paletteIndex ? ' active' : ''));
-      const visual = item.favicon
-        ? favImg(item.url || '', item.favicon, 'pi-fav')
-        : item.chips
-        ? `<span class="pi-chips">${item.chips.map(c => `<span class="pi-chip" style="background:${c}"></span>`).join('')}</span>`
-        : (item.swatch ? `<span class="pi-swatch" style="background:${item.swatch}"></span>` : '');
-      const folderCaret = item.children ? `<span class="pi-caret">›</span>` : '';
-      const value = item.value ? `<span class="pi-val">${escapeHtml(item.value)}</span>` : '';
-      row.innerHTML = `${visual}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${highlightLabel(item.label, item.match && item.match.indices)}</span><span class="pi-kind">${item.children ? 'group' : item.kind}</span>${value}${folderCaret}`;
-      row.onmouseenter = () => {
-        if (Date.now() - paletteWheelAt < 220) return;
-        paletteIndex = i;
-        highlightPalette($$('.palette-item'), i);
-        if (item.kind === 'theme') previewTheme(item.themeId);
-      };
-      row.onclick = () => activatePaletteItem(item);
-      results.appendChild(row);
-    });
-    highlightPalette($$('.palette-item'), paletteIndex);
+    const out = SearchUtils.groupBySection(ranked, PALETTE_SECTION_CAPS, 30);
+    if (atRoot) out.push(paletteWebItem(q));
+    return out;
   }
 
+  /* ---------- Rendering ---------- */
+  function paletteIcon(name) { return name && ICONS[name] ? `<span class="pi-ic">${ICONS[name]}</span>` : ''; }
+
+  function paletteRowHtml(item) {
+    const visual = item.url
+      ? favImg(item.url, item.favicon || '', 'pi-fav')
+      : item.chips
+      ? `<span class="pi-chips">${item.chips.map(c => `<span class="pi-chip" style="background:${escapeHtml(c)}"></span>`).join('')}</span>`
+      : item.swatch ? `<span class="pi-swatch" style="background:${escapeHtml(item.swatch)}"></span>`
+      : paletteIcon(item.icon || (item.kind === 'folder' ? 'folder' : ''));
+    const hint = item.hint ? `<span class="pi-hint">${escapeHtml(item.hint)}</span>` : '';
+    const value = item.value ? `<span class="pi-val">${escapeHtml(item.value)}</span>` : '';
+    const check = item.checked ? `<span class="pi-check" aria-label="Current">${ICONS.check || '✓'}</span>` : '';
+    const caret = item.children || item.kind === 'folder' ? '<span class="pi-caret">›</span>' : '';
+    return `${visual}<span class="pi-main"><span class="pi-label">${highlightLabel(item.label, item.match && item.match.indices)}</span>${hint}</span>${value}${check}${caret}`;
+  }
+
+  function renderPaletteChrome(q) {
+    const input = paletteInput();
+    const crumb = $('#palette-crumb');
+    input.placeholder = palNav.length
+      ? `Filter ${palNav[palNav.length - 1].title}…`
+      : 'Search bookmarks, tabs, themes, settings, and commands…';
+    if (!palNav.length) { crumb.classList.add('hidden'); crumb.innerHTML = ''; return; }
+    crumb.classList.remove('hidden');
+    const trail = palNav.map((n, i) => `<span class="crumb-seg${i === palNav.length - 1 ? ' current' : ''}" role="button" data-i="${i}">${escapeHtml(n.title)}</span>`).join('<span class="crumb-sep">›</span>');
+    crumb.innerHTML = `<span class="crumb-seg" role="button" data-i="-1">All</span><span class="crumb-sep">›</span>${trail}`;
+  }
+
+  function renderPaletteResults(query, opts) {
+    const results = $('#palette-results');
+    const keepScroll = opts && opts.keepScroll ? results.scrollTop : 0;
+    const q = (query || '').trim();
+    results.innerHTML = '';
+    renderPaletteChrome(q);
+
+    const all = paletteBuildItems(q);
+    paletteItems = all;
+    if (!all.length) {
+      const where = palNav.length ? palNav[palNav.length - 1].title : 'the palette';
+      results.appendChild(el('div', 'palette-empty', q ? `Nothing in ${escapeHtml(where)} matches “${escapeHtml(q)}”` : 'Nothing here'));
+      updatePaletteFoot();
+      paletteSyncThemePreview();
+      return;
+    }
+    paletteIndex = Math.max(0, Math.min(paletteIndex, all.length - 1));
+
+    let lastSection;
+    all.forEach((item, i) => {
+      if (item.section && item.section !== lastSection) results.appendChild(el('div', 'palette-section', escapeHtml(item.section)));
+      lastSection = item.section;
+      const row = el('div', 'palette-item', paletteRowHtml(item));
+      row.id = `pal-opt-${i}`;
+      row.dataset.i = String(i);
+      row.setAttribute('role', 'option');
+      results.appendChild(row);
+    });
+    setPaletteActive(paletteIndex, { scroll: !opts || !opts.keepScroll });
+    if (opts && opts.keepScroll) results.scrollTop = keepScroll;
+  }
+
+  function updatePaletteFoot() {
+    const foot = $('#palette-foot');
+    if (!foot) return;
+    const it = paletteItems[paletteIndex];
+    const q = paletteInput().value;
+    const verb = !it ? '' : it.children || it.kind === 'folder' ? 'open'
+      : it.kind === 'theme' ? 'apply theme' : it.kind === 'setting' ? 'select'
+      : it.kind === 'tab' ? 'switch to tab' : it.kind === 'bookmark' ? 'open' : 'run';
+    const hint = (k, t) => `<span><kbd>${k}</kbd> ${t}</span>`;
+    foot.innerHTML = [
+      hint('↑↓', 'navigate'),
+      verb ? hint('↵', verb) : '',
+      it && (it.children || it.kind === 'folder') ? hint('→', 'enter group') : '',
+      palNav.length && !q ? hint('⌫', 'back') : '',
+      hint('esc', q ? 'clear' : palNav.length ? 'back' : 'close')
+    ].join('');
+  }
+
+  /* Theme rows live-preview only after the user moves onto them (arrows /
+     mouse) — never just because typing happened to put one first — and the
+     preview is dropped the moment the active row isn't a theme. */
+  function paletteSyncThemePreview() {
+    const it = paletteItems[paletteIndex];
+    if (paletteUserMoved && it && it.kind === 'theme') previewTheme(it.themeId);
+    else endThemePreview();
+  }
+
+  function setPaletteActive(i, opts) {
+    const rows = $$('.palette-item');
+    if (!rows.length) return;
+    paletteIndex = Math.max(0, Math.min(i, rows.length - 1));
+    rows.forEach((r, k) => { r.classList.toggle('active', k === paletteIndex); r.setAttribute('aria-selected', k === paletteIndex ? 'true' : 'false'); });
+    const active = rows[paletteIndex];
+    paletteInput().setAttribute('aria-activedescendant', active.id);
+    if (!opts || opts.scroll !== false) {
+      if (paletteIndex === 0) $('#palette-results').scrollTop = 0;
+      else active.scrollIntoView({ block: 'nearest' });
+    }
+    updatePaletteFoot();
+    paletteSyncThemePreview();
+  }
+
+  function movePaletteActive(delta, wrap) {
+    const n = paletteItems.length;
+    if (!n) return;
+    paletteUserMoved = true;
+    const next = wrap ? (paletteIndex + delta + n) % n : Math.max(0, Math.min(paletteIndex + delta, n - 1));
+    setPaletteActive(next);
+  }
+
+  /* ---------- Activation ---------- */
   function activatePaletteItem(item) {
     if (item.children || item.kind === 'folder') { pushPaletteNav(item); return; }
     runPaletteItem(item);
@@ -576,11 +692,90 @@
 
   async function runPaletteItem(item) {
     if (item.kind === 'theme') commitThemePreview();
-    await item.run();
+    // Close first so focus returns to the page *before* the command runs —
+    // otherwise commands that open a dialog lose its autofocus to the palette's opener.
+    if (!item.select) closePalette();
+    try { await item.run(); } catch (err) { console.error('Palette command failed:', err); }
     if (item.select) {
-      STATE = await DB.getState(); // reflect the new value before re-rendering
-      renderPaletteResults($('#palette-input').value);
-    } else {
-      closePalette();
+      STATE = await DB.getState(); // reload() has applied it; re-read so check marks reflect the new value
+      renderPaletteResults(paletteInput().value, { keepScroll: true });
     }
+  }
+
+  /* ---------- Events (wired once from dashboard.js boot) ---------- */
+  function onPaletteKeydown(e) {
+    if (e.isComposing) return;
+    const input = e.target;
+    const caretAtStart = input.selectionStart === 0 && input.selectionEnd === 0;
+    const caretAtEnd = input.selectionStart === input.value.length && input.selectionEnd === input.value.length;
+    const item = paletteItems[paletteIndex];
+    const isFolder = !!item && !!(item.children || item.kind === 'folder');
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); movePaletteActive(1, true); break;
+      case 'ArrowUp': e.preventDefault(); movePaletteActive(-1, true); break;
+      case 'PageDown': e.preventDefault(); movePaletteActive(6, false); break;
+      case 'PageUp': e.preventDefault(); movePaletteActive(-6, false); break;
+      case 'ArrowRight':
+        // Only steal the key when it can't be moving the text caret.
+        if (isFolder && caretAtEnd) { e.preventDefault(); activatePaletteItem(item); }
+        break;
+      case 'Tab':
+        e.preventDefault();
+        if (isFolder) activatePaletteItem(item);
+        break;
+      case 'ArrowLeft':
+        if (palNav.length && caretAtStart) { e.preventDefault(); popPaletteNav(); }
+        break;
+      case 'Backspace':
+        if (palNav.length && !input.value) { e.preventDefault(); popPaletteNav(); }
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (item) activatePaletteItem(item);
+        break;
+      case 'Escape':
+        // Staged: clear the query → leave the group → close.
+        e.preventDefault(); e.stopPropagation();
+        if (input.value) { input.value = ''; paletteIndex = 0; paletteUserMoved = false; renderPaletteResults(''); }
+        else if (!popPaletteNav()) closePalette();
+        break;
+    }
+  }
+
+  function wirePalette() {
+    const input = paletteInput();
+    const results = $('#palette-results');
+    input.addEventListener('input', () => { paletteIndex = 0; paletteUserMoved = false; renderPaletteResults(input.value); });
+    input.addEventListener('keydown', onPaletteKeydown);
+    // Keep focus in the input when clicking rows / crumbs.
+    results.addEventListener('mousedown', (e) => e.preventDefault());
+    $('#palette-crumb').addEventListener('mousedown', (e) => e.preventDefault());
+    results.addEventListener('click', (e) => {
+      const row = e.target.closest('.palette-item');
+      const it = row && paletteItems[parseInt(row.dataset.i, 10)];
+      if (it) activatePaletteItem(it);
+    });
+    // Hover moves the highlight — but only on real pointer movement, so a
+    // list scrolling under a resting cursor doesn't hijack the selection
+    // (or flip the live theme preview).
+    results.addEventListener('mousemove', (e) => {
+      const last = paletteLastMouse;
+      paletteLastMouse = { x: e.screenX, y: e.screenY };
+      if (last && last.x === e.screenX && last.y === e.screenY) return;
+      const row = e.target.closest('.palette-item');
+      if (!row) return;
+      const i = parseInt(row.dataset.i, 10);
+      if (i === paletteIndex && paletteUserMoved) return;
+      paletteUserMoved = true;
+      setPaletteActive(i, { scroll: false });
+    });
+    $('#palette-crumb').addEventListener('click', (e) => {
+      const seg = e.target.closest('.crumb-seg[data-i]');
+      if (!seg) return;
+      palNav.length = parseInt(seg.dataset.i, 10) + 1;
+      paletteIndex = 0; paletteUserMoved = false;
+      input.value = '';
+      renderPaletteResults('');
+      input.focus();
+    });
   }

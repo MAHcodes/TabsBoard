@@ -783,39 +783,7 @@
     registerOverlayCloser('trash-overlay', () => hideOverlay('#trash-overlay'));
     registerOverlayCloser('shortcuts-overlay', closeShortcuts);
 
-    $('#palette-input').addEventListener('input', (e) => { paletteIndex = 0; renderPaletteResults(e.target.value); });
-    $('#palette-input').addEventListener('keydown', (e) => {
-      const items = $$('.palette-item');
-      const previewAt = (i) => { const it = paletteItems[i]; if (it && it.kind === 'theme') previewTheme(it.themeId); };
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        paletteIndex = Math.min(paletteIndex + 1, items.length - 1);
-        highlightPalette(items, paletteIndex); previewAt(paletteIndex); scrollPaletteActiveIntoView();
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        paletteIndex = Math.max(paletteIndex - 1, 0);
-        highlightPalette(items, paletteIndex); previewAt(paletteIndex); scrollPaletteActiveIntoView();
-      } else if (e.key === 'ArrowRight' || e.key === 'Tab') {
-        e.preventDefault();
-        const it = paletteItems[paletteIndex];
-        if (it && (it.children || it.kind === 'folder')) activatePaletteItem(it);
-      } else if (e.key === 'ArrowLeft' || (e.key === 'Backspace' && !e.target.value)) {
-        e.preventDefault();
-        if (!popPaletteNav()) endThemePreview();
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (paletteItems[paletteIndex]) activatePaletteItem(paletteItems[paletteIndex]);
-      } else if (e.key === 'Escape') {
-        e.preventDefault(); e.stopPropagation();
-        if (paletteXPrimed) {
-          paletteXPrimed = false;
-          endThemePreview();
-          $$('.palette-item').forEach(r => r.classList.remove('active'));
-        } else {
-          closePalette();
-        }
-      }
-    });
+    wirePalette(); // palette.js: input, keyboard, mouse and crumb handlers
 
     async function cycleBoards(dir) {
       const boards = boardsForActiveWS();
@@ -837,7 +805,7 @@
       const mod = e.metaKey || e.ctrlKey;
 
       // Modifiers — always active, even inside inputs
-      if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); return; }
+      if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); togglePalette(); return; }
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); quickAddCurrentTab(); return; }
       // While bookmarks are being selected: Ctrl/Cmd+A selects every visible one, Enter opens them.
       if (selectMode && currentNav === 'collections' && !document.querySelector('#modal-overlay:not(.hidden), #palette-overlay:not(.hidden), #settings-overlay:not(.hidden)')) {
@@ -890,8 +858,6 @@
 
     wireSettingsPanel();
   }
-
-  function highlightPalette(items, idx) { items.forEach((it, i) => it.classList.toggle('active', i === idx)); }
 
   async function quickAddCurrentTab() {
     const res = await sendMsg('GET_OPEN_TABS');
