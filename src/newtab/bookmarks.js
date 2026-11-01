@@ -117,7 +117,7 @@
     const menuHtml = browserData ? '' : `<button class="bm-menu-btn" data-act="menu" title="Bookmark actions">${ICONS.dots}</button>`;
     // Browser-synced collections store each entry's visit time; show it as a
     // small relative badge (honoring the "Show visit time" setting).
-    const timeHtml = (bm.visitTime && STATE.meta.settings.historyShowTimes !== false)
+    const timeHtml = (bm.visitTime && DB.settingsOf(STATE).historyShowTimes !== false)
       ? (isTile
         ? `<div class="bm-meta" title="${escapeHtml(formatRelTime(bm.visitTime))}">${escapeHtml(formatRelTime(bm.visitTime))}</div>`
         : `<span class="bm-meta" title="${escapeHtml(formatRelTime(bm.visitTime))}">${escapeHtml(formatRelTime(bm.visitTime))}</span>`)
@@ -191,7 +191,7 @@
   function bookmarkShowsPreview(bm) {
     if (bm.thumbMode === 'hide') return false;
     if (bm.thumbMode === 'show') return true;
-    return STATE.meta.settings.showPreviews !== false;
+    return DB.settingsOf(STATE).showPreviews !== false;
   }
 
   function openBookmarkMenu(bm, rect, titleEl) {
@@ -548,7 +548,7 @@
       <div class="field"><label>Notes</label><textarea id="mb-notes">${existing ? escapeHtml(existing.notes || '') : ''}</textarea></div>
       ${existing ? `<div class="field"><label>Page preview (thumbnail)</label>
         <select id="mb-thumb-mode">
-          <option value="default" ${(existing.thumbMode !== 'show' && existing.thumbMode !== 'hide') ? 'selected' : ''}>Use global setting (${STATE.meta.settings.showPreviews !== false ? 'on' : 'off'})</option>
+          <option value="default" ${(existing.thumbMode !== 'show' && existing.thumbMode !== 'hide') ? 'selected' : ''}>Use global setting (${DB.settingsOf(STATE).showPreviews !== false ? 'on' : 'off'})</option>
           <option value="show" ${existing.thumbMode === 'show' ? 'selected' : ''}>Always show</option>
           <option value="hide" ${existing.thumbMode === 'hide' ? 'selected' : ''}>Never show</option>
         </select>
@@ -666,7 +666,7 @@
     const granted = await Favicons.requestAccess();
     refetching = true;
     const total = list.length;
-    const wantPreviews = STATE.meta.settings.showPreviews !== false;
+    const wantPreviews = DB.settingsOf(STATE).showPreviews !== false;
     const progress = toast(total === 1 ? 'Refetching page info…' : `Refetching 0 of ${total}…`, { type: 'loading', sticky: true });
     const patches = {};
     let ok = 0, failed = 0, done = 0, previews = 0, i = 0;
@@ -712,7 +712,7 @@
     $('#bulk-count').textContent = `${SELECTED.size} selected`;
   }
   async function deleteBookmarksWithUndo(ids) {
-    if (STATE.meta.settings.confirmDelete && !(await uiConfirm(`Delete ${ids.length} bookmark${ids.length === 1 ? '' : 's'}?`, { title: 'Delete bookmarks', danger: true }))) return;
+    if (DB.settingsOf(STATE).confirmDelete && !(await uiConfirm(`Delete ${ids.length} bookmark${ids.length === 1 ? '' : 's'}?`, { title: 'Delete bookmarks', danger: true }))) return;
     await DB.softDeleteBookmarks(ids);
     SELECTED.clear(); selectMode = false;
     toast(`Deleted ${ids.length} bookmark${ids.length === 1 ? '' : 's'}`, 'View trash', () => openTrashPanel());
@@ -780,7 +780,7 @@
       const restoreNewBtn = card.querySelector('[data-act=restore-new]');
       const runRestore = async (btn, newWindow) => {
         if (btn.disabled) return;
-        if (STATE.meta.settings.confirmRestoreSession && !(await uiConfirm(`Restore "${s.name}" (${s.tabs.length} tabs)${newWindow ? ' in a new window' : ''}?`, { title: 'Restore session', okLabel: 'Restore' }))) return;
+        if (DB.settingsOf(STATE).confirmRestoreSession && !(await uiConfirm(`Restore "${s.name}" (${s.tabs.length} tabs)${newWindow ? ' in a new window' : ''}?`, { title: 'Restore session', okLabel: 'Restore' }))) return;
         btn.disabled = true;
         const original = btn.innerHTML;
         btn.innerHTML = `<span class="btn-ic-sm">${ICONS.refresh}</span> Restoring…`;
@@ -843,7 +843,7 @@
     const badge = $('#trash-badge');
     if (!badge) return;
     const count = Object.keys(STATE.trash || {}).length;
-    const seen = Number(STATE.meta.settings.trashBadgeSeen || 0);
+    const seen = Number(DB.settingsOf(STATE).trashBadgeSeen || 0);
     badge.textContent = String(Math.min(count, 99));
     /* Mark-as-read: the badge hides once the trash panel has been opened for
        the current count, and only reappears when new items are deleted. The
@@ -858,7 +858,7 @@
     const emptyBtn = $('#empty-trash-btn');
     const items = Object.values(STATE.trash).sort((a, b) => b.deletedAt - a.deletedAt);
     const count = items.length;
-    STATE.meta.settings.trashBadgeSeen = count;
+    DB.settingsOf(STATE).trashBadgeSeen = count;   // shared (not per workspace); the local view is updated so the badge clears now
     DB.updateSettings({ trashBadgeSeen: count });
     updateTrashBadge();
     emptyBtn.disabled = !count;
@@ -892,7 +892,7 @@
         openTrashPanel();
       };
       row.querySelector('[data-act=purge]').onclick = async () => {
-        if (STATE.meta.settings.confirmDelete && !(await uiConfirm('Permanently delete this item? This cannot be undone.', { title: 'Delete permanently', danger: true }))) return;
+        if (DB.settingsOf(STATE).confirmDelete && !(await uiConfirm('Permanently delete this item? This cannot be undone.', { title: 'Delete permanently', danger: true }))) return;
         await DB.purgeTrashItem(item.id);
         await reload();
         openTrashPanel();
@@ -929,7 +929,7 @@
   }
 
   async function addBrowserDataCollection(kind) {
-    const s = STATE.meta.settings;
+    const s = DB.settingsOf(STATE);
     const msg = { kind, workspaceId: activeWorkspaceId() };
     if (kind === 'history') msg.count = Math.max(1, Number(s.historyCount) || 10);
     else msg.count = Math.max(1, Number(s.topSitesCount) || 12);
@@ -982,7 +982,7 @@
   };
   const SEARCH_ENGINE_LABELS = { google: 'Google', duckduckgo: 'DuckDuckGo', bing: 'Bing' };
   async function searchTheWeb() {
-    const engine = STATE.meta.settings.searchEngine || 'google';
+    const engine = DB.settingsOf(STATE).searchEngine || 'google';
     const q = await uiPrompt('Search the web', '', { okLabel: 'Search', placeholder: 'Search query…', message: `Engine: ${SEARCH_ENGINE_LABELS[engine] || 'Google'}` });
     if (q === null || !q.trim()) return;
     const res = await sendMsg('SEARCH_WEB', { text: q.trim() });

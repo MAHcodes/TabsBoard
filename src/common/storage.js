@@ -87,14 +87,20 @@ function occupiedCellsOfBoard(d, boardId) {
   return occ;
 }
 
-function boardColumnCount(d) {
-  return (d.meta && d.meta.settings && d.meta.settings.dashboard && d.meta.settings.dashboard.columns) || 4;
+/* Board width is a per-workspace setting, so it is looked up through the board's
+   workspace (falling back to the active one when the board is unknown). */
+function boardColumnCount(d, boardId) {
+  const board = boardId && d.boards ? d.boards[boardId] : null;
+  const wsId = (board && board.workspaceId) || (d.meta && d.meta.activeWorkspaceId);
+  const ws = wsId && d.workspaces ? d.workspaces[wsId] : null;
+  const cols = ws && ws.settings && ws.settings.dashboard && ws.settings.dashboard.columns;
+  return (typeof cols === 'number' && cols >= 1) ? cols : 4;
 }
 
 function firstEmptyCell(d, boardId, span, rowSpan) {
   span = Math.max(1, span || 1);
   rowSpan = Math.max(1, rowSpan || 1);
-  const cols = boardColumnCount(d);
+  const cols = boardColumnCount(d, boardId);
   const occ = occupiedCellsOfBoard(d, boardId);
   for (let r = 1; ; r++) {
     for (let c = 1; c <= cols; c++) {
@@ -166,7 +172,7 @@ async function moveWidgetTo(id, row, col) {
   return setState((d) => {
     const w = d.widgets[id];
     if (!w) return;
-    const cols = boardColumnCount(d);
+    const cols = boardColumnCount(d, w.boardId);
     const span = Math.max(1, w.span || 1);
     const rowSpan = Math.max(1, w.rowSpan || 1);
     const maxCol = Math.max(1, cols - span + 1);
@@ -185,6 +191,267 @@ async function moveWidgetTo(id, row, col) {
 }
 
 
+/* ---------- Settings: one set per workspace ----------
+
+   Every workspace owns its own settings (theme, density, board width, sidebar,
+   widget defaults, notifications…), stored on the workspace record itself as
+   `workspaces[id].settings`. Switching workspace switches the whole look and
+   behavior; a backup carries them because they live inside the workspace rows.
+
+   Three things are deliberately NOT per workspace, because the data they
+   govern is shared by all workspaces (kept in `meta.globalSettings`):
+     - customThemes        the library of themes you built; which one a workspace
+                           *uses* (themeId / lightThemeId / darkThemeId) is per workspace
+     - trashRetentionDays  the trash is one bin for every workspace
+     - trashBadgeSeen      ...and so is its "already looked at" counter
+
+   Code never reads these raw rows. settingsOf(state[, workspaceId]) returns the
+   resolved view — defaults, then the workspace's own values, then the shared
+   keys — so a key added in a later version just works on old data. Writes go
+   through updateSettings(patch[, workspaceId]), which routes each key to the
+   right place. */
+
+const GLOBAL_SETTING_KEYS = ['customThemes', 'trashRetentionDays', 'trashBadgeSeen'];
+
+function defaultGlobalSettings() {
+  return {
+    customThemes: [],          // user-built themes (Themes builder); any workspace can pick any of them
+    trashRetentionDays: 0,     // days to keep trash items before auto-purge; 0 = keep forever
+    trashBadgeSeen: 0          // trash badge mark-as-read count; persisted so it stays dismissed
+  };
+}
+
+function defaultWorkspaceSettings() {
+  return {
+    themeId: 'auto',           // preset id, custom theme id, or 'auto' (follows the OS)
+    density: 'comfortable',    // spacious | comfortable | compact | dense
+    radius: 'default',         // shape scale: sharp | default | rounded
+    searchEngine: 'google',    // fallback engine for address-bar + palette web search
+    viewMode: 'grid',          // grid | list — bookmark tiles vs rows *inside* a collection widget
+    sidebarCollapsed: false,
+    sidebarCompact: false,     // icon-only sidebar: favicons only, no titles
+    confirmDelete: true,
+    faviconSource: 'google',   // google | duckduckgo | none
+    animations: true,
+    borders: true,              // show 1px outlines around cards, buttons, and inputs
+    popupBlur: true,            // blur the page behind modals, the palette, and settings
+    openBookmarksInNewTab: false, // false = open bookmarks in the current tab, true = open in a new tab
+    lightThemeId: 'serika',    // used when themeId is 'auto' and the OS is in light mode
+    darkThemeId: 'serika_dark', // used when themeId is 'auto' and the OS is in dark mode
+    clockFormat: '24',         // '12' | '24' — default for new Clock widgets
+    weatherUnits: 'c',         // 'c' | 'f' — default for new Weather widgets
+    pomodoroFocus: 25,         // default focus minutes for new Pomodoro widgets
+    pomodoroBreak: 5,          // default break minutes for new Pomodoro widgets
+    countdownDays: 7,          // default target (days out) for new Countdown widgets
+    rssRefreshInterval: 0,     // minutes between automatic RSS refreshes; 0 = manual only
+    recentlyClosedLimit: 20,   // how many recently-closed tabs the sidebar shows
+    historyShowTimes: true,    // show a relative visit time on History widget entries
+    historyCount: 10,          // how many entries each History widget lists
+    topSitesCount: 12,         // how many top sites each Most visited collection syncs
+    confirmRestoreSession: false, // ask before restoring a saved session
+    showPreviews: true,        // global switch for page-preview thumbnails on grid tiles (each bookmark can override it in Edit details)
+    notifications: Object.assign({}, NOTIFICATION_DEFAULTS), // see NOTIFICATION_DEFAULTS
+    showTopbarSearch: true,    // show the "Jump to…" search bar in the header
+    showShortcutsButton: true, // show the keyboard-shortcuts button in the header
+    showTrashButton: true,     // show the trash button in the header
+    interfaceFontSize: 100,       // interface font size as a % (80–150)
+    interfaceFont: '',         // custom interface font family; '' = system default
+    dashboard: {
+      columns: 4               // board width in columns (3–6); each widget spans 1–N of these
+    },
+    tabsList: {
+      groupPinned: true,       // show pinned open tabs in their own group above the rest
+      showTabAudio: true,      // show mute controls for audible or muted tabs
+      dimInactive: true,       // fade + desaturate tabs that aren't the focused one
+      inactiveOpacity: 55,     // percent
+      inactiveGrayscale: true
+    }
+  };
+}
+
+function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+function cloneJSON(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+
+/* defaults ⊕ own, merging the nested groups (dashboard, tabsList, notifications)
+   one level deep so a workspace that only stored { dashboard: { columns: 5 } }
+   still resolves every other dashboard key. */
+function mergeSettingGroups(base, own) {
+  const out = cloneJSON(base);
+  for (const [k, v] of Object.entries(own || {})) {
+    if (v === undefined) continue;
+    out[k] = (isPlainObject(v) && isPlainObject(out[k])) ? Object.assign(out[k], cloneJSON(v)) : cloneJSON(v);
+  }
+  return out;
+}
+
+/* The settings of one workspace, fully resolved. Pure: never mutates `d`. */
+function resolveSettings(d, workspaceId) {
+  const ws = d && d.workspaces && workspaceId ? d.workspaces[workspaceId] : null;
+  const out = mergeSettingGroups(defaultWorkspaceSettings(), ws && isPlainObject(ws.settings) ? ws.settings : {});
+  const shared = Object.assign(defaultGlobalSettings(), d && d.meta && isPlainObject(d.meta.globalSettings) ? cloneJSON(d.meta.globalSettings) : {});
+  for (const k of GLOBAL_SETTING_KEYS) out[k] = shared[k];
+  out.notifications = notificationSettings(out);
+  return out;
+}
+
+/* Resolved settings of `workspaceId` (default: the active workspace) from a
+   state returned by getState(). Cached per state object — getState() hands out
+   a fresh object after every change, so the cache can never go stale. Treat the
+   result as read-only; change settings with updateSettings(). */
+const _settingsCache = new WeakMap();
+function settingsOf(state, workspaceId) {
+  if (!state || typeof state !== 'object') return resolveSettings(null, null);
+  const id = workspaceId || (state.meta && state.meta.activeWorkspaceId) || null;
+  let per = _settingsCache.get(state);
+  if (!per) { per = new Map(); _settingsCache.set(state, per); }
+  if (!per.has(id)) per.set(id, resolveSettings(state, id));
+  return per.get(id);
+}
+
+/* Just the shared (cross-workspace) settings. */
+function globalSettingsOf(state) {
+  const s = settingsOf(state);
+  const out = {};
+  for (const k of GLOBAL_SETTING_KEYS) out[k] = s[k];
+  return out;
+}
+
+/* A resolved settings object minus the shared keys: exactly what a workspace stores. */
+function workspaceOnlySettings(resolved) {
+  const out = cloneJSON(resolved) || {};
+  for (const k of GLOBAL_SETTING_KEYS) delete out[k];
+  return out;
+}
+
+/* ---- Validation of settings that arrive from outside (backup files, old installs) ----
+   A backup is untrusted input and some values end up in CSS or drive layout
+   math, so anything that isn't a known key of the right type and range is
+   dropped (it then resolves to its default). Not applied to values the UI
+   itself writes. */
+const SETTING_ENUMS = {
+  density: ['spacious', 'comfortable', 'compact', 'dense'],
+  radius: ['sharp', 'default', 'rounded', 'extra', 'none'],
+  searchEngine: ['google', 'duckduckgo', 'bing'],
+  viewMode: ['grid', 'list'],
+  faviconSource: ['google', 'duckduckgo', 'none'],
+  clockFormat: ['12', '24'],
+  weatherUnits: ['c', 'f']
+};
+const SETTING_RANGES = {
+  pomodoroFocus: [1, 180], pomodoroBreak: [1, 60], countdownDays: [1, 365],
+  rssRefreshInterval: [0, 1440], recentlyClosedLimit: [0, 500],
+  historyCount: [1, 200], topSitesCount: [1, 200], interfaceFontSize: [80, 150]
+};
+const GROUP_RANGES = { dashboard: { columns: [3, 6] }, tabsList: { inactiveOpacity: [0, 100] } };
+const NOTIFICATION_ENUMS = {
+  toastLevel: ['all', 'important', 'errors', 'off'],
+  toastPosition: ['bottom-right', 'bottom-left', 'bottom-center', 'top-right', 'top-left', 'top-center'],
+  toastSize: ['small', 'normal', 'large']
+};
+const NOTIFICATION_RANGES = { toastDuration: [-1, 120000], toastMax: [1, 10], browserTimeout: [-1, 3600] };
+const THEME_ID_RE = /^[A-Za-z0-9_.-]{1,80}$/;
+const THEME_HEX_RE = /^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+const CUSTOM_THEME_COLOR_KEYS = ['bg', 'main', 'caret', 'sub', 'subAlt', 'text', 'error', 'errorExtra', 'colorfulError', 'colorfulErrorExtra'];
+const MAX_CUSTOM_THEMES_STORED = 20;   // keep in step with Themes.MAX_CUSTOM_THEMES
+
+function cleanLeaf(key, value, def, enums, ranges) {
+  if (typeof def === 'boolean') return typeof value === 'boolean' ? { ok: true, value } : { ok: false };
+  if (typeof def === 'number') {
+    if (typeof value !== 'number' || !isFinite(value)) return { ok: false };
+    const r = ranges && ranges[key];
+    if (r && (value < r[0] || value > r[1])) return { ok: false };
+    return { ok: true, value: Math.round(value) };
+  }
+  if (typeof def === 'string') {
+    if (typeof value !== 'string') return { ok: false };
+    if (enums && enums[key]) return enums[key].includes(value) ? { ok: true, value } : { ok: false };
+    if (key === 'themeId' || key === 'lightThemeId' || key === 'darkThemeId') return THEME_ID_RE.test(value) ? { ok: true, value } : { ok: false };
+    if (key === 'interfaceFont') {
+      const f = value.trim();
+      return f.length <= 40 && !/["'\\<>{};\n\r]/.test(f) ? { ok: true, value: f } : { ok: false };
+    }
+    return value.length <= 200 ? { ok: true, value } : { ok: false };
+  }
+  return { ok: false };
+}
+
+/* Returns only the valid, known workspace-level keys of `raw` (never the shared ones). */
+function sanitizeWorkspaceSettings(raw) {
+  const out = {};
+  if (!isPlainObject(raw)) return out;
+  const defs = defaultWorkspaceSettings();
+  for (const [key, def] of Object.entries(defs)) {
+    if (!(key in raw)) continue;
+    const value = raw[key];
+    if (isPlainObject(def)) {
+      if (!isPlainObject(value)) continue;
+      const enums = key === 'notifications' ? NOTIFICATION_ENUMS : null;
+      const ranges = key === 'notifications' ? NOTIFICATION_RANGES : (GROUP_RANGES[key] || null);
+      const group = {};
+      for (const [sub, subDef] of Object.entries(def)) {
+        if (!(sub in value)) continue;
+        const r = cleanLeaf(sub, value[sub], subDef, enums, ranges);
+        if (r.ok) group[sub] = r.value;
+      }
+      out[key] = group;
+    } else {
+      const r = cleanLeaf(key, value, def, SETTING_ENUMS, SETTING_RANGES);
+      if (r.ok) out[key] = r.value;
+    }
+  }
+  return out;
+}
+
+function sanitizeCustomThemes(list) {
+  const out = [];
+  const seen = new Set();
+  for (const t of Array.isArray(list) ? list : []) {
+    if (!isPlainObject(t) || typeof t.id !== 'string' || !/^custom-[A-Za-z0-9_-]{1,60}$/.test(t.id) || seen.has(t.id)) continue;
+    const rec = { id: t.id, name: String(t.name == null ? '' : t.name).trim().slice(0, 40) || 'My theme', type: t.type === 'light' ? 'light' : 'dark', custom: true };
+    for (const k of CUSTOM_THEME_COLOR_KEYS) if (typeof t[k] === 'string' && THEME_HEX_RE.test(t[k].trim())) rec[k] = t[k].trim();
+    seen.add(t.id);
+    out.push(rec);
+    if (out.length >= MAX_CUSTOM_THEMES_STORED) break;
+  }
+  return out;
+}
+
+function sanitizeGlobalSettings(raw) {
+  const out = {};
+  if (!isPlainObject(raw)) return out;
+  if ('customThemes' in raw) out.customThemes = sanitizeCustomThemes(raw.customThemes);
+  if (typeof raw.trashRetentionDays === 'number' && isFinite(raw.trashRetentionDays) && raw.trashRetentionDays >= 0 && raw.trashRetentionDays <= 3650) out.trashRetentionDays = Math.round(raw.trashRetentionDays);
+  if (typeof raw.trashBadgeSeen === 'number' && isFinite(raw.trashBadgeSeen) && raw.trashBadgeSeen >= 0) out.trashBadgeSeen = Math.round(raw.trashBadgeSeen);
+  return out;
+}
+
+/* Brings any state — an old install that stored one flat `meta.settings` for the
+   whole app, a legacy blob, an old backup — to the current layout, in place:
+   the flat settings are copied to every workspace (so nothing changes visibly
+   after the upgrade) and the shared keys move to `meta.globalSettings`.
+   Idempotent, and a no-op on state that is already current. Returns true if it
+   changed anything. */
+function normalizeSettingsLayout(state) {
+  if (!state || typeof state !== 'object') return false;
+  if (!isPlainObject(state.meta)) state.meta = {};
+  let changed = false;
+  const legacy = isPlainObject(state.meta.settings) ? state.meta.settings : null;
+  if (legacy) {
+    const own = sanitizeWorkspaceSettings(legacy);
+    for (const ws of Object.values(state.workspaces || {})) {
+      if (ws && !isPlainObject(ws.settings)) ws.settings = cloneJSON(own);
+    }
+    state.meta.globalSettings = Object.assign(defaultGlobalSettings(), sanitizeGlobalSettings(legacy), isPlainObject(state.meta.globalSettings) ? state.meta.globalSettings : {});
+    delete state.meta.settings;
+    changed = true;
+  }
+  if (!isPlainObject(state.meta.globalSettings)) { state.meta.globalSettings = defaultGlobalSettings(); changed = true; }
+  for (const ws of Object.values(state.workspaces || {})) {
+    if (ws && !isPlainObject(ws.settings)) { ws.settings = defaultWorkspaceSettings(); changed = true; }
+  }
+  return changed;
+}
+
 function defaultState() {
   const wsId = uid();
   const boardId = uid();
@@ -194,57 +461,10 @@ function defaultState() {
     version: SCHEMA_VERSION,
     meta: {
       activeWorkspaceId: wsId,
-      settings: {
-        themeId: 'auto',           // preset id, custom theme id, or 'auto' (follows the OS)
-        density: 'comfortable',    // spacious | comfortable | compact | dense
-        radius: 'default',         // shape scale: sharp | default | rounded
-        searchEngine: 'google',    // fallback engine for address-bar + palette web search
-        viewMode: 'grid',          // grid | list — bookmark tiles vs rows *inside* a collection widget
-        sidebarCollapsed: false,
-        sidebarCompact: false,     // icon-only sidebar: favicons only, no titles
-        confirmDelete: true,
-        faviconSource: 'google',   // google | duckduckgo | none
-        animations: true,
-        borders: true,              // show 1px outlines around cards, buttons, and inputs
-        popupBlur: true,            // blur the page behind modals, the palette, and settings
-        openBookmarksInNewTab: false, // false = open bookmarks in the current tab, true = open in a new tab
-        lightThemeId: 'serika',    // used when themeId is 'auto' and the OS is in light mode
-        darkThemeId: 'serika_dark', // used when themeId is 'auto' and the OS is in dark mode
-        customThemes: [],          // user-built themes (Themes builder); any of the three ids above can point at one
-        clockFormat: '24',         // '12' | '24' — default for new Clock widgets
-        weatherUnits: 'c',         // 'c' | 'f' — default for new Weather widgets
-        pomodoroFocus: 25,         // default focus minutes for new Pomodoro widgets
-        pomodoroBreak: 5,          // default break minutes for new Pomodoro widgets
-        countdownDays: 7,          // default target (days out) for new Countdown widgets
-        rssRefreshInterval: 0,     // minutes between automatic RSS refreshes; 0 = manual only
-        recentlyClosedLimit: 20,   // how many recently-closed tabs the sidebar shows
-        historyShowTimes: true,    // show a relative visit time on History widget entries
-        historyCount: 10,          // how many entries each History widget lists
-        topSitesCount: 12,         // how many top sites each Most visited collection syncs
-        trashRetentionDays: 0,     // days to keep trash items before auto-purge; 0 = keep forever
-        confirmRestoreSession: false, // ask before restoring a saved session
-        trashBadgeSeen: 0,         // trash badge mark-as-read count; persisted so it stays dismissed
-        showPreviews: true,        // global switch for page-preview thumbnails on grid tiles (each bookmark can override it in Edit details)
-        notifications: Object.assign({}, NOTIFICATION_DEFAULTS), // see NOTIFICATION_DEFAULTS
-        showTopbarSearch: true,    // show the "Jump to…" search bar in the header
-        showShortcutsButton: true, // show the keyboard-shortcuts button in the header
-        showTrashButton: true,     // show the trash button in the header
-        interfaceFontSize: 100,       // interface font size as a % (80–150)
-        interfaceFont: '',         // custom interface font family; '' = system default
-        dashboard: {
-          columns: 4               // board width in columns (3–6); each widget spans 1–N of these
-        },
-        tabsList: {
-          groupPinned: true,       // show pinned open tabs in their own group above the rest
-          showTabAudio: true,      // show mute controls for audible or muted tabs
-          dimInactive: true,       // fade + desaturate tabs that aren't the focused one
-          inactiveOpacity: 55,     // percent
-          inactiveGrayscale: true
-        }
-      }
+      globalSettings: defaultGlobalSettings()
     },
     workspaces: {
-      [wsId]: { id: wsId, name: 'Personal', order: 0, activeBoardId: boardId, createdAt: now() }
+      [wsId]: { id: wsId, name: 'Personal', order: 0, activeBoardId: boardId, createdAt: now(), settings: defaultWorkspaceSettings() }
     },
     boards: {
       [boardId]: { id: boardId, workspaceId: wsId, name: 'Board 1', order: 0, createdAt: now() }
@@ -436,6 +656,7 @@ function ensureReady() {
        Only the storage *engine* moved, and a blob of the current shape is
        carried over intact. */
     const seed = migrating ? legacy : defaultState();
+    if (migrating) normalizeSettingsLayout(seed);   // old blob: one flat settings object -> per-workspace
     let seeded = false;
     await d.transaction('rw', tdbTables(), async () => {
       if ((await d[META_TABLE].get(VERSION_ROW)) === SCHEMA_VERSION) return; // another context already seeded
@@ -451,9 +672,31 @@ function ensureReady() {
       });
       if (ok) await legacyRemove();
     }
-  })();
+  })().then(migrateSettingsLayout);
   _tdbReady.catch(() => { _tdbReady = null; });   // let the next call retry (e.g. a transient open error)
   return _tdbReady;
+}
+
+/* One-time, in-place upgrade of an install that predates per-workspace
+   settings: the single flat `meta.settings` row is copied into every workspace
+   and removed, and the shared keys move to `meta.globalSettings`. Runs in one
+   transaction that re-checks first, so two contexts racing at startup can't
+   both do it. The cheap probe makes every later start a single row read. */
+async function migrateSettingsLayout() {
+  const d = tdbDexie();
+  const [oldRow, globalRow] = await Promise.all([d[META_TABLE].get('settings'), d[META_TABLE].get('globalSettings')]);
+  if (oldRow === undefined && globalRow !== undefined) return;
+  let rev = 0;
+  await d.transaction('rw', tdbTables(), async () => {
+    const read = await readState();
+    const before = fingerprint(read.state);
+    if (!normalizeSettingsLayout(read.state)) return;
+    if (await writeDiff(read.state, before)) {
+      rev = read.rev + 1;
+      await d[META_TABLE].put(rev, REV_ROW);
+    }
+  });
+  if (rev) await notifyChanged(rev);
 }
 
 async function init() {
@@ -529,13 +772,24 @@ async function storageStats() {
 
 /* ---------- Workspaces ---------- */
 
-async function createWorkspace(name) {
+/* `opts.settingsFrom` picks where the new workspace's settings start from:
+   a workspace id (copy that workspace's), 'defaults' (factory settings), or
+   nothing (copy the active workspace's, so a new workspace looks like the one
+   you were just in). From then on the two are independent. */
+async function createWorkspace(name, opts) {
+  const o = opts || {};
   return setState((d) => {
     const id = uid();
     const order = Object.keys(d.workspaces).length;
     const boardId = uid();
+    let settings;
+    if (o.settingsFrom === 'defaults') settings = defaultWorkspaceSettings();
+    else {
+      const from = (o.settingsFrom && d.workspaces[o.settingsFrom]) ? o.settingsFrom : d.meta.activeWorkspaceId;
+      settings = workspaceOnlySettings(resolveSettings(d, from));
+    }
     d.boards[boardId] = { id: boardId, workspaceId: id, name: 'Board 1', order: 0, createdAt: now() };
-    d.workspaces[id] = { id, name: name || 'New Workspace', order, activeBoardId: boardId, createdAt: now() };
+    d.workspaces[id] = { id, name: name || 'New Workspace', order, activeBoardId: boardId, createdAt: now(), settings };
     return d.workspaces[id];
   });
 }
@@ -849,7 +1103,7 @@ async function createWidget(workspaceId, type, extra) {
     const id = uid();
     const boardId = activeBoardIdFor(d, workspaceId);
     const order = Object.values(d.widgets).filter(w => w.boardId === boardId).length;
-    d.widgets[id] = { id, workspaceId, boardId, type, span: 1, rowSpan: 1, order, createdAt: now(), ...widgetDefaults(type, d.meta.settings), ...(extra || {}) };
+    d.widgets[id] = { id, workspaceId, boardId, type, span: 1, rowSpan: 1, order, createdAt: now(), ...widgetDefaults(type, resolveSettings(d, workspaceId)), ...(extra || {}) };
     assignWidgetPosition(d, id);
     return d.widgets[id];
   });
@@ -1070,58 +1324,249 @@ async function removePlugin(id) {
 
 /* ---------- Settings ---------- */
 
-async function updateSettings(patch) {
+/* Applies `patch` to the settings of one workspace (default: the active one).
+   Each key is routed to where it lives: the shared keys (GLOBAL_SETTING_KEYS) go
+   to meta.globalSettings, everything else to the workspace's own settings.
+   Nested groups (dashboard, tabsList, notifications) are shallow-merged so a
+   patch like { tabsList: { groupPinned: true } } keeps its sibling keys. */
+async function updateSettings(patch, workspaceId) {
   return setState((d) => {
-    for (const [key, value] of Object.entries(patch)) {
-      const cur = d.meta.settings[key];
-      // Shallow-merge nested setting groups (dashboard, tabsList, …) so a patch
-      // like { tabsList: { groupPinned: true } } keeps its sibling keys.
-      if (value && typeof value === 'object' && !Array.isArray(value) && cur && typeof cur === 'object' && !Array.isArray(cur)) {
-        Object.assign(cur, value);
+    const ws = d.workspaces[workspaceId || d.meta.activeWorkspaceId];
+    if (!isPlainObject(d.meta.globalSettings)) d.meta.globalSettings = defaultGlobalSettings();
+    const defs = defaultWorkspaceSettings();
+    for (const [key, value] of Object.entries(patch || {})) {
+      if (GLOBAL_SETTING_KEYS.includes(key)) { d.meta.globalSettings[key] = value; continue; }
+      if (!ws) continue;
+      if (!isPlainObject(ws.settings)) ws.settings = workspaceOnlySettings(resolveSettings(d, ws.id));
+      const cur = ws.settings[key];
+      if (isPlainObject(value) && (isPlainObject(cur) || isPlainObject(defs[key]))) {
+        ws.settings[key] = Object.assign({}, isPlainObject(defs[key]) ? defs[key] : {}, isPlainObject(cur) ? cur : {}, value);
       } else {
-        d.meta.settings[key] = value;
+        ws.settings[key] = value;
       }
     }
   });
 }
 
-/* ---------- Import / Export ---------- */
+/* Copies one workspace's settings onto another (the shared keys are untouched —
+   they are not per workspace). */
+async function copyWorkspaceSettings(fromId, toId) {
+  return setState((d) => {
+    if (!d.workspaces[fromId] || !d.workspaces[toId] || fromId === toId) return false;
+    d.workspaces[toId].settings = workspaceOnlySettings(resolveSettings(d, fromId));
+    return true;
+  });
+}
+
+/* Sets a workspace's settings to exactly `settings` (as returned by
+   settingsOf(); the shared keys in it are ignored). Used to undo a copy/reset. */
+async function replaceWorkspaceSettings(workspaceId, settings) {
+  return setState((d) => {
+    const ws = d.workspaces[workspaceId];
+    if (!ws) return false;
+    ws.settings = workspaceOnlySettings(settings);
+    return true;
+  });
+}
+
+/* Puts a workspace's settings back to the factory defaults. */
+async function resetWorkspaceSettings(workspaceId) {
+  return setState((d) => {
+    const ws = d.workspaces[workspaceId || d.meta.activeWorkspaceId];
+    if (!ws) return false;
+    ws.settings = defaultWorkspaceSettings();
+    return true;
+  });
+}
+
+/* Deletes a custom theme from the shared library and, in the same write, moves
+   every workspace that was using it back to a preset. Returns the names of the
+   workspaces that had to be changed. */
+async function deleteCustomTheme(themeId) {
+  return setState((d) => {
+    const g = d.meta.globalSettings;
+    if (!isPlainObject(g) || !Array.isArray(g.customThemes)) return [];
+    g.customThemes = g.customThemes.filter(t => t && t.id !== themeId);
+    const touched = [];
+    for (const ws of Object.values(d.workspaces)) {
+      if (!ws || !isPlainObject(ws.settings)) continue;
+      const st = ws.settings;
+      let hit = false;
+      if (st.themeId === themeId) { st.themeId = (typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'serika_dark' : 'serika'; hit = true; }
+      if (st.lightThemeId === themeId) { st.lightThemeId = 'serika'; hit = true; }
+      if (st.darkThemeId === themeId) { st.darkThemeId = 'serika_dark'; hit = true; }
+      if (hit) touched.push(ws.name);
+    }
+    return touched;
+  });
+}
+
+/* ---------- Import / Export ----------
+
+   A backup is the stored state itself: every table, `meta` (active workspace,
+   plugin registry, shared settings) and — because they live on the workspace
+   records — each workspace's own settings, all in the one file. Files from
+   before per-workspace settings (one flat `meta.settings`) still import: those
+   settings are applied to each workspace in the file. */
 
 async function exportJSON() {
   const d = await getState();
-  return JSON.stringify(d, null, 2);
+  let appVersion;
+  try { appVersion = chrome.runtime.getManifest().version; } catch (e) { /* not in an extension page (tests) */ }
+  const out = Object.assign({ backup: { app: 'TabsBoard', format: 2, exportedAt: new Date().toISOString(), appVersion } }, d);
+  // Write every workspace's settings out in full, so a restore doesn't depend on
+  // the defaults of whatever version happens to import it.
+  out.workspaces = {};
+  for (const [id, ws] of Object.entries(d.workspaces)) {
+    out.workspaces[id] = Object.assign({}, ws, { settings: workspaceOnlySettings(resolveSettings(d, id)) });
+  }
+  out.meta = Object.assign({}, d.meta, { globalSettings: globalSettingsOf(d) });
+  return JSON.stringify(out, null, 2);
 }
 
-async function importJSON(jsonString, mode = 'merge') {
-  const incoming = JSON.parse(jsonString);
+function backupError(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  return e;
+}
+
+/* Parses and validates a backup file's text. Returns the parsed object with
+   its settings normalised to the current layout: each workspace's `settings`
+   is sanitised (or null when the file carries none for it), `meta.globalSettings`
+   is sanitised. Throws an Error with a `.code` ('not-json' | 'not-backup'). */
+function parseBackup(jsonString) {
+  let incoming;
+  try { incoming = JSON.parse(jsonString); }
+  catch (e) { throw backupError('not-json', 'That file is not valid JSON.'); }
+  const isTable = (v) => isPlainObject(v);
+  if (!isPlainObject(incoming) || !isTable(incoming.workspaces) || !Object.values(incoming.workspaces).some(isPlainObject)) {
+    throw backupError('not-backup', "That file doesn't look like a TabsBoard backup.");
+  }
+  const meta = isPlainObject(incoming.meta) ? incoming.meta : {};
+  const legacyFlat = isPlainObject(meta.settings) ? meta.settings : null;   // pre-per-workspace backups
+  const legacyOwn = legacyFlat ? sanitizeWorkspaceSettings(legacyFlat) : null;
+  const workspaces = {};
+  for (const [id, ws] of Object.entries(isTable(incoming.workspaces) ? incoming.workspaces : {})) {
+    if (!isPlainObject(ws)) continue;
+    const copy = Object.assign({}, ws);
+    copy.settings = isPlainObject(ws.settings) ? sanitizeWorkspaceSettings(ws.settings) : (legacyOwn ? cloneJSON(legacyOwn) : null);
+    workspaces[id] = copy;
+  }
+  const globals = Object.assign({}, legacyFlat ? sanitizeGlobalSettings(legacyFlat) : {}, sanitizeGlobalSettings(meta.globalSettings));
+  const normMeta = Object.assign({}, meta, { globalSettings: globals });
+  delete normMeta.settings;
+  return Object.assign({}, incoming, { workspaces, meta: normMeta });
+}
+
+/* What a backup file contains, for the import dialog. Never writes anything.
+   Throws like parseBackup. */
+function inspectBackup(jsonString) {
+  const b = parseBackup(jsonString);
+  const count = (t) => (isPlainObject(b[t]) ? Object.keys(b[t]).length : 0);
+  const wsList = Object.values(b.workspaces).sort((x, y) => (x.order || 0) - (y.order || 0));
+  return {
+    workspaces: wsList.length,
+    workspaceNames: wsList.map(w => String(w.name || 'Workspace')),
+    collections: count('collections'),
+    bookmarks: count('bookmarks'),
+    widgets: count('widgets'),
+    sessions: count('sessions'),
+    hasSettings: wsList.some(w => w.settings),
+    settingsWorkspaces: wsList.filter(w => w.settings).length,
+    customThemes: (b.meta.globalSettings.customThemes || []).length,
+    exportedAt: (isPlainObject(b.backup) && typeof b.backup.exportedAt === 'string') ? b.backup.exportedAt : null
+  };
+}
+
+/* mode 'merge'   adds the file's workspaces next to yours (new ids; nothing existing is touched)
+   mode 'replace' makes the file the whole truth
+   opts.settings  (default true) carry the file's settings across. When false, or when the
+                  file has none, imported workspaces start from your active workspace's
+                  current settings instead. */
+async function importJSON(jsonString, mode = 'merge', opts) {
+  const useFileSettings = !opts || opts.settings !== false;
+  const incoming = parseBackup(jsonString);
   return setState((d) => {
+    // Fallback look for workspaces that arrive without (or without wanting) settings.
+    const fallbackSettings = () => workspaceOnlySettings(resolveSettings(d, d.meta.activeWorkspaceId));
+    const settingsFor = (ws) => (useFileSettings && ws.settings) ? cloneJSON(ws.settings) : fallbackSettings();
+    if (!isPlainObject(d.meta.globalSettings)) d.meta.globalSettings = defaultGlobalSettings();
+
     if (mode === 'replace') {
-      Object.assign(d, incoming);
+      const keptShared = useFileSettings ? null : cloneJSON(globalSettingsOf(d));
+      const keptLook = useFileSettings ? null : fallbackSettings();
+      for (const t of RECORD_TABLES) d[t] = isPlainObject(incoming[t]) ? incoming[t] : {};
+      for (const ws of Object.values(d.workspaces)) {
+        ws.settings = (useFileSettings && ws.settings) ? ws.settings : (keptLook ? cloneJSON(keptLook) : defaultWorkspaceSettings());
+      }
+      const inMeta = incoming.meta || {};
+      d.meta = {
+        activeWorkspaceId: d.workspaces[inMeta.activeWorkspaceId] ? inMeta.activeWorkspaceId : ((Object.values(d.workspaces).sort((a, b) => (a.order || 0) - (b.order || 0))[0] || {}).id || null),
+        globalSettings: Object.assign(defaultGlobalSettings(), useFileSettings ? inMeta.globalSettings : keptShared)
+      };
+      if (isPlainObject(inMeta.plugins)) d.meta.plugins = inMeta.plugins;
       // A backup file is untrusted input: it must not be able to hand a plugin
       // permissions the user never approved on this install. Imported plugin
       // records stay installed but are marked for review and won't run until
       // the user re-approves them (Settings → Widgets, or the widget's card).
-      const plugins = d.meta && d.meta.plugins;
-      if (plugins && typeof plugins === 'object') {
-        for (const rec of Object.values(plugins)) { if (rec && typeof rec === 'object') rec.approved = false; }
+      if (isPlainObject(d.meta.plugins)) {
+        for (const rec of Object.values(d.meta.plugins)) { if (rec && typeof rec === 'object') rec.approved = false; }
       }
-      return;
+      return { mode: 'replace', workspaces: Object.keys(d.workspaces).length, settingsImported: useFileSettings && Object.values(incoming.workspaces).some(w => w.settings) };
     }
+
     // merge mode: add incoming workspaces/boards/collections/bookmarks/sessions
     // with fresh ids to avoid collisions, but keep structure intact.
     const idMap = {};
+    const summary = { mode: 'merge', workspaces: 0, settingsImported: false, themesAdded: 0, themesSkipped: 0 };
+
+    // Custom themes are a shared library: add the ones you don't have. A theme
+    // whose id is taken by a *different* theme gets a new id, and the settings
+    // of the incoming workspaces are pointed at it.
+    const themeRemap = {};
+    if (useFileSettings) {
+      const lib = d.meta.globalSettings.customThemes = Array.isArray(d.meta.globalSettings.customThemes) ? d.meta.globalSettings.customThemes : [];
+      for (const t of incoming.meta.globalSettings.customThemes || []) {
+        const same = lib.find(x => x.id === t.id);
+        if (same && JSON.stringify(same) === JSON.stringify(t)) continue;
+        if (lib.length >= MAX_CUSTOM_THEMES_STORED) { summary.themesSkipped++; continue; }
+        let id = t.id;
+        if (same) { id = 'custom-' + uid(); themeRemap[t.id] = id; }
+        lib.push(Object.assign({}, t, { id }));
+        summary.themesAdded++;
+      }
+    }
+    const libIds = new Set((d.meta.globalSettings.customThemes || []).map(t => t.id));
+    const fixThemeRefs = (st) => {
+      for (const k of ['themeId', 'lightThemeId', 'darkThemeId']) {
+        if (typeof st[k] !== 'string') continue;
+        if (themeRemap[st[k]]) st[k] = themeRemap[st[k]];
+        else if (st[k].indexOf('custom-') === 0 && !libIds.has(st[k])) delete st[k];   // theme not in the file's library: fall back to default
+      }
+      return st;
+    };
+
     // Workspaces (board ids are remapped below, so keep activeBoardId valid).
-    for (const ws of Object.values(incoming.workspaces || {})) {
+    const incomingWorkspaces = Object.values(incoming.workspaces || {}).sort((x, y) => (x.order || 0) - (y.order || 0));
+    for (const ws of incomingWorkspaces) {
       const nid = uid();
       idMap[ws.id] = nid;
       const activeBoardId = idMap[ws.activeBoardId] || ws.activeBoardId;
-      d.workspaces[nid] = { ...ws, id: nid, name: ws.name, activeBoardId };
+      const settings = fixThemeRefs(settingsFor(ws));
+      if (useFileSettings && ws.settings) summary.settingsImported = true;
+      d.workspaces[nid] = { ...ws, id: nid, name: ws.name, activeBoardId, order: Object.keys(d.workspaces).length, settings };
+      summary.workspaces++;
     }
     // Boards — each workspace needs its board(s) for widgets to render on.
     for (const b of Object.values(incoming.boards || {})) {
       const nid = uid();
       idMap[b.id] = nid;
       d.boards[nid] = { ...b, id: nid, workspaceId: idMap[b.workspaceId] || b.workspaceId };
+    }
+    for (const ws of incomingWorkspaces) {
+      // activeBoardId was copied before its board had a new id; fix it up now.
+      const w = d.workspaces[idMap[ws.id]];
+      if (w && idMap[ws.activeBoardId]) w.activeBoardId = idMap[ws.activeBoardId];
     }
     for (const col of Object.values(incoming.collections || {})) {
       const nid = uid();
@@ -1140,21 +1585,25 @@ async function importJSON(jsonString, mode = 'merge') {
       const nid = uid();
       d.sessions[nid] = { ...s, id: nid, workspaceId: idMap[s.workspaceId] || s.workspaceId };
     }
-    // Widgets — remap and re-place so imported layouts render exactly as saved.
-    const importedWidgetIds = new Set();
+    // Widgets — remap, and keep each widget on the cell it had when it fits (the
+    // imported workspace brings its own board width, so layouts and gaps come
+    // back as saved); anything that doesn't fit is packed into the first free cell.
     for (const w of Object.values(incoming.widgets || {})) {
       const nid = uid();
       idMap['w:' + w.id] = nid;
-      importedWidgetIds.add(nid);
       const place = Object.assign({}, w, {
         id: nid,
         workspaceId: idMap[w.workspaceId] || w.workspaceId,
         boardId: idMap[w.boardId] || w.boardId,
         collectionId: w.collectionId != null ? (idMap[w.collectionId] || w.collectionId) : w.collectionId
       });
-      delete place.row; delete place.col;
+      const span = Math.max(1, place.span || 1), rowSpan = Math.max(1, place.rowSpan || 1);
+      const fits = Number.isInteger(w.row) && Number.isInteger(w.col) && w.row >= 1 && w.col >= 1 &&
+        w.col + span - 1 <= boardColumnCount(d, place.boardId) &&
+        !rectOverlapsWidget(d, place.boardId, w.row, w.col, span, rowSpan, null);
+      if (!fits) { delete place.row; delete place.col; }
       d.widgets[nid] = place;
-      assignWidgetPosition(d, nid);
+      if (!fits) assignWidgetPosition(d, nid);
     }
     // Any collection that has no widget (e.g. older imports without widgets)
     // gets a brand-new collection widget so it shows up on its workspace's
@@ -1181,6 +1630,7 @@ async function importJSON(jsonString, mode = 'merge') {
         assignWidgetPosition(d, nid);
       }
     }
+    return summary;
   });
 }
 
@@ -1359,13 +1809,14 @@ const TabsDB = {
   createBookmark, updateBookmark, updateBookmarks, moveBookmarks, reorderBookmarks, softDeleteBookmarks, toggleBookmarkPin, duplicateBookmark,
   restoreTrashItem, purgeTrashItem, emptyTrash, purgeExpiredTrash,
   createSession, deleteSession, renameSession, updateSessionTabs, duplicateSession, convertSessionToCollection,
-  updateSettings,
+  updateSettings, settingsOf, globalSettingsOf, copyWorkspaceSettings, resetWorkspaceSettings, replaceWorkspaceSettings, deleteCustomTheme,
+  defaultWorkspaceSettings, GLOBAL_SETTING_KEYS,
   createWidget, updateWidget, deleteWidget, reorderWidgets,
   installPlugin, setPluginGrants, removePlugin,
   createBoard, renameBoard, deleteBoard, setActiveBoard,
   swapWidgetPositions, moveWidgetTo,
   occupiedCellsOfBoard, firstEmptyCell, assignWidgetPosition,
-  exportJSON, importJSON, bookmarksHTMLExport,
+  exportJSON, importJSON, inspectBackup, bookmarksHTMLExport,
   importBrowserBookmarks,
   addBrowserCollection, syncBrowserCollection
 };

@@ -236,9 +236,11 @@
   ];
   const ALL_SLOT_KEYS = COLOR_SLOTS.map(s => s.key).concat(['colorfulError', 'colorfulErrorExtra']);
 
-  /* Custom themes live in settings.next to the presets, so they travel with
-     export/import and can fill any of the three theme slots (current, light,
-     dark). Ids are prefixed so a custom id can never collide with a preset id. */
+  /* Custom themes live next to the presets in the shared settings (one library
+     for every workspace — which theme a workspace uses is that workspace's own
+     setting), so they travel with export/import and can fill any of the three
+     theme slots (current, light, dark). Ids are prefixed so a custom id can
+     never collide with a preset id. */
   const CUSTOM_PREFIX = 'custom-';
   const MAX_CUSTOM_THEMES = 20;
   const HEX_RE = /^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;

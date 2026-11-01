@@ -8,7 +8,7 @@
      (or closing Settings) drops the preview and the saved theme comes back. */
   let themeBuilder = null; // { id, name, type, colors, touched } while open, else null
 
-  function savedCustomThemes() { return STATE.meta.settings.customThemes || []; }
+  function savedCustomThemes() { return DB.settingsOf(STATE).customThemes || []; }
 
   /* The palette the builder is currently describing — all ten slots, ready for
      applyThemeColors(). The eight picked slots go in first; the two derived ones
@@ -33,7 +33,7 @@
   }
 
   function openThemeBuilder(existingId) {
-    const s = STATE.meta.settings;
+    const s = DB.settingsOf(STATE);
     // Only your own themes are editable — a preset id starts a new theme seeded
     // from it instead of quietly turning into a copy.
     const found = existingId ? Themes.findTheme(existingId, savedCustomThemes()) : null;
@@ -195,7 +195,7 @@
     await DB.updateSettings({ customThemes: list });
     /* Auto keeps following the OS: the new theme takes over whichever slot
        matches the mode you're in right now, and the other one is left alone. */
-    const s = STATE.meta.settings;
+    const s = DB.settingsOf(STATE);
     if (s.themeId === 'auto') {
       await DB.updateSettings(prefersDarkMode() ? { darkThemeId: id } : { lightThemeId: id });
     } else {
@@ -212,17 +212,17 @@
   async function deleteCustomTheme(themeId) {
     const t = Themes.findTheme(themeId, savedCustomThemes());
     if (!t) return;
-    const inUse = STATE.meta.settings;
-    const note = (inUse.themeId === themeId || inUse.lightThemeId === themeId || inUse.darkThemeId === themeId)
-      ? ' It is in use right now, so that slot falls back to Serika.'
+    /* Custom themes are one library shared by every workspace, so deleting one
+       affects each workspace that picked it, not just this one. */
+    const users = Object.values(STATE.workspaces)
+      .filter(w => { const ws = DB.settingsOf(STATE, w.id); return ws.themeId === themeId || ws.lightThemeId === themeId || ws.darkThemeId === themeId; })
+      .sort((a, b) => a.order - b.order);
+    const note = users.length
+      ? ` It is in use in ${users.map(w => `“${w.name}”`).join(', ')}, which fall${users.length === 1 ? 's' : ''} back to Serika.`
       : '';
     if (!(await uiConfirm(`Delete the custom theme “${t.name}”?${note} This can't be undone.`, { title: 'Delete custom theme', okLabel: 'Delete', danger: true }))) return;
     if (themeBuilder && themeBuilder.id === themeId) { closeThemeBuilder(); endThemePreview(); }
-    const patch = { customThemes: savedCustomThemes().filter(x => x.id !== themeId) };
-    if (inUse.themeId === themeId) patch.themeId = prefersDarkMode() ? 'serika_dark' : 'serika';
-    if (inUse.lightThemeId === themeId) patch.lightThemeId = 'serika';
-    if (inUse.darkThemeId === themeId) patch.darkThemeId = 'serika_dark';
-    await DB.updateSettings(patch);
+    await DB.deleteCustomTheme(themeId);
     await reload();
     renderThemeGrids();
     syncSettingsUI();

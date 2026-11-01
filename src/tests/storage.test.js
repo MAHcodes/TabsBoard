@@ -29,7 +29,13 @@ const DB = require('../common/storage.js');
   store.tdb_data = L;
   const s1 = await DB.getState();
   assert.strictEqual(Object.keys(s1.bookmarks).length, 3000);
-  assert.deepStrictEqual(s1.meta, L.meta);
+  // the legacy flat settings are carried into the workspace (per-workspace layout) and left out of meta
+  assert.strictEqual(s1.meta.activeWorkspaceId, 'w1');
+  assert.strictEqual(s1.meta.settings, undefined, 'no flat settings row after migration');
+  assert.strictEqual(s1.workspaces.w1.settings.themeId, 'dark');
+  assert.strictEqual(s1.workspaces.w1.settings.showPreviews, false);
+  assert.strictEqual(s1.workspaces.w1.settings.dashboard.columns, 5);
+  assert.strictEqual(DB.settingsOf(s1).dashboard.columns, 5);
   assert.deepStrictEqual(s1.bookmarks.k42, L.bookmarks.k42);
   assert.strictEqual(store.tdb_data, undefined, 'legacy blob removed after verified migration');
   console.log('1 migration ok (3000 bookmarks, legacy removed)');
@@ -51,7 +57,7 @@ const DB = require('../common/storage.js');
   await DB.softDeleteBookmarks([bm.id]);
   s3 = await DB.getState(); assert.ok(!s3.bookmarks[bm.id], 'deleted row removed'); assert.ok(Object.keys(s3.trash).length === 1, 'trash row added');
   await DB.updateSettings({ dashboard: { columns: 6 }, showPreviews: true });
-  s3 = await DB.getState(); assert.strictEqual(s3.meta.settings.dashboard.columns, 6); assert.strictEqual(s3.meta.settings.themeId, 'dark');
+  s3 = await DB.getState(); assert.strictEqual(DB.settingsOf(s3).dashboard.columns, 6); assert.strictEqual(DB.settingsOf(s3).themeId, 'dark');
   console.log('3 create/delete/trash/settings merge ok');
 
   // ---- 4. concurrent writers don't lose updates

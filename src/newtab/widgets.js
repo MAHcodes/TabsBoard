@@ -50,9 +50,20 @@
   }
 
   function openWorkspaceModal() {
+    const current = STATE.workspaces[activeWorkspaceId()];
+    const others = Object.values(STATE.workspaces).filter(w => !current || w.id !== current.id).sort((a, b) => a.order - b.order);
+    // Every workspace has its own settings; this only decides where the new one starts from.
     const body = `
       <h2>New workspace</h2>
-      <div class="field"><label>Name</label><input type="text" id="mws-name" value=""></div>
+      <div class="field"><label for="mws-name">Name</label><input type="text" id="mws-name" value=""></div>
+      <div class="field"><label for="mws-settings">Start with settings from</label>
+        <div class="select-wrap"><select id="mws-settings">
+          <option value="">${current ? escapeHtml(current.name) + ' (current workspace)' : 'Current workspace'}</option>
+          ${others.map(w => `<option value="${escapeHtml(w.id)}">${escapeHtml(w.name)}</option>`).join('')}
+          <option value="defaults">Default settings</option>
+        </select></div>
+        <div class="hint-text">A copy — after this the two workspaces' settings are independent.</div>
+      </div>
       <div class="modal-actions">
         <button id="mws-cancel" class="mini-btn">Cancel</button>
         <button id="mws-save" class="primary-btn">Save</button>
@@ -62,7 +73,8 @@
       $('#mws-name').focus();
       $('#mws-save').onclick = async () => {
         const name = $('#mws-name').value.trim() || 'Workspace';
-        const w = await DB.createWorkspace(name);
+        const from = $('#mws-settings').value;
+        const w = await DB.createWorkspace(name, from ? { settingsFrom: from } : undefined);
         await DB.setActiveWorkspace(w.id);
         await reload(); closeModal();
       };
@@ -72,7 +84,7 @@
   /* ============ SIDEBAR: OPEN TABS / RECENTLY CLOSED (one list, toggled) ============ */
   let lastSidebarSig = null;
   function sidebarSig() {
-    const s = STATE.meta.settings.tabsList;
+    const s = DB.settingsOf(STATE).tabsList;
     const list = sidebarShowingClosed ? RECENTLY_CLOSED : OPEN_TABS;
     let h = 0;
     for (const t of list) {
@@ -80,7 +92,7 @@
         (t.pinned ? 1 : 0) + '|' + (t.discarded ? 1 : 0) + '|' + (t.audible ? 1 : 0) + '|' + ((t.mutedInfo && t.mutedInfo.muted) ? 1 : 0) + '|' + (t.closedAt || 0);
       for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
     }
-    return (sidebarShowingClosed ? 'rc:' : 'ot:') + h + '|' + s.groupPinned + '|' + s.showTabAudio + '|' + s.dimInactive + '|' + s.inactiveOpacity + '|' + s.inactiveGrayscale + '|' + !!STATE.meta.settings.sidebarCompact + '|' + STATE.meta.settings.faviconSource + '|sel:' + Array.from(SELECTED_TABS).sort().join(',');
+    return (sidebarShowingClosed ? 'rc:' : 'ot:') + h + '|' + s.groupPinned + '|' + s.showTabAudio + '|' + s.dimInactive + '|' + s.inactiveOpacity + '|' + s.inactiveGrayscale + '|' + !!DB.settingsOf(STATE).sidebarCompact + '|' + DB.settingsOf(STATE).faviconSource + '|sel:' + Array.from(SELECTED_TABS).sort().join(',');
   }
   function renderSidebar() {
     // Board edits / workspace switches call this on every pass, but the tab
@@ -104,7 +116,7 @@
       return;
     }
 
-    const s = STATE.meta.settings.tabsList;
+    const s = DB.settingsOf(STATE).tabsList;
     const pinned = OPEN_TABS.filter(t => t.pinned);
     const rest = OPEN_TABS.filter(t => !t.pinned);
 
@@ -126,7 +138,7 @@
   }
 
   function renderTabRow(tab) {
-    const s = STATE.meta.settings.tabsList;
+    const s = DB.settingsOf(STATE).tabsList;
     const muted = !!(tab.mutedInfo && tab.mutedInfo.muted);
     const showAudio = s.showTabAudio !== false && (tab.audible || muted);
     const row = el('div', 'tab-row' + (SELECTED_TABS.has(tab.id) ? ' selected' : ''));
@@ -556,7 +568,7 @@
         }
       };
       mix(col.name); mix(col.color); mix(col.pinned); mix(col.sortMode);
-      mix(col.viewMode); mix(col.description); mix(col.syncSource); mix(STATE.meta.settings.faviconSource);
+      mix(col.viewMode); mix(col.description); mix(col.syncSource); mix(DB.settingsOf(STATE).faviconSource);
       const only = bmFilter.get(col.id);
       for (const b of bookmarksForCollection(col.id)) {
         if (only && !only.has(b.id)) continue;
@@ -565,7 +577,7 @@
         mix(b.description); mix(b.thumbAt || 0); mix(b.thumbMode);
         mix(SELECTED.has(b.id) ? 1 : 0);
       }
-      mix(STATE.meta.settings.showPreviews);
+      mix(DB.settingsOf(STATE).showPreviews);
       return 'col:' + w.id + ':' + h + ':' + bookmarksForCollection(col.id).length + (only ? ':f' + only.size : '');
     }
     if (w.type === 'plugin') return pluginRenderSig(w); // ignores w.data so saving never reloads the iframe
@@ -789,7 +801,7 @@
     const rect = boardEl.getBoundingClientRect();
     const style = getComputedStyle(boardEl);
     const gap = parseFloat(style.columnGap || style.gap) || 18;
-    const cols = (STATE.meta.settings.dashboard && STATE.meta.settings.dashboard.columns) || 4;
+    const cols = (DB.settingsOf(STATE).dashboard && DB.settingsOf(STATE).dashboard.columns) || 4;
     const colWidth = (rect.width - gap * (cols - 1)) / cols;
     return { cols, gap, colWidth };
   }
@@ -917,7 +929,7 @@
   }
 
   function viewMenuItemsHtml(col) {
-    const current = col.viewMode || STATE.meta.settings.viewMode;
+    const current = col.viewMode || DB.settingsOf(STATE).viewMode;
     // The two layouts get their own glyphs, so the choice reads at a glance
     // instead of being two words side by side. .mi-ic keeps the sizing and
     // alignment the rest of this menu already relies on.
@@ -967,7 +979,7 @@
     if (!col) return el('div');
     const only = bmFilter.get(col.id);
     const bms = bookmarksForCollection(col.id).filter(b => !only || only.has(b.id));
-    const viewMode = col.viewMode || STATE.meta.settings.viewMode;
+    const viewMode = col.viewMode || DB.settingsOf(STATE).viewMode;
     const titleHtml = `
       <span class="widget-title" title="${escapeHtml(col.name)}">${escapeHtml(col.name)}</span>
       ${col.pinned ? `<span class="collection-pin-ic">${ICONS.pin}</span>` : ''}
@@ -1000,7 +1012,7 @@
        and behave like ordinary collection widgets. opts.fetch(done) supplies
        [{title, url, favicon, _i}]; items honor the global view mode and the
        widget's row count. */
-    const viewMode = STATE.meta.settings.viewMode || 'grid';
+    const viewMode = DB.settingsOf(STATE).viewMode || 'grid';
     const shownCount = opts.count || w.count || 8;
     const metaFor = opts.meta || (() => '');
     const listEl = el('div', 'bookmarks-list is-empty');
@@ -1406,10 +1418,10 @@
      click menu can open/copy the page, add it to a collection, inspect every
      visit (Details) or delete history back to the browser. ---- */
   function renderHistoryWidget(w) {
-    const s = STATE.meta.settings;
+    const s = DB.settingsOf(STATE);
     const count = Math.max(1, Number(w.count || s.historyCount) || 10);
     const showTimes = s.historyShowTimes !== false;
-    const viewMode = STATE.meta.settings.viewMode || 'grid';
+    const viewMode = DB.settingsOf(STATE).viewMode || 'grid';
     const isTile = viewMode === 'grid';
     const titleHtml = `<span class="widget-title">History</span>`;
     const { card, header } = widgetShell(w, ICONS.rotateCcwClock, titleHtml);
@@ -1893,7 +1905,7 @@
       if (!('Notification' in window)) return;
       const isBreak = w.mode === 'focus'; // the mode that just finished
       // Settings → Notifications → Pomodoro
-      const pn = DB.notificationSettings(STATE.meta.settings);
+      const pn = DB.notificationSettings(DB.settingsOf(STATE));
       if (!pn.pomodoroEnabled) return;
       if (isBreak ? !pn.pomodoroOnFocusEnd : !pn.pomodoroOnBreakEnd) return;
       const title = isBreak ? 'Pomodoro complete' : 'Break over';
@@ -2084,7 +2096,7 @@
     }
     body.innerHTML = `<div class="empty-collection-hint">Loading…</div>`;
     card.appendChild(body);
-    const units = w.units || STATE.meta.settings.weatherUnits || 'c';
+    const units = w.units || DB.settingsOf(STATE).weatherUnits || 'c';
     fetchWeather(w.lat, w.lon, units).then(data => {
       if (!data) { body.innerHTML = `<div class="empty-collection-hint">Couldn't load weather</div>`; return; }
       const desc = WEATHER_CODES[data.weathercode] || '—';
@@ -2249,12 +2261,13 @@
   // list on the widget, which renderRssWidget already reads, so this only
   // needs a full re-render (reload()) when an idle feed actually refreshed.
   async function runRssAutoRefresh() {
-    const minutes = (STATE.meta.settings && STATE.meta.settings.rssRefreshInterval) || 0;
-    if (!(minutes > 0)) return;
-    const minMs = minutes * 60000;
     const nowTs = Date.now();
     for (const w of Object.values(STATE.widgets)) {
       if (w.type !== 'rss' || !w.feedUrl) continue;
+      // The interval is a per-workspace setting: each feed follows the workspace it lives in.
+      const minutes = DB.settingsOf(STATE, w.workspaceId).rssRefreshInterval || 0;
+      if (!(minutes > 0)) continue;
+      const minMs = minutes * 60000;
       if (w.lastFetched && (nowTs - w.lastFetched) < minMs) continue;
       const fetchedBefore = w.lastFetched;
       await refreshRssWidget(w, true);

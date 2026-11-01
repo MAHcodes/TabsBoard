@@ -15,6 +15,9 @@
   setTimeout(() => document.documentElement.classList.add('theme-ready'), 1200);
 
   let STATE = null;
+  /* Which workspace's settings are currently painted. Every workspace has its
+     own settings, so switching workspace has to re-apply them (see reload()). */
+  let appliedWorkspaceId = null;
   let openDropdownMenus = new Set();
   let OPEN_TABS = [];
   let SELECTED = new Set();
@@ -62,7 +65,7 @@
   function applyToastRegionPrefs() {
     const region = $('#toast-region');
     if (!region || !STATE) return;
-    const n = DB.notificationSettings(STATE.meta.settings);
+    const n = DB.notificationSettings(DB.settingsOf(STATE));
     region.dataset.pos = n.toastPosition;
     region.dataset.size = n.toastSize;
     region.dataset.progress = n.toastProgress ? 'on' : 'off';
@@ -80,7 +83,7 @@
     const region = $('#toast-region');
     const opts = (a && typeof a === 'object') ? a : { action: a ? { label: a, fn: b } : null };
     let msg = String(text == null ? '' : text);
-    const ncfg = DB.notificationSettings(STATE && STATE.meta && STATE.meta.settings);
+    const ncfg = DB.notificationSettings(STATE ? DB.settingsOf(STATE) : null);
     applyToastRegionPrefs();
 
     // Filtered out by the user's level. A suppressed toast still hands back a
@@ -309,7 +312,7 @@
   /* ============ INIT ============ */
   async function boot() {
     STATE = await DB.getState();
-    await Favicons.init(STATE.meta.settings.faviconSource);
+    await Favicons.init(DB.settingsOf(STATE).faviconSource);
     // Previews for bookmarks that are gone (and not restorable from the trash) are dead weight.
     { const trashed = JSON.stringify(STATE.trash || {}); Thumbs.gc(id => !!STATE.bookmarks[id] || trashed.includes(id)); }
     // The sidebar HTML starts in the open state; settings may pivot it to
@@ -335,9 +338,12 @@
     // dashboard and the background) after any committed write.
     DB.onChange(async () => {
       STATE = await DB.getState();
-      Favicons.setSource(STATE.meta.settings.faviconSource);
+      Favicons.setSource(DB.settingsOf(STATE).faviconSource);
       scheduleRender();
       applySettings();
+      // A change made elsewhere (another tab, the palette, a workspace switch)
+      // while Settings is open: keep its controls and the workspace picker honest.
+      if (!$('#settings-overlay').classList.contains('hidden') && !themeBuilder) { renderThemeGrids(); syncSettingsUI(); }
     });
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg && msg.type === 'TOGGLE_SIDEBAR_REQUEST') toggleSidebar();
@@ -363,7 +369,7 @@
     // no reload needed.
     if (window.matchMedia) {
       matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (STATE.meta.settings.themeId === 'auto') { applySettings(); syncSettingsUI(); }
+        if (DB.settingsOf(STATE).themeId === 'auto') { applySettings(); syncSettingsUI(); }
       });
     }
     setInterval(updateClockWidgets, 1000 * 30);
@@ -371,7 +377,14 @@
     ensureLiveTick();
   }
 
-  async function reload() { STATE = await DB.getState(); Favicons.setSource(STATE.meta.settings.faviconSource); scheduleRender(); }
+  async function reload() {
+    STATE = await DB.getState();
+    Favicons.setSource(DB.settingsOf(STATE).faviconSource);
+    // A different workspace has different settings: repaint them together with
+    // the new board, rather than a beat later when the storage event arrives.
+    if (STATE.meta.activeWorkspaceId !== appliedWorkspaceId) applySettings();
+    scheduleRender();
+  }
 
   /* Coalesces full re-renders. Every storage write fires storage.onChanged
      here, and most actions *also* call reload() — without this, each user
@@ -415,7 +428,7 @@
 
   let RECENTLY_CLOSED = [];
   async function refreshRecentlyClosed() {
-    const limit = Number((STATE.meta.settings && STATE.meta.settings.recentlyClosedLimit) || 0);
+    const limit = Number(DB.settingsOf(STATE).recentlyClosedLimit || 0);
     // A slow/stuck sessions API must never block the sidebar — bail out.
     // (10s: Firefox can be slow walking a large session backlog, and the
     // background now always answers, so only a dead background gets dropped.)
@@ -481,7 +494,7 @@
   let themePreviewing = false;
   function previewTheme(themeId) {
     if (!themeId) return;
-    const s = STATE.meta.settings;
+    const s = DB.settingsOf(STATE);
     previewPalette(Themes.resolveTheme(themeId, s.lightThemeId, s.darkThemeId, s.customThemes));
   }
   /* Same, but straight from a palette object — the theme builder previews the
@@ -499,7 +512,16 @@
   }
 
   function applySettings(reveal = true) {
-    const s = STATE.meta.settings;
+    const s = DB.settingsOf(STATE);
+    const switchedWorkspace = appliedWorkspaceId !== null && appliedWorkspaceId !== STATE.meta.activeWorkspaceId;
+    appliedWorkspaceId = STATE.meta.activeWorkspaceId;
+    // The sidebar can be collapsed in one workspace and open in the next: jump
+    // straight to the new state instead of sliding there.
+    if (switchedWorkspace) {
+      const root = document.documentElement;
+      root.classList.add('boot-no-sidebar-anim');
+      requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('boot-no-sidebar-anim')));
+    }
     applyThemeColors(Themes.resolveTheme(s.themeId, s.lightThemeId, s.darkThemeId, s.customThemes));
     applyToastRegionPrefs();
     const r = document.documentElement.style;
@@ -547,16 +569,16 @@
   }
   /* ============ QUICK TOGGLES ============ */
   async function toggleSidebar() {
-    const collapsed = !STATE.meta.settings.sidebarCollapsed;
+    const collapsed = !DB.settingsOf(STATE).sidebarCollapsed;
     await DB.updateSettings({ sidebarCollapsed: collapsed });
     await reload();
   }
   async function toggleSidebarCompact() {
-    await DB.updateSettings({ sidebarCompact: !STATE.meta.settings.sidebarCompact });
+    await DB.updateSettings({ sidebarCompact: !DB.settingsOf(STATE).sidebarCompact });
     await reload();
   }
   async function toggleViewMode() {
-    const next = STATE.meta.settings.viewMode === 'grid' ? 'list' : 'grid';
+    const next = DB.settingsOf(STATE).viewMode === 'grid' ? 'list' : 'grid';
     await DB.updateSettings({ viewMode: next });
     await reload();
   }
@@ -575,7 +597,7 @@
     $('#trash-btn').onclick = openTrashPanel;
     $('#trash-close-btn').onclick = () => hideOverlay('#trash-overlay');
     $('#empty-trash-btn').onclick = async () => {
-      if (!STATE.meta.settings.confirmDelete || await uiConfirm('Permanently delete all items in trash?', { title: 'Empty trash', okLabel: 'Empty trash', danger: true })) {
+      if (!DB.settingsOf(STATE).confirmDelete || await uiConfirm('Permanently delete all items in trash?', { title: 'Empty trash', okLabel: 'Empty trash', danger: true })) {
         await DB.emptyTrash();
         await reload();
         hideOverlay('#trash-overlay');

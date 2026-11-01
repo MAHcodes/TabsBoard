@@ -11,7 +11,7 @@
   }
 
   function applyTheme(state) {
-    const s = state.meta.settings;
+    const s = DB.settingsOf(state);
     document.documentElement.classList.toggle('no-borders', s.borders === false);
     ['radius-sharp', 'radius-rounded', 'radius-extra', 'radius-none'].forEach(c => document.documentElement.classList.toggle(c, s.radius === c.slice(7)));
     const palette = Themes.resolveTheme(s.themeId, s.lightThemeId, s.darkThemeId, s.customThemes);

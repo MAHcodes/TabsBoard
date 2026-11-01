@@ -111,7 +111,10 @@
     <div class="modal-header-row">
       <div class="modal-heading">
         <h2>Settings</h2>
-        <p class="modal-subtitle">Personalize your dashboard, layout, and behavior.</p>
+        <p class="modal-subtitle settings-scope">
+          <label for="settings-workspace">Editing settings for</label>
+          <span class="select-wrap"><select id="settings-workspace" title="Every workspace keeps its own settings. Pick one to switch to it and edit its settings."></select></span>
+        </p>
       </div>
       <button id="settings-close-x" class="icon-btn small"></button>
     </div>
@@ -208,7 +211,7 @@
           <div class="settings-group">
             <div class="settings-group-head">
               <h3>Themes</h3>
-              <p>Pick a color scheme — themes preview live as you browse the grid.</p>
+              <p>Pick a color scheme for this workspace — themes preview live as you browse the grid. Your own themes are shared: any workspace can use them.</p>
             </div>
             <div class="theme-search-wrap">
               <div class="theme-search-box">
@@ -628,7 +631,7 @@
           <div class="settings-group">
             <div class="settings-group-head">
               <h3>Browser notifications</h3>
-              <p>System notifications raised by the extension in the background, outside the dashboard.</p>
+              <p>System notifications raised by the extension in the background, outside the dashboard. They follow whichever workspace is active when they fire.</p>
             </div>
             <div class="settings-row">
               <div class="switch-row">
@@ -705,7 +708,7 @@
           <div class="settings-group">
             <div class="settings-group-head">
               <h3>Backup &amp; restore</h3>
-              <p>Export your data or bring it back from a backup file.</p>
+              <p>One file holds all your workspaces, their bookmarks and layouts, and each workspace's own settings.</p>
             </div>
             <div class="settings-row">
               <label>Export</label>
@@ -719,7 +722,27 @@
               <div class="btn-row">
                 <label class="mini-btn file-btn">Import JSON backup<input id="import-json-input" type="file" accept="application/json" hidden></label>
               </div>
-              <div class="hint-text">Imported data is merged in as a new workspace — nothing existing is overwritten.</div>
+              <div class="hint-text">You'll see what's in the file first, then choose to add it as new workspaces (nothing existing is touched) or replace everything. Settings can come along or be left out.</div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>This workspace's settings</h3>
+              <p>Each workspace keeps its own settings. Use these to start one from another or go back to the defaults.</p>
+            </div>
+            <div class="settings-row action-row">
+              <div class="action-row-text">
+                <div class="switch-title">Copy settings from another workspace</div>
+                <div class="switch-desc">Replaces this workspace's settings with a copy of another's. Bookmarks and layouts aren't touched.</div>
+              </div>
+              <button id="ws-settings-copy-btn" class="mini-btn">Copy from…</button>
+            </div>
+            <div class="settings-row action-row">
+              <div class="action-row-text">
+                <div class="switch-title">Reset to defaults</div>
+                <div class="switch-desc">Puts this workspace's settings back to the factory defaults. Your themes and trash settings are shared and stay as they are.</div>
+              </div>
+              <button id="ws-settings-reset-btn" class="mini-btn danger">Reset…</button>
             </div>
           </div>
           <div class="settings-group">
@@ -734,7 +757,7 @@
           <div class="settings-group">
             <div class="settings-group-head">
               <h3>Trash</h3>
-              <p>How long deleted bookmarks stick around before being purged.</p>
+              <p>How long deleted bookmarks stick around before being purged. There is one trash for every workspace, so this applies to all of them.</p>
             </div>
             <div class="settings-row">
               <label>Keep deleted bookmarks for</label>
@@ -755,7 +778,7 @@
             <div class="settings-row danger-row">
               <div class="danger-row-text">
                 <div class="switch-title">Clear all data</div>
-                <div class="switch-desc">Permanently deletes every workspace, board, collection, bookmark, session, widget, and setting.</div>
+                <div class="switch-desc">Permanently deletes every workspace, board, collection, bookmark, session, widget, and every workspace's settings.</div>
               </div>
               <button id="danger-clear-all-btn" class="mini-btn danger">Clear all data…</button>
             </div>

@@ -299,7 +299,7 @@
   function themeChipColors(t) { return [t.bg, t.main, t.caret, t.sub, t.subAlt, t.text]; }
 
   function paletteThemeItems() {
-    const s = STATE.meta.settings;
+    const s = DB.settingsOf(STATE);
     const cur = s.themeId;
     const custom = s.customThemes || [];
     const light = Themes.resolveTheme('auto', s.lightThemeId, undefined, custom);
@@ -323,7 +323,7 @@
   }
 
   function paletteSettingOptions(def) {
-    const s = STATE.meta.settings;
+    const s = DB.settingsOf(STATE);
     const cur = def.get(s);
     return def.options.map(o => ({
       kind: 'setting', label: o.label, value: o.value === cur ? 'Active' : '', select: true,
@@ -332,7 +332,7 @@
   }
 
   function paletteSettingItem(def) {
-    const s = STATE.meta.settings;
+    const s = DB.settingsOf(STATE);
     const cur = def.get(s);
     const idx = def.options.findIndex(o => o.value === cur);
     return {

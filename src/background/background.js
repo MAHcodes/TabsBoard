@@ -31,9 +31,29 @@ chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(() => {
 async function runTrashPurge() {
   try {
     const state = await DB.getState();
-    const days = (state.meta.settings && state.meta.settings.trashRetentionDays) || 0;
+    const days = DB.settingsOf(state).trashRetentionDays || 0;   // shared: one trash for every workspace
     await DB.purgeExpiredTrash(days);
   } catch (e) { /* non-fatal */ }
+}
+
+/* Shortest positive RSS auto-refresh interval (minutes) across all workspaces,
+   0 when every workspace has it off. */
+function shortestRssInterval(state) {
+  let best = 0;
+  for (const id of Object.keys(state.workspaces || {})) {
+    const m = Number(DB.settingsOf(state, id).rssRefreshInterval) || 0;
+    if (m > 0 && (best === 0 || m < best)) best = m;
+  }
+  return best;
+}
+
+/* A fingerprint of every workspace's "how many history / top-site entries to
+   keep" settings, so a change in any workspace re-syncs the mirrored collections. */
+function syncCountsOf(state) {
+  return Object.keys(state.workspaces || {}).sort().map((id) => {
+    const s = DB.settingsOf(state, id);
+    return id + ':' + s.historyCount + ':' + s.topSitesCount;
+  }).join('|');
 }
 
 /* chrome.alarms keeps housekeeping running even when the worker/page is
@@ -43,7 +63,9 @@ async function runTrashPurge() {
 async function syncAlarms() {
   if (!chrome.alarms) return;
   const state = await DB.getState();
-  const rssMins = (state.meta.settings && state.meta.settings.rssRefreshInterval) || 0;
+  // Each workspace has its own RSS interval; one alarm ticks at the shortest
+  // of them and runBackgroundRssRefresh() applies each widget's own interval.
+  const rssMins = shortestRssInterval(state);
   chrome.alarms.create('tdb-trash-purge', { periodInMinutes: 12 * 60 });
   chrome.alarms.create('tdb-browser-sync', { periodInMinutes: 5 });
   if (rssMins > 0) chrome.alarms.create('tdb-rss-refresh', { periodInMinutes: rssMins });
@@ -93,10 +115,10 @@ function fetchFeed(url) {
 async function runBackgroundRssRefresh() {
   try {
     const state = await DB.getState();
-    const minMs = ((state.meta.settings && state.meta.settings.rssRefreshInterval) || 0) * 60000;
-    if (!(minMs > 0)) return;
     for (const w of Object.values(state.widgets)) {
       if (w.type !== 'rss' || !w.feedUrl) continue;
+      const minMs = (DB.settingsOf(state, w.workspaceId).rssRefreshInterval || 0) * 60000;
+      if (!(minMs > 0)) continue;
       if (w.lastFetched && (Date.now() - w.lastFetched) < minMs) continue;
       if (!(await hasFeedPermission(w.feedUrl))) continue;
       const result = await fetchFeed(w.feedUrl);
@@ -152,11 +174,12 @@ async function runBrowserDataSync() {
   const summary = { synced: 0, changed: 0 };
   try {
     const state = await DB.getState();
-    const settings = state.meta.settings || {};
-    const historyMax = Math.max(1, Number(settings.historyCount) || 10);
-    const topCount = Math.max(1, Number(settings.topSitesCount) || 12);
     for (const col of Object.values(state.collections)) {
       if (!col || !col.syncSource) continue;
+      // How many entries to mirror is the setting of the workspace the collection lives in.
+      const settings = DB.settingsOf(state, col.workspaceId);
+      const historyMax = Math.max(1, Number(settings.historyCount) || 10);
+      const topCount = Math.max(1, Number(settings.topSitesCount) || 12);
       let items = [];
       let max = 0;
       if (col.syncSource === 'history') {
@@ -253,7 +276,7 @@ async function showNotification(kind, message) {
   try {
     if (!chrome.notifications || !chrome.notifications.create) return { error: 'unsupported' };
     const state = await DB.getState();
-    const n = DB.notificationSettings(state.meta.settings);
+    const n = DB.notificationSettings(DB.settingsOf(state));   // the active workspace's notification preferences
     if (!n.browserEnabled) return { skipped: true };
     const flag = NOTIFICATION_KINDS[kind];
     if (flag && !n[flag]) return { skipped: true };
@@ -361,7 +384,7 @@ async function openUrlFromDashboard(msg, sender, done) {
   // tab so they never navigate the dashboard away.
   if (msg.forceNewTab) { chrome.tabs.create({ url: msg.url, active: msg.active !== false }, done); return; }
   const state = await DB.getState();
-  const openInNew = !!(state.meta.settings && state.meta.settings.openBookmarksInNewTab);
+  const openInNew = !!DB.settingsOf(state).openBookmarksInNewTab;
   if (!openInNew && sender && sender.tab && sender.tab.id) {
     chrome.tabs.update(sender.tab.id, { url: msg.url }, done);
   } else {
@@ -888,12 +911,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // Keep context menus in sync whenever collections change from the dashboard,
 // and re-sync alarms when settings (like the RSS refresh interval) change.
 let alarmSyncTimer = null;
-let lastSyncCounts = null;   // { history, top } from the previous state, to spot count changes
+let lastSyncCounts = null;   // syncCountsOf() of the previous state, to spot count changes
 // Seed it on every worker start so a wake-up caused by an unrelated write
 // isn't mistaken for a changed count (which would trigger a needless sync).
 DB.getState().then((st) => {
-  const s = st.meta.settings || {};
-  if (!lastSyncCounts) lastSyncCounts = { history: s.historyCount, top: s.topSitesCount };
+  if (!lastSyncCounts) lastSyncCounts = syncCountsOf(st);
 }).catch(() => {});
 DB.onChange(async () => {
   rebuildContextMenus();
@@ -905,11 +927,11 @@ DB.onChange(async () => {
   // count setting changed, resize those collections right away (the 5-min
   // alarm otherwise waits until the next tick).
   refreshSyncCollectionsFlag();
-  let ns = null;
-  try { ns = (await DB.getState()).meta.settings; } catch (e) { /* db unavailable: skip */ }
-  if (!ns) return;
-  const counts = { history: ns.historyCount, top: ns.topSitesCount };
-  const changed = !lastSyncCounts || lastSyncCounts.history !== counts.history || lastSyncCounts.top !== counts.top;
+  let st = null;
+  try { st = await DB.getState(); } catch (e) { /* db unavailable: skip */ }
+  if (!st) return;
+  const counts = syncCountsOf(st);
+  const changed = lastSyncCounts !== counts;
   lastSyncCounts = counts;
   if (changed) scheduleBrowserDataSync(600);
 });
@@ -998,7 +1020,7 @@ const SEARCH_URLS = {
 };
 function openWebSearch(q) {
   DB.getState().then((state) => {
-    const engine = (state.meta.settings && state.meta.settings.searchEngine) || 'google';
+    const engine = DB.settingsOf(state).searchEngine || 'google';
     chrome.tabs.create({ url: (SEARCH_URLS[engine] || SEARCH_URLS.google) + encodeURIComponent(q) });
   });
 }
