@@ -229,6 +229,15 @@
      them all: each setting becomes a "cycle" command plus one command per
      option. `set(value)` returns a settings patch; `get(s)` reads the current
      value. Adding a new setting here automatically makes it palette-driven. */
+  /* Notification preferences live in the nested settings.notifications group
+     (NOTIFICATION_DEFAULTS in storage.js), so their get/set need a small shim. */
+  const notifSetting = (id, label, options, keywords) => ({
+    id, label, keywords,
+    get: s => DB.notificationSettings(s)[id],
+    set: v => ({ notifications: { [id]: v } }),
+    options
+  });
+  const PALETTE_ON_OFF = [{ label: 'On', value: true }, { label: 'Off', value: false }];
   const PALETTE_SETTINGS = [
     { id: 'density', label: 'Density', get: s => s.density, set: v => ({ density: v }), options: [
       { label: 'Spacious', value: 'spacious' }, { label: 'Comfortable', value: 'comfortable' },
@@ -300,7 +309,36 @@
     { id: 'topSitesCount', label: 'Most visited sites shown per widget', get: s => s.topSitesCount || 12, set: v => ({ topSitesCount: v }), options: [
       { label: '6', value: 6 }, { label: '12', value: 12 }, { label: '24', value: 24 }, { label: '48', value: 48 } ] },
     { id: 'trashRetentionDays', label: 'Keep deleted bookmarks for', get: s => s.trashRetentionDays || 0, set: v => ({ trashRetentionDays: v }), options: [
-      { label: 'Forever', value: 0 }, { label: '7 days', value: 7 }, { label: '30 days', value: 30 }, { label: '90 days', value: 90 } ] }
+      { label: 'Forever', value: 0 }, { label: '7 days', value: 7 }, { label: '30 days', value: 30 }, { label: '90 days', value: 90 } ] },
+
+    notifSetting('toastLevel', 'Show notifications', [
+      { label: 'All', value: 'all' }, { label: 'Important only', value: 'important' },
+      { label: 'Errors only', value: 'errors' }, { label: 'Off', value: 'off' } ], 'toast in-app level'),
+    notifSetting('toastPosition', 'Notification position', [
+      { label: 'Top left', value: 'top-left' }, { label: 'Top center', value: 'top-center' }, { label: 'Top right', value: 'top-right' },
+      { label: 'Bottom left', value: 'bottom-left' }, { label: 'Bottom center', value: 'bottom-center' }, { label: 'Bottom right', value: 'bottom-right' } ], 'toast corner place'),
+    notifSetting('toastSize', 'Notification size', [
+      { label: 'Small', value: 'small' }, { label: 'Normal', value: 'normal' }, { label: 'Large', value: 'large' } ], 'toast'),
+    notifSetting('toastDuration', 'Notification stay on screen for', [
+      { label: 'Automatic', value: 0 }, { label: '3 s', value: 3000 }, { label: '5 s', value: 5000 },
+      { label: '8 s', value: 8000 }, { label: '15 s', value: 15000 }, { label: 'Until dismissed', value: -1 } ], 'toast timeout duration'),
+    notifSetting('toastMax', 'Notifications shown at most', [
+      { label: '1', value: 1 }, { label: '2', value: 2 }, { label: '4', value: 4 }, { label: '6', value: 6 }, { label: '8', value: 8 } ], 'toast count limit stack'),
+    notifSetting('toastProgress', 'Notification countdown bar', PALETTE_ON_OFF, 'toast progress timer'),
+    notifSetting('toastIcons', 'Notification status icons', PALETTE_ON_OFF, 'toast success warning error icon'),
+    notifSetting('toastPauseOnHover', 'Pause notifications on hover', PALETTE_ON_OFF, 'toast timer hover'),
+    notifSetting('toastGroupDuplicates', 'Group repeated notifications', PALETTE_ON_OFF, 'toast duplicate stack count'),
+
+    notifSetting('browserEnabled', 'Browser notifications', PALETTE_ON_OFF, 'system desktop master'),
+    notifSetting('browserSelectionSaved', 'Browser notification: selection saved', PALETTE_ON_OFF, 'system desktop context menu note'),
+    notifSetting('browserTimeout', 'Browser notification stay on screen for', [
+      { label: 'Browser default', value: 0 }, { label: '5 s', value: 5 }, { label: '10 s', value: 10 }, { label: 'Until dismissed', value: -1 } ], 'system desktop timeout duration'),
+    notifSetting('browserSilent', 'Silent browser notifications', PALETTE_ON_OFF, 'system desktop sound'),
+
+    notifSetting('pomodoroEnabled', 'Pomodoro notifications', PALETTE_ON_OFF, 'timer focus break master'),
+    notifSetting('pomodoroOnFocusEnd', 'Pomodoro notification when focus ends', PALETTE_ON_OFF, 'timer focus break'),
+    notifSetting('pomodoroOnBreakEnd', 'Pomodoro notification when break ends', PALETTE_ON_OFF, 'timer focus break'),
+    notifSetting('pomodoroSound', 'Pomodoro notification sound', PALETTE_ON_OFF, 'timer focus break audio')
   ];
   const PALETTE_SETTINGS_BY_ID = Object.fromEntries(PALETTE_SETTINGS.map(d => [d.id, d]));
 
@@ -311,6 +349,7 @@
     { name: 'Sidebar', icon: 'panelLeftClose', keys: ['sidebarCollapsed', 'sidebarCompact', 'showTabAudio', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'recentlyClosedLimit'] },
     { name: 'Behavior', icon: 'target', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'searchEngine', 'confirmRestoreSession'] },
     { name: 'Widgets', icon: 'widget', keys: ['clockFormat', 'weatherUnits', 'pomodoroFocus', 'pomodoroBreak', 'countdownDays', 'rssRefreshInterval', 'historyShowTimes', 'historyCount', 'topSitesCount'] },
+    { name: 'Notifications', icon: 'warn', keys: ['toastLevel', 'toastPosition', 'toastSize', 'toastDuration', 'toastMax', 'toastProgress', 'toastIcons', 'toastPauseOnHover', 'toastGroupDuplicates', 'browserEnabled', 'browserSelectionSaved', 'browserTimeout', 'browserSilent', 'pomodoroEnabled', 'pomodoroOnFocusEnd', 'pomodoroOnBreakEnd', 'pomodoroSound'] },
     { name: 'Data', icon: 'archive', keys: ['trashRetentionDays'] }
   ];
 
@@ -382,6 +421,7 @@
     const opt = def.options.find(o => o.value === cur);
     return {
       kind: 'folder', icon: 'settings', label: def.label, settingId: def.id,
+      keywords: def.keywords,
       value: opt ? opt.label : String(cur),
       children: () => paletteSettingOptions(def)
     };
