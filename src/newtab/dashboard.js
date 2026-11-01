@@ -33,6 +33,89 @@
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
   const icon = (name, cls) => `<span class="icon ${cls || ''}">${ICONS[name] || ''}</span>`;
 
+  /* ---------- Keyboard shortcut labels ----------
+     One source of truth for the help dialog, button tooltips, and the palette
+     hint. Mac users get the symbols their keyboards actually show; everyone
+     else gets Ctrl/Shift/Alt words. */
+  const IS_MAC = /Mac|iPhone|iPad|iPod/.test(
+    (navigator.userAgentData && navigator.userAgentData.platform) ||
+    navigator.platform || navigator.userAgent || ''
+  );
+  const MOD_KEY = IS_MAC ? '⌘' : 'Ctrl';
+  const SHIFT_KEY = IS_MAC ? '⇧' : 'Shift';
+  const SHORTCUTS = {
+    palette: [MOD_KEY, 'K'],
+    paletteAlt: ['/'],
+    quickAdd: [MOD_KEY, SHIFT_KEY, 'A'],
+    sidebar: ['T'],
+    compactSidebar: [SHIFT_KEY, 'C'],
+    newCollection: ['C'],
+    viewMode: ['V'],
+    nextBoard: ['B'],
+    prevBoard: [SHIFT_KEY, 'B'],
+    nextWorkspace: ['W'],
+    prevWorkspace: [SHIFT_KEY, 'W'],
+    settings: ['S'],
+    trash: ['G'],
+    help: ['?'],
+    escape: ['Esc']
+  };
+  /* Rows in the shortcuts dialog: label + one or more key combinations. */
+  const SHORTCUT_HELP = [
+    ['Command palette', [SHORTCUTS.palette, SHORTCUTS.paletteAlt]],
+    ['New collection', [SHORTCUTS.newCollection]],
+    ['Toggle sidebar', [SHORTCUTS.sidebar]],
+    ['Toggle compact sidebar', [SHORTCUTS.compactSidebar]],
+    ['Toggle grid / list view', [SHORTCUTS.viewMode]],
+    ['Next board', [SHORTCUTS.nextBoard]],
+    ['Previous board', [SHORTCUTS.prevBoard]],
+    ['Next workspace', [SHORTCUTS.nextWorkspace]],
+    ['Previous workspace', [SHORTCUTS.prevWorkspace]],
+    ['Open settings', [SHORTCUTS.settings]],
+    ['Open trash', [SHORTCUTS.trash]],
+    ['Show shortcuts', [SHORTCUTS.help]],
+    ['Close dialogs / clear selection', [SHORTCUTS.escape]]
+  ];
+  function shortcutText(combos) {
+    return combos.map(keys => keys.join(IS_MAC ? '' : '+')).join(' or ');
+  }
+  function shortcutTitle(label, combos) { return `${label} (${shortcutText(combos)})`; }
+  /* aria-keyshortcuts uses long key names and accepts alternatives separated by spaces. */
+  function shortcutAria(combos) {
+    const names = { '⌘': 'Meta', '⇧': 'Shift', '⌥': 'Alt', 'Ctrl': 'Control', 'Esc': 'Escape' };
+    return combos.map(keys => keys.map(k => names[k] || k).join('+')).join(' ');
+  }
+  /* Keycap markup for the shortcuts dialog, e.g. [Ctrl][K] or [/]. */
+  function shortcutKeysHtml(combos) {
+    return combos.map(keys => keys.map(k => `<kbd>${escapeHtml(k)}</kbd>`).join(IS_MAC ? '' : '<span class="shortcut-sep">+</span>'))
+      .join('<span class="shortcut-or">or</span>');
+  }
+  function setShortcutHint(selector, label, combos) {
+    const node = $(selector);
+    if (!node) return;
+    node.title = shortcutTitle(label, combos);
+    node.setAttribute('aria-keyshortcuts', shortcutAria(combos));
+  }
+  function applyShortcutHints(s) {
+    setShortcutHint('#search-trigger', 'Command palette', [SHORTCUTS.palette, SHORTCUTS.paletteAlt]);
+    setShortcutHint('#sidebar-toggle-btn', 'Toggle sidebar', [SHORTCUTS.sidebar]);
+    setShortcutHint('#workspace-btn', 'Switch workspace', [SHORTCUTS.nextWorkspace, SHORTCUTS.prevWorkspace]);
+    setShortcutHint('#board-switcher-btn', 'Switch board', [SHORTCUTS.nextBoard, SHORTCUTS.prevBoard]);
+    setShortcutHint('#new-collection-btn', 'New collection', [SHORTCUTS.newCollection]);
+    setShortcutHint('#shortcuts-btn', 'Keyboard shortcuts', [SHORTCUTS.help]);
+    setShortcutHint('#trash-btn', 'Open trash', [SHORTCUTS.trash]);
+    setShortcutHint('#settings-btn', 'Settings', [SHORTCUTS.settings]);
+    const compactBtn = $('#sidebar-compact-btn');
+    if (compactBtn) {
+      setShortcutHint('#sidebar-compact-btn', s.sidebarCompact ? 'Exit compact sidebar' : 'Use compact sidebar', [SHORTCUTS.compactSidebar]);
+    }
+    setShortcutHint('#settings-close-x', 'Close settings', [SHORTCUTS.escape]);
+    setShortcutHint('#shortcuts-close-x', 'Close shortcuts', [SHORTCUTS.escape]);
+    setShortcutHint('#trash-close-btn', 'Close trash', [SHORTCUTS.escape]);
+    const searchKbd = $('#search-shortcut-kbd');
+    if (searchKbd) searchKbd.textContent = shortcutText([SHORTCUTS.palette]);
+  }
+
   function sendMsg(type, payload = {}) {
     return new Promise((resolve) => chrome.runtime.sendMessage({ type, ...payload }, resolve));
   }
@@ -562,7 +645,7 @@
     $('#sidebar-toggle-btn').innerHTML = icon(s.sidebarCollapsed ? 'panelLeftOpen' : 'panelLeftClose');
     $('#sidebar-compact-btn').innerHTML = icon(s.sidebarCompact ? 'chevronRight' : 'chevronLeft', 'sm');
     $('#sidebar-compact-btn').setAttribute('aria-pressed', String(!!s.sidebarCompact));
-    $('#sidebar-compact-btn').title = s.sidebarCompact ? 'Exit compact sidebar' : 'Use compact sidebar';
+    applyShortcutHints(s);
     // Reveal now that real colors are set — avoids a flash of the light default.
     // boot() passes false so it can first render the board/sidebar (settings
     // and content land together, so the sidebar never shows mid-transition).
@@ -802,6 +885,7 @@
     }
 
     document.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
       const mod = e.metaKey || e.ctrlKey;
 
       // Modifiers — always active, even inside inputs
@@ -831,20 +915,25 @@
       // Single-key shortcuts — skip when typing in inputs
       const tag = (document.activeElement && document.activeElement.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (document.activeElement && document.activeElement.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return; // browser/OS chords aren't app shortcuts
       const k = e.key.toLowerCase();
+      const overlayOpen = $$('.overlay').some(o => !o.classList.contains('hidden'));
+
+      // G is the one shortcut that can act while its own panel is open (it closes the trash).
+      if (k === 'g' && !e.shiftKey) {
+        if (!$('#trash-overlay').classList.contains('hidden')) { hideOverlay('#trash-overlay'); closePalette(); return; }
+        if (!overlayOpen) openTrashPanel();
+        return;
+      }
+      if (overlayOpen) return;
 
       if (e.shiftKey && k === 'c') { toggleSidebarCompact(); return; }
-      if (k === 'c') openCollectionModal();
-      else if (k === 'v') toggleViewMode();
-      else if (k === 't') toggleSidebar();
-      else if (k === 's') openSettings();
+      if (!e.shiftKey && k === 'c') openCollectionModal();
+      else if (!e.shiftKey && k === 'v') toggleViewMode();
+      else if (!e.shiftKey && k === 't') toggleSidebar();
+      else if (!e.shiftKey && k === 's') openSettings();
       else if (k === '/') openPalette();
       else if (k === '?') openShortcuts();
-      else if (k === 'g') {
-        const trashOpen = !$('#trash-overlay').classList.contains('hidden');
-        if (trashOpen) { hideOverlay('#trash-overlay'); closePalette(); }
-        else openTrashPanel();
-      }
       else if (k === 'w' && !e.shiftKey) cycleWorkspaces(1);   // next workspace
       else if (k === 'w' && e.shiftKey) cycleWorkspaces(-1);  // prev workspace
       else if (k === 'b' && !e.shiftKey) cycleBoards(1);      // next board

@@ -848,6 +848,12 @@
 
   /* ============ SHORTCUTS POPUP ============ */
   function openShortcuts() {
+    const list = $('#shortcut-list');
+    if (list) {
+      list.innerHTML = SHORTCUT_HELP.map(([label, combos]) =>
+        `<li><span>${escapeHtml(label)}</span><span class="shortcut-keys">${shortcutKeysHtml(combos)}</span></li>`
+      ).join('');
+    }
     showOverlay('#shortcuts-overlay');
     // Show the actual, user-remapped globals reported by chrome.commands.
     sendMsg('GET_COMMANDS').then((res) => {
@@ -859,7 +865,7 @@
       ul.innerHTML = '';
       cmds.forEach(c => {
         const li = document.createElement('li');
-        li.innerHTML = `<span>${escapeHtml(c.description || c.name)}</span><kbd>${escapeHtml(c.shortcut || '— not set —')}</kbd>`;
+        li.innerHTML = `<span>${escapeHtml(c.description || c.name)}</span><span class="shortcut-keys">${c.shortcut ? c.shortcut.split('+').map(part => `<kbd>${escapeHtml(part)}</kbd>`).join(IS_MAC ? '' : '<span class="shortcut-sep">+</span>') : '<span class="shortcut-unset">Not set</span>'}</span>`;
         ul.appendChild(li);
       });
       wrap.classList.remove('hidden');

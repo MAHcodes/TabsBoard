@@ -12,8 +12,8 @@
 
 <header class="topbar">
   <div class="topbar-left">
-    <button id="sidebar-toggle-btn" class="icon-btn" title="Toggle sidebar"></button>
-    <button id="workspace-btn" class="workspace-btn" title="Switch workspace">
+    <button id="sidebar-toggle-btn" class="icon-btn" title="Toggle sidebar (T)"></button>
+    <button id="workspace-btn" class="workspace-btn" title="Switch workspace (W / Shift+W)">
       <span id="workspace-name">Personal</span>
       <span class="chev-ic"></span>
     </button>
@@ -30,26 +30,26 @@
   </nav>
 
   <div class="topbar-center">
-    <button id="search-trigger" class="search-trigger">
+    <button id="search-trigger" class="search-trigger" title="Command palette (Ctrl K or /)">
       <span class="search-ic"></span>
       <span>Jump to a bookmark, tab, or command…</span>
-      <kbd>⌘K</kbd>
+      <kbd id="search-shortcut-kbd">Ctrl K</kbd>
     </button>
   </div>
 
   <div class="topbar-right">
-    <button id="shortcuts-btn" class="icon-btn" title="Keyboard shortcuts"></button>
+    <button id="shortcuts-btn" class="icon-btn" title="Keyboard shortcuts (?)"></button>
     <button id="trash-btn" class="icon-btn" title="Open trash (G)">
       <span id="trash-badge" class="badge hidden">0</span>
     </button>
-    <button id="settings-btn" class="icon-btn" title="Settings"></button>
+    <button id="settings-btn" class="icon-btn" title="Settings (S)"></button>
   </div>
 </header>
 
 <div class="app-body">
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-heading">
-      <button id="sidebar-compact-btn" class="icon-btn small" title="Use compact sidebar" aria-label="Use compact sidebar" aria-pressed="false"></button>
+      <button id="sidebar-compact-btn" class="icon-btn small" title="Use compact sidebar (Shift+C)" aria-label="Use compact sidebar" aria-pressed="false"></button>
       <span class="sidebar-heading-title" id="sidebar-heading-title" aria-live="polite">Open tabs</span>
       <button id="sidebar-closed-toggle" class="icon-btn small" title="Show recently closed" aria-label="Show recently closed" aria-pressed="false"></button>
     </div>
@@ -60,18 +60,18 @@
     <!-- Collections view -->
     <div id="view-collections">
       <div class="main-toolbar">
-        <button id="board-switcher-btn" class="mini-btn board-switcher-btn">
+        <button id="board-switcher-btn" class="mini-btn board-switcher-btn" title="Switch board (B / Shift+B)">
           <span id="board-switcher-name">Board 1</span><span class="chev-ic"></span>
         </button>
-        <button id="new-collection-btn" class="primary-btn"><span class="btn-ic"></span> New Collection</button>
+        <button id="new-collection-btn" class="primary-btn" title="New collection (C)"><span class="btn-ic"></span> New Collection</button>
         <button id="add-widget-btn" class="mini-btn"><span class="btn-ic-sm"></span> Add Widget</button>
         <input id="collection-filter-input" class="filter-input" type="text" placeholder="Filter collections &amp; bookmarks…">
         <div id="bulk-bar" class="bulk-bar hidden">
           <span id="bulk-count">0 selected</span>
-          <button id="bulk-open-btn" class="primary-btn" title="Open in new tabs (Enter)">Open</button>
+          <button id="bulk-open-btn" class="primary-btn" title="Open in new tabs (Enter)" aria-keyshortcuts="Enter">Open</button>
           <button id="bulk-move-btn" class="mini-btn">Move to…</button>
           <button id="bulk-delete-btn" class="mini-btn danger">Delete</button>
-          <button id="bulk-clear-btn" class="mini-btn">Cancel</button>
+          <button id="bulk-clear-btn" class="mini-btn" title="Cancel selection (Esc)" aria-keyshortcuts="Escape">Cancel</button>
         </div>
       </div>
       <div id="board" class="board"></div>
@@ -121,7 +121,7 @@
           <span class="select-wrap"><select id="settings-workspace" title="Every workspace keeps its own settings. Pick one to switch to it and edit its settings."></select></span>
         </p>
       </div>
-      <button id="settings-close-x" class="icon-btn small"></button>
+      <button id="settings-close-x" class="icon-btn small" title="Close settings (Esc)"></button>
     </div>
     <div class="settings-layout">
       <div class="settings-nav-col">
@@ -805,27 +805,14 @@
   <div class="modal shortcuts-modal">
     <div class="modal-header-row">
       <h2>Keyboard Shortcuts</h2>
-      <button id="shortcuts-close-x" class="icon-btn small"></button>
+      <button id="shortcuts-close-x" class="icon-btn small" title="Close shortcuts (Esc)"></button>
     </div>
-    <ul class="shortcut-list-big">
-      <li><span>Command palette</span><kbd>Ctrl K / /</kbd></li>
-      <li><span>Toggle sidebar</span><kbd>T</kbd></li>
-      <li><span>Toggle compact sidebar</span><kbd>Shift C</kbd></li>
-      <li><span>Toggle grid / list view</span><kbd>V</kbd></li>
-      <li><span>Next board</span><kbd>B</kbd></li>
-      <li><span>Previous board</span><kbd>Shift B</kbd></li>
-      <li><span>Next workspace</span><kbd>W</kbd></li>
-      <li><span>Previous workspace</span><kbd>Shift W</kbd></li>
-      <li><span>Open settings</span><kbd>S</kbd></li>
-      <li><span>Open trash</span><kbd>G</kbd></li>
-      <li><span>Show shortcuts</span><kbd>?</kbd></li>
-      <li><span>Close dialogs / clear selection</span><kbd>Esc</kbd></li>
-    </ul>
+    <ul class="shortcut-list-big" id="shortcut-list"></ul>
     <div class="commands-list-wrap hidden" id="commands-list-wrap">
-      <div class="commands-list-title">Global commands <span class="hint-text">(remappable)</span></div>
+      <div class="commands-list-title">Global commands <span class="hint-text">(remappable in your browser)</span></div>
       <ul class="shortcut-list-big" id="commands-list"></ul>
     </div>
-    <div class="hint-text">Global shortcuts (open dashboard, quick-add, toggle sidebar) can be remapped at <code>chrome://extensions/shortcuts</code> (or the Firefox add-on shortcuts page).</div>
+    <div class="hint-text">Local shortcuts work while the dashboard has focus. Global commands can be remapped at <code>chrome://extensions/shortcuts</code> (or the Firefox add-on shortcuts page).</div>
   </div>
 </div>
 
@@ -841,7 +828,7 @@
     <div id="trash-list" class="trash-list"></div>
     <div class="modal-actions">
       <button id="empty-trash-btn" class="btn-danger" title="Permanently delete everything in trash">Empty trash</button>
-      <button id="trash-close-btn" class="primary-btn">Close</button>
+      <button id="trash-close-btn" class="primary-btn" title="Close trash (Esc)">Close</button>
     </div>
   </div>
 </div>

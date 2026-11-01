@@ -87,8 +87,8 @@
         ${opts.details ? `<div class="dialog-details">${escapeHtml(opts.details)}</div>` : ''}
         ${hasInput ? `<div class="field">${opts.label ? `<label for="dialog-input">${escapeHtml(opts.label)}</label>` : ''}<input type="text" id="dialog-input" value="${escapeHtml(opts.inputValue)}" placeholder="${escapeHtml(opts.placeholder || '')}"></div>` : ''}
         <div class="modal-actions">
-          ${hasCancel ? `<button type="button" class="mini-btn" id="dialog-cancel">${escapeHtml(opts.cancelLabel || 'Cancel')}</button>` : ''}
-          <button type="button" class="mini-btn${opts.danger ? ' danger' : ''}" id="dialog-ok">${escapeHtml(opts.okLabel || 'OK')}</button>
+          ${hasCancel ? `<button type="button" class="mini-btn" id="dialog-cancel" title="Cancel (Esc)">${escapeHtml(opts.cancelLabel || 'Cancel')}</button>` : ''}
+          <button type="button" class="mini-btn${opts.danger ? ' danger' : ''}" id="dialog-ok" title="${escapeHtml(opts.okLabel || 'OK')} (Enter)">${escapeHtml(opts.okLabel || 'OK')}</button>
         </div>`;
       const finish = (val) => {
         if (settled) return;
@@ -158,8 +158,8 @@
         <div class="field"><input type="text" id="dialog-filter" class="filter-input" placeholder="${escapeHtml(o.placeholder || 'Search…')}" value="${escapeHtml(query)}" autocomplete="off"></div>
         <div class="picker-list" id="dialog-picker-list"></div>
         <div class="modal-actions">
-          <button type="button" class="mini-btn" id="dialog-cancel">${escapeHtml(o.cancelLabel || 'Cancel')}</button>
-          <button type="button" class="mini-btn" id="dialog-ok">${escapeHtml(o.okLabel || 'OK')}</button>
+          <button type="button" class="mini-btn" id="dialog-cancel" title="Cancel (Esc)">${escapeHtml(o.cancelLabel || 'Cancel')}</button>
+          <button type="button" class="mini-btn" id="dialog-ok" title="${escapeHtml(o.okLabel || 'OK')} (Enter)">${escapeHtml(o.okLabel || 'OK')}</button>
         </div>`;
       const listEl = $('#dialog-picker-list');
       const filterEl = $('#dialog-filter');
