@@ -239,6 +239,7 @@ function defaultWorkspaceSettings() {
     faviconSource: 'google',   // google | duckduckgo | none
     animations: true,
     borders: true,              // show 1px outlines around cards, buttons, and inputs
+    floatingBars: false,        // lift the top bar and sidebar off the edges as separate floating panels, with a gap around them
     popupBlur: true,            // blur the page behind modals, the palette, and settings
     openBookmarksInNewTab: false, // false = open bookmarks in the current tab, true = open in a new tab
     lightThemeId: DEFAULT_LIGHT_THEME_ID, // used when themeId is 'auto' and the OS is in light mode

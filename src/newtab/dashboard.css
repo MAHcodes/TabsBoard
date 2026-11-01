@@ -1536,3 +1536,40 @@ html.tb-gesture .plugin-frame { pointer-events: none; }
 .import-option b { display: block; font-size: 13px; }
 .import-option small { display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.45; color: var(--sub-color); }
 .import-settings-row { padding: 2px 2px 0; }
+
+/* ---------- Floating bars (Settings → Appearance; off by default) ----------
+   The top bar and the sidebar become their own raised panels: a gap on every side
+   (so the page shows around them), full rounded corners, a surface one step off the
+   page, and a shadow. Size of the gap follows density. */
+:root { --float-gap: 12px; --float-surface: var(--sub-alt-color); }
+html.density-compact { --float-gap: 10px; }
+html.density-spacious { --float-gap: 16px; }
+html.density-compact.density-dense { --float-gap: 8px; }
+
+html.floating-bars .topbar {
+  margin: var(--float-gap) var(--float-gap) 0;
+  border: var(--border-w) solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--float-surface);
+  box-shadow: var(--shadow);
+}
+/* Controls inside the bar were drawn on the page colour: keep them one step above the
+   (now darker/lighter) bar surface so they still read as controls. */
+html.floating-bars .topbar .workspace-btn,
+html.floating-bars .topbar .search-trigger,
+html.floating-bars .topbar .top-nav { background: var(--bg-color); }
+html.floating-bars .topbar .top-nav-btn.active { background: var(--float-surface); }
+html.floating-bars .topbar .icon-btn:hover,
+html.floating-bars .topbar .icon-btn.active { background: var(--bg-color); }
+/* The workspace menu is position: fixed under the bar. */
+html.floating-bars #workspace-menu { top: calc(58px + var(--float-gap)); left: calc(16px + var(--float-gap)); }
+
+html.floating-bars .app-body { gap: var(--float-gap); padding: var(--float-gap); }
+html.floating-bars .sidebar {
+  border: var(--border-w) solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transition: width .16s ease, padding .16s ease, opacity .16s ease, margin .16s ease;
+}
+/* A collapsed sidebar takes no room — and neither does the gap that would sit next to it. */
+html.floating-bars .sidebar.collapsed { margin-right: calc(-1 * var(--float-gap)); border-width: 0; box-shadow: none; }

@@ -220,6 +220,8 @@
       { label: 'None', value: 'none' }, { label: 'Sharp', value: 'sharp' }, { label: 'Standard', value: 'default' }, { label: 'Rounded', value: 'rounded' }, { label: 'Extra', value: 'extra' } ] },
     { id: 'borders', label: 'Borders', get: s => s.borders !== false, set: v => ({ borders: v }), options: [
       { label: 'Show', value: true }, { label: 'Hide', value: false } ] },
+    { id: 'floatingBars', label: 'Floating bars', get: s => !!s.floatingBars, set: v => ({ floatingBars: v }), options: [
+      { label: 'On', value: true }, { label: 'Off', value: false } ] },
     { id: 'popupBlur', label: 'Blur behind popups', get: s => s.popupBlur !== false, set: v => ({ popupBlur: v }), options: [
       { label: 'On', value: true }, { label: 'Off', value: false } ] },
     { id: 'viewMode', label: 'Bookmark view', get: s => s.viewMode, set: v => ({ viewMode: v }), options: [
@@ -288,7 +290,7 @@
   /* The palette is a navigable tree: root → Themes / Settings groups → options.
      Searching flattens every leaf so "change anything by typing" still works. */
   const PALETTE_SETTING_GROUPS = [
-    { name: 'Appearance', keys: ['density', 'radius', 'borders', 'animations', 'popupBlur', 'fontSize'] },
+    { name: 'Appearance', keys: ['density', 'radius', 'borders', 'floatingBars', 'animations', 'popupBlur', 'fontSize'] },
     { name: 'Layout', keys: ['viewMode', 'columns', 'showTopbarSearch', 'showShortcutsButton', 'showTrashButton'] },
     { name: 'Sidebar', keys: ['sidebarCollapsed', 'sidebarCompact', 'showTabAudio', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'recentlyClosedLimit'] },
     { name: 'Behavior', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'searchEngine', 'confirmRestoreSession'] },

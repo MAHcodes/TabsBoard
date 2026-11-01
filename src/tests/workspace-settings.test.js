@@ -33,6 +33,7 @@ const ok = (name) => console.log(`${++n} ${name} ok`);
   assert.strictEqual(DB.settingsOf(s).themeId, 'auto');
   assert.strictEqual(DB.settingsOf(s).lightThemeId, 'iceberg_light');
   assert.strictEqual(DB.settingsOf(s).darkThemeId, 'iceberg_dark');
+  assert.strictEqual(DB.settingsOf(s).floatingBars, false, 'floating bars are off by default');
   ok('fresh install layout + Iceberg defaults');
 
   // ---- 2. isolation between workspaces
@@ -57,6 +58,11 @@ const ok = (name) => console.log(`${++n} ${name} ok`);
   s = await DB.getState();
   assert.strictEqual(DB.settingsOf(s, B).density, 'compact');
   assert.strictEqual(DB.settingsOf(s, A).density, 'dense');
+  await DB.updateSettings({ floatingBars: true }, A);
+  s = await DB.getState();
+  assert.strictEqual(DB.settingsOf(s, A).floatingBars, true);
+  assert.strictEqual(DB.settingsOf(s, B).floatingBars, false, 'floating bars are per workspace');
+  await DB.updateSettings({ floatingBars: false }, A);
   ok('workspaces are isolated; no id = active workspace');
 
   // ---- 3. createWorkspace settings sources
@@ -345,7 +351,7 @@ const ok = (name) => console.log(`${++n} ${name} ok`);
     interfaceFont: 'x"; } body { display:none } /*', density: 'ginormous', dashboard: { columns: 9999 },
     interfaceFontSize: 'big', themeId: '</style><script>', searchEngine: 'evil', sidebarCollapsed: 'yes',
     notifications: { toastLevel: 'loud', toastMax: 5000, toastProgress: false }, tabsList: { inactiveOpacity: -3, dimInactive: false },
-    unknownKey: 1, pomodoroFocus: 25
+    unknownKey: 1, pomodoroFocus: 25, floatingBars: 'yes please'
   };
   evil.meta.globalSettings = { customThemes: [{ id: 'not-custom', name: 'x' }, { id: 'custom-ok', name: 'Ok', bg: 'red', main: '#abc' }], trashRetentionDays: -5 };
   await DB.clearAll();
@@ -359,6 +365,7 @@ const ok = (name) => console.log(`${++n} ${name} ok`);
   assert.strictEqual(es.themeId, 'auto');
   assert.strictEqual(es.searchEngine, 'google');
   assert.strictEqual(es.sidebarCollapsed, false);
+  assert.strictEqual(es.floatingBars, false, 'non-boolean floatingBars is dropped');
   assert.strictEqual(es.notifications.toastLevel, 'all');
   assert.strictEqual(es.notifications.toastMax, 4);
   assert.strictEqual(es.notifications.toastProgress, false, 'valid values in the same group survive');

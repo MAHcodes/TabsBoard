@@ -154,6 +154,7 @@
     $$('#density-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ density: b.dataset.val }); await reload(); syncSettingsUI(); });
     $$('#radius-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ radius: b.dataset.val }); await reload(); syncSettingsUI(); });
     $('#setting-borders').onchange = async (e) => { await DB.updateSettings({ borders: e.target.checked }); await reload(); };
+    $('#setting-floating-bars').onchange = async (e) => { await DB.updateSettings({ floatingBars: e.target.checked }); await reload(); };
     $('#setting-animations').onchange = async (e) => { await DB.updateSettings({ animations: e.target.checked }); await reload(); };
     $('#setting-popup-blur').onchange = async (e) => { await DB.updateSettings({ popupBlur: e.target.checked }); await reload(); };
 
@@ -623,6 +624,7 @@
     $$('#density-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.density));
     $$('#radius-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === (s.radius || 'default')));
     $('#setting-borders').checked = s.borders !== false;
+    $('#setting-floating-bars').checked = !!s.floatingBars;
     $('#setting-animations').checked = s.animations !== false;
     $('#setting-popup-blur').checked = s.popupBlur !== false;
 
