@@ -32,6 +32,11 @@
   --sw-w: 38px;         /* toggle switch width */
   --gap: 18px;
   --pad: 14px;
+  /* Main scroll area insets. Kept as tokens because floating bars add their
+     own gap around #main and it needs to be compensated for below. */
+  --main-pad-top: 20px;
+  --main-pad-x: 24px;
+  --main-pad-bottom: 60px;
   /* Consistent-shape tokens. Every interactive/list surface maps to one of
      these so the whole app shares a single rounding + control language:
        --r-ctrl  controls & tiles (buttons, inputs, segmented, search)
@@ -81,6 +86,7 @@ html.theme-ready { visibility: visible; }
 html.density-compact {
   --gap: 10px; --pad: 8px; --radius-base: 12px; --sidebar-w: 244px;
   --seg-pad: 6px; --stack: 9px; --sw-h: 20px; --sw-w: 35px;
+  --main-pad-top: 14px; --main-pad-x: 18px; --main-pad-bottom: 48px;
 }
 html.density-compact .topbar { height: 52px; padding: 0 12px; gap: 10px; }
 html.density-compact .app-body { flex-basis: auto; }
@@ -92,7 +98,6 @@ html.density-compact .icon-btn.small svg { width: 13px; height: 13px; }
 html.density-compact .top-nav { border-radius: var(--r-ctrl); }
 html.density-compact .top-nav-btn { padding: 6px 11px; border-radius: var(--r-xs); font-size: 12.5px; }
 html.density-compact .search-trigger { padding: 7px 11px; border-radius: var(--r-ctrl); }
-html.density-compact .main { padding: 14px 18px 48px; }
 html.density-compact .main-toolbar { margin-bottom: 14px; gap: 10px; }
 html.density-compact .main-toolbar .primary-btn, html.density-compact .main-toolbar .mini-btn,
 html.density-compact .main-toolbar .filter-input { height: 34px; padding: 0 13px; font-size: 12.5px; border-radius: var(--r-xs); }
@@ -138,6 +143,7 @@ html.density-compact .trash-item { padding: 8px 10px; }
 html.density-spacious {
   --gap: 22px; --pad: 18px; --radius-base: 16px; --ctrl-h: 44px; --ctrl-h-sm: 34px; --sidebar-w: 292px;
   --seg-pad: 10px; --stack: 14px; --sw-h: 24px; --sw-w: 42px;
+  --main-pad-top: 26px; --main-pad-x: 32px; --main-pad-bottom: 72px;
 }
 html.density-spacious .topbar { height: 66px; padding: 0 20px; gap: 16px; }
 html.density-spacious .workspace-btn { padding: 0 17px; }
@@ -147,7 +153,6 @@ html.density-spacious .icon-btn.small { width: 30px; height: 30px; }
 html.density-spacious .icon-btn.small svg { width: 15px; height: 15px; }
 html.density-spacious .top-nav-btn { padding: 8px 14px; font-size: 13.5px; }
 html.density-spacious .search-trigger { padding: 10px 14px; }
-html.density-spacious .main { padding: 26px 32px 72px; }
 html.density-spacious .main-toolbar { margin-bottom: 24px; gap: 14px; }
 html.density-spacious .main-toolbar .filter-input { padding: 0 16px; }
 html.density-spacious .sidebar { padding: 20px 14px; }
@@ -192,6 +197,7 @@ html.density-spacious .trash-item { padding: 12px 13px; }
 html.density-compact.density-dense {
   --gap: 8px; --pad: 6px; --radius-base: 10px; --ctrl-h: 34px; --ctrl-h-sm: 26px; --sidebar-w: 226px;
   --seg-pad: 5px; --stack: 7px; --sw-h: 18px; --sw-w: 32px;
+  --main-pad-top: 10px; --main-pad-x: 14px; --main-pad-bottom: 40px;
 }
 html.density-compact.density-dense .topbar { height: 46px; padding: 0 10px; gap: 8px; }
 html.density-compact.density-dense .workspace-btn { padding: 0 9px; height: 30px; font-size: 12.5px; }
@@ -201,7 +207,6 @@ html.density-compact.density-dense .icon-btn.small { width: 24px; height: 24px; 
 html.density-compact.density-dense .icon-btn.small svg { width: 12px; height: 12px; }
 html.density-compact.density-dense .top-nav-btn { padding: 5px 9px; font-size: 12px; }
 html.density-compact.density-dense .search-trigger { padding: 6px 9px; }
-html.density-compact.density-dense .main { padding: 10px 14px 40px; }
 html.density-compact.density-dense .main-toolbar { margin-bottom: 10px; gap: 8px; }
 html.density-compact.density-dense .main-toolbar .primary-btn, html.density-compact.density-dense .main-toolbar .mini-btn,
 html.density-compact.density-dense .main-toolbar .filter-input { height: 30px; padding: 0 11px; font-size: 12px; }
@@ -508,7 +513,7 @@ html.density-compact .sidebar-heading .icon-btn.small svg { width: 17px; height:
 }
 .sidebar-heading #sidebar-closed-toggle.active { background: var(--bg-color); color: var(--main-color); }
 .tab-group-label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--sub-color); font-weight: 800; padding: 10px 7px 4px; opacity: .7; }
-.main { flex: 1; overflow-y: auto; padding: 20px 24px 60px; }
+.main { flex: 1; overflow-y: auto; padding: var(--main-pad-top) var(--main-pad-x) var(--main-pad-bottom); }
 .board-switcher-btn { display: flex; align-items: center; gap: 8px; height: var(--ctrl-h-sm); padding: 0 14px; }
 
 .main-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -1033,6 +1038,11 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 /* ---------- Settings ---------- */
 .modal-heading h2 { margin: 0; }
 .modal-subtitle { margin: 3px 0 0; font-size: 12px; color: var(--sub-color); }
+/* The Settings title and its workspace picker share one row, which keeps the
+   header a single line tall instead of two. It wraps again on narrow screens. */
+.settings-modal .modal-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.settings-modal .modal-heading h2 { flex-shrink: 0; }
+.settings-modal .modal-heading .settings-scope { margin: 0; }
 
 /* Fixed height so switching between tabs (short vs long content) doesn't
    make the whole popup grow/shrink — only the panel body scrolls. */
@@ -1585,6 +1595,12 @@ html.floating-bars .topbar .icon-btn.active { background: var(--bg-color); }
 html.floating-bars #workspace-menu { top: calc(58px + var(--float-gap)); left: calc(16px + var(--float-gap)); }
 
 html.floating-bars .app-body { gap: var(--float-gap); padding: var(--float-gap); }
+/* .app-body already supplies the floating gap around #main, so trim main's own
+   padding by the same amount. Content then keeps the exact insets it has when
+   floating bars are off instead of the gap being applied twice. */
+html.floating-bars .main {
+  padding: calc(var(--main-pad-top) - var(--float-gap)) calc(var(--main-pad-x) - var(--float-gap)) calc(var(--main-pad-bottom) - var(--float-gap));
+}
 html.floating-bars .sidebar {
   border: var(--border-w) solid var(--border-color);
   border-radius: var(--radius);
