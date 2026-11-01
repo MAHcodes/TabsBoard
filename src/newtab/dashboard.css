@@ -1,18 +1,18 @@
 :root {
-  /* Defaults are a real monkeytype theme (Serika) so the CSS is self-contained
+  /* Defaults are a real monkeytype theme (Iceberg, light / dark by OS) so the CSS is self-contained
      before the saved theme arrives from chrome.storage. dashboard.js / popup.js
      overwrite these with the selected theme's raw monkeytype values, exposed
      under monkeytype's own variable names. */
-  --bg-color: #e1e1e3;
-  --main-color: #e2b714;
-  --caret-color: #e2b714;
-  --sub-color: #aaaeb3;
-  --sub-alt-color: #d1d3d8;
-  --text-color: #323437;
-  --error-color: #da3333;
-  --error-extra-color: #791717;
-  --colorful-error-color: #da3333;
-  --colorful-error-extra-color: #791717;
+  --bg-color: #e8e9ec;
+  --main-color: #2d539e;
+  --caret-color: #262a3f;
+  --sub-color: #adb1c4;
+  --sub-alt-color: #ccceda;
+  --text-color: #33374c;
+  --error-color: #cc517a;
+  --error-extra-color: #cc3768;
+  --colorful-error-color: #cc517a;
+  --colorful-error-extra-color: #cc3768;
   /* Default UI borders: the sub tone at 50% opacity. --border-w lets the
      "no borders" setting kill every outline in one go. */
   --border-color: color-mix(in srgb, var(--sub-color) 30%, transparent);
@@ -52,16 +52,16 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-color: #323437;
-    --main-color: #e2b714;
-    --caret-color: #e2b714;
-    --sub-color: #646669;
-    --sub-alt-color: #2c2e31;
-    --text-color: #d1d0c5;
-    --error-color: #ca4754;
-    --error-extra-color: #7e2a33;
-    --colorful-error-color: #ca4754;
-    --colorful-error-extra-color: #7e2a33;
+    --bg-color: #161821;
+    --main-color: #84a0c6;
+    --caret-color: #d2d4de;
+    --sub-color: #595e76;
+    --sub-alt-color: #232531;
+    --text-color: #c6c8d1;
+    --error-color: #e27878;
+    --error-extra-color: #e2a478;
+    --colorful-error-color: #e27878;
+    --colorful-error-extra-color: #e2a478;
     --shadow: 0 1px 2px rgba(0,0,0,.2), 0 10px 30px rgba(0,0,0,.3);
   }
 }
@@ -1095,25 +1095,63 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
 
 .theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: calc(var(--stack) - 1px); }
 
-/* Auto theme section: two preset-card-styled boxes showing the selected
-   Light and Dark themes. Clicking one enters picking so the presets grid
-   assigns to it. They share the presets grid's track sizing so the boxes
-   align exactly with the first two preset cards below. */
-.auto-theme-boxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: calc(var(--stack) - 1px); margin-top: calc(var(--stack) + 1px); padding-top: calc(var(--stack) + 1px); border-top: var(--border-w) solid var(--border-color); }
-.auto-theme-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.auto-theme-col label { margin: 0; font-size: 10.5px; font-weight: 800; letter-spacing: .5px; color: var(--sub-color); text-transform: uppercase; text-align: center; }
-.auto-theme-box.theme-swatch-card { appearance: none; font-family: inherit; align-items: stretch; width: 100%; min-width: 0; box-sizing: border-box; }
-.auto-theme-box.theme-swatch-card.picking { border-color: var(--main-color); border-style: dashed; box-shadow: 0 0 0 2px color-mix(in srgb, var(--main-color) 30%, transparent); }
-.auto-theme-box.theme-swatch-card.picking.selected { transform: translateY(-1px); }
+/* ---- Themes panel: "In use now" card, mode, Follow-system slots ----
+   The card and the slots are painted in the theme they show (--tc-main / --tc-bg
+   are set per element from JS), so you see the look itself, not a description of it. */
+.theme-current {
+  display: flex; align-items: center; gap: calc(var(--stack) + 3px); flex-wrap: wrap;
+  padding: calc(var(--stack) + 3px) calc(var(--stack) + 5px); margin-bottom: calc(var(--stack) + 3px);
+  border: 2px solid var(--tc-main, var(--main-color)); border-radius: var(--radius);
+}
+.tc-chips { display: flex; gap: 3px; flex-shrink: 0; }
+.tc-chips span { width: 13px; height: 30px; border-radius: var(--r-tiny); box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent); }
+.tc-text { flex: 1; min-width: 160px; }
+.tc-kicker { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--tc-main); }
+.tc-kicker svg { width: 13px; height: 13px; flex-shrink: 0; }
+.tc-tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border: 1px solid currentColor; border-radius: var(--r-pill); font-size: 10px; letter-spacing: 0; text-transform: none; opacity: .85; }
+.tc-tag svg { width: 10px; height: 10px; }
+.tc-name { margin: 2px 0 1px; font-size: 17px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-sub { font-size: 12px; line-height: 1.4; opacity: .75; }
+.tc-find { flex-shrink: 0; height: var(--ctrl-h-sm); padding: 0 12px; background: transparent; color: inherit; border: var(--border-w) solid currentColor; border-radius: var(--r-ctrl); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; opacity: .9; }
+.tc-find:hover { background: color-mix(in srgb, currentColor 14%, transparent); opacity: 1; }
 
-#auto-theme-extras .hint-text { margin: 8px 0 0; }
-
-.theme-grid.pick-active .theme-swatch-card { cursor: pointer; border-color: color-mix(in srgb, var(--main-color) 45%, var(--border-color)); }
-.theme-grid.pick-active .theme-swatch-card:hover { border-color: var(--main-color); transform: translateY(-2px); }
-
-.theme-swatch-card { border: 2px solid var(--border-color); border-radius: var(--r-ctrl); overflow: hidden; cursor: pointer; font-size: 10.5px; font-weight: 700; padding: calc(var(--stack) - 3px) calc(var(--stack) - 3px) calc(var(--stack) - 5px); display: flex; flex-direction: column; gap: calc(var(--stack) - 3px); transition: transform .12s ease, border-color .12s ease; }
+.auto-slots { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--stack) - 1px); margin-top: calc(var(--stack) + 1px); }
+.auto-slot {
+  appearance: none; font: inherit; text-align: left; cursor: pointer; min-width: 0;
+  display: flex; flex-direction: column; gap: calc(var(--stack) - 2px); padding: var(--stack);
+  border: 2px solid var(--tc-main, var(--border-color)); border-radius: var(--r-ctrl);
+  transition: transform .12s ease, outline-color .12s ease;
+}
+.auto-slot:hover { transform: translateY(-1px); }
+.auto-slot.filtering { outline: 3px solid var(--main-color); outline-offset: 2px; }
+.auto-slot:focus-visible { outline: 3px solid var(--main-color); outline-offset: 2px; }
+.slot-head { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.slot-ic { display: inline-flex; width: 14px; height: 14px; flex-shrink: 0; }
+.slot-ic svg { width: 100%; height: 100%; }
+.slot-now { margin-left: auto; padding: 1px 8px; border-radius: var(--r-pill); font-size: 10px; letter-spacing: 0; text-transform: none; background: var(--tc-main); color: var(--tc-bg); white-space: nowrap; }
+.slot-body { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.slot-name { font-size: 13px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theme-search-wrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.theme-search-wrap .theme-search-box { flex: 1 1 180px; min-width: 0; }
+.theme-type-filter { flex: 0 0 auto; }
+.theme-type-filter button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+#theme-mode button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+#theme-mode .seg-ic, .theme-type-filter .seg-ic { display: inline-flex; width: 14px; height: 14px; }
+#theme-mode .seg-ic svg, .theme-type-filter .seg-ic svg { width: 100%; height: 100%; }
+@media (max-width: 560px) { .auto-slots { grid-template-columns: 1fr; } }
+.theme-swatch-card { position: relative; border: 2px solid var(--tc-main, var(--border-color)); border-radius: var(--r-ctrl); overflow: hidden; cursor: pointer; font-size: 10.5px; font-weight: 700; padding: calc(var(--stack) - 3px) calc(var(--stack) - 3px) calc(var(--stack) - 5px); display: flex; flex-direction: column; gap: calc(var(--stack) - 3px); transition: transform .12s ease, border-color .12s ease; }
 .theme-swatch-card:hover { transform: translateY(-2px); }
-.theme-swatch-card.selected { border-color: var(--main-color); box-shadow: 0 0 0 1px var(--main-color); }
+/* The theme in use: a thick offset ring in the app accent + an "In use" badge.
+   (The card's own accent is its border, so the ring has to sit outside it to read.) */
+.theme-swatch-card.selected { outline: 3px solid var(--main-color); outline-offset: 2px; transform: translateY(-1px); }
+.theme-swatch-card.selected .theme-swatch-label { font-weight: 800; }
+/* In Follow-system mode, the theme assigned to the *other* mode. */
+.theme-swatch-card.slot-pick { outline: 2px dashed var(--main-color); outline-offset: 2px; }
+.theme-swatch-card:focus-visible { outline: 3px solid var(--main-color); outline-offset: 2px; }
+.tsc-badge { position: absolute; top: 5px; right: 5px; z-index: 1; display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px 2px 5px; border-radius: var(--r-pill); font-size: 9.5px; font-weight: 800; line-height: 1.2; background: var(--tc-main); color: var(--tc-bg); box-shadow: 0 0 0 2px var(--tc-bg); pointer-events: none; }
+.tsc-badge svg { width: 10px; height: 10px; flex-shrink: 0; }
+.tsc-badge[hidden] { display: none; }
+.theme-grid-meta { font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--sub-color); }
 .theme-swatch-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
 .theme-swatch-chips .tsc { width: 100%; aspect-ratio: 1; border-radius: var(--r-chip); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18); }
 .theme-swatch-label { text-align: center; padding: 2px 0 2px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

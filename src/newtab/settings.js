@@ -1,7 +1,7 @@
   /* Settings panel + keyboard-shortcuts popup. Composes with the other newtab
    modules via the shared global scope (see index.html). */
   /* ============ SETTINGS PANEL ============ */
-  function openSettings() { pickingThemeFor = null; if (themeBuilder) closeThemeBuilder(); renderThemeGrids(); populateFontSelect(); syncSettingsUI(); renderPluginSettings(); showOverlay('#settings-overlay'); }
+  function openSettings() { if (themeBuilder) closeThemeBuilder(); renderThemeGrids(); populateFontSelect(); syncSettingsUI(); renderPluginSettings(); showOverlay('#settings-overlay'); }
   // Closing Settings always drops the builder: its DOM must not survive into the
   // next open, and its live preview goes with it. endThemePreview() is a no-op
   // when nothing is being previewed.
@@ -119,20 +119,20 @@
     };
 
     renderThemeGrids();
-    $$('#auto-theme-boxes .auto-theme-box').forEach(box => box.onclick = () => { startThemePick(box.dataset.key); });
-    $('#setting-auto-theme').onchange = async (e) => {
-      const s = DB.settingsOf(STATE);
-      if (e.target.checked) {
-        await DB.updateSettings({ themeId: 'auto' });
-      } else {
-        // Turn auto off: land on whichever of the two modes matches the OS
-        // right now, so the look barely changes.
-        const prefersDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
-        await DB.updateSettings({ themeId: prefersDark ? (s.darkThemeId || 'serika_dark') : (s.lightThemeId || 'serika') });
-      }
+    $$('#theme-mode button').forEach(btn => btn.onclick = async () => {
+      const auto = DB.settingsOf(STATE).themeId === 'auto';
+      if (btn.dataset.val === 'auto' && !auto) await DB.updateSettings({ themeId: 'auto' });
+      // Leaving Auto: keep whatever is showing right now, so the look doesn't change.
+      else if (btn.dataset.val === 'fixed' && auto) await DB.updateSettings({ themeId: appliedThemeId() });
+      else return;
       await reload();
       syncSettingsUI();
-    };
+    });
+    $$('#theme-type-filter button').forEach(btn => btn.onclick = () => {
+      themeTypeFilter = btn.dataset.val;
+      renderThemeGrids();
+      syncSettingsUI();
+    });
     const themeSearchInput = $('#theme-search-input');
     const themeSearchClear = $('#theme-search-clear');
     themeSearchClear.innerHTML = ICONS.close;
@@ -231,7 +231,6 @@
       const id = e.target.value;
       if (!STATE.workspaces[id] || id === activeWorkspaceId()) return;
       // Settings (and any theme preview/builder) belong to the workspace being left.
-      pickingThemeFor = null;
       if (themeBuilder) closeThemeBuilder();
       endThemePreview();
       await DB.setActiveWorkspace(id);
@@ -273,8 +272,12 @@
   function renderThemeGrids() {
     const input = $('#theme-search-input');
     const q = (input ? input.value : '').trim().toLowerCase();
-    const list = Themes.allThemes(savedCustomThemes()).filter(t => !q || t.name.toLowerCase().includes(q));
+    const all = Themes.allThemes(savedCustomThemes());
+    const list = all.filter(t => (themeTypeFilter === 'all' || t.type === themeTypeFilter) && (!q || t.name.toLowerCase().includes(q)));
     renderThemeGrid('#theme-grid-all', list);
+    const meta = $('#theme-grid-meta');
+    if (meta) meta.textContent = list.length === all.length ? `· ${all.length} themes` : `· ${list.length} of ${all.length} shown`;
+    syncThemeCardStates();
     syncBuilderButtons();
   }
 
@@ -399,49 +402,167 @@
     }
   }
 
-  /* The Auto section carries the toggle plus the two selected-theme boxes
-     (Light/Dark). Clicking a box enters "picking" — the presets grid below
-     gets highlighted, and clicking a preset assigns that theme to the box's
-     mode. The grid's selected ring is always the theme actually applied right
-     now (manual pick, or whichever preset matches the OS light/dark). */
-  let pickingThemeFor = null; // 'light' | 'dark' | null
+  /* ---------- Themes panel ----------
+
+     Three things are always on screen so you never have to guess:
+       1. the "In use now" card, painted in the theme that is actually showing;
+       2. the mode — Follow system (a Light-mode and a Dark-mode theme; the one
+          matching your OS is marked "Showing now") or Single theme;
+       3. a strong ring + badge on the grid card that is applied, and a dashed ring
+          on the other mode's theme.
+     In Follow-system mode a click on a theme fills the Light or Dark slot that
+     matches the theme's own type — it never silently switches Auto off. */
+  let themeTypeFilter = 'all';   // 'all' | 'light' | 'dark' — which themes the grid lists
 
   function prefersDarkMode() {
     return typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
   }
-
+  function slotThemeId(key) {
+    const s = DB.settingsOf(STATE);
+    return key === 'light' ? (s.lightThemeId || Themes.DEFAULT_LIGHT_ID) : (s.darkThemeId || Themes.DEFAULT_DARK_ID);
+  }
   function appliedThemeId() {
     const s = DB.settingsOf(STATE);
-    if (s.themeId !== 'auto') return s.themeId;
-    return prefersDarkMode() ? (s.darkThemeId || 'serika_dark') : (s.lightThemeId || 'serika');
+    return s.themeId !== 'auto' ? s.themeId : slotThemeId(prefersDarkMode() ? 'dark' : 'light');
+  }
+  function themeById(id) {
+    return Themes.findTheme(id, savedCustomThemes()) || Themes.defaultTheme(prefersDarkMode());
+  }
+  function themeChipsHtml(t) {
+    return themeChipColors(t).map(c => `<span style="background:${c}"></span>`).join('');
+  }
+  /* Paints an element in a theme's own colors (its accent/background are exposed as
+     --tc-main / --tc-bg so borders and badges can use them). */
+  function paintThemed(elm, t) {
+    elm.style.background = t.bg;
+    elm.style.color = t.text;
+    elm.style.setProperty('--tc-main', t.main);
+    elm.style.setProperty('--tc-bg', t.bg);
+  }
+
+  function revealSelectedTheme(smooth) {
+    const card = $('#theme-grid-all .theme-swatch-card.selected');
+    if (card) card.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
+  }
+
+  function renderThemeCurrent() {
+    const host = $('#theme-current');
+    if (!host) return;
+    const s = DB.settingsOf(STATE);
+    const auto = s.themeId === 'auto';
+    const sysDark = prefersDarkMode();
+    const t = themeById(appliedThemeId());
+    paintThemed(host, t);
+    host.innerHTML = `
+      <div class="tc-chips">${themeChipsHtml(t)}</div>
+      <div class="tc-text">
+        <div class="tc-kicker">${ICONS.check}<span>In use now</span>${auto ? `<span class="tc-tag">${ICONS.monitor}Auto</span>` : ''}${t.custom ? '<span class="tc-tag">Custom</span>' : ''}</div>
+        <div class="tc-name">${escapeHtml(t.name)}</div>
+        <div class="tc-sub">${auto
+          ? `Your system is in ${sysDark ? 'dark' : 'light'} mode, so your ${sysDark ? 'Dark' : 'Light'}-mode theme is showing.`
+          : 'Used in both light and dark mode.'}</div>
+      </div>
+      <button type="button" class="tc-find">Show in list</button>`;
+    host.querySelector('.tc-find').onclick = () => {
+      themeTypeFilter = 'all';
+      const q = $('#theme-search-input');
+      if (q) q.value = '';
+      renderThemeGrids();
+      syncSettingsUI();
+      revealSelectedTheme(true);
+    };
   }
 
   function renderAutoThemeBoxes() {
-    const boxes = $$('#auto-theme-boxes .auto-theme-box');
-    boxes.forEach(box => {
+    const sysDark = prefersDarkMode();
+    $$('#auto-theme-boxes .auto-slot').forEach(box => {
       const key = box.dataset.key;
-      const s = DB.settingsOf(STATE);
-      const id = key === 'light' ? (s.lightThemeId || 'serika') : (s.darkThemeId || 'serika_dark');
-      const t = Themes.findTheme(id, savedCustomThemes()) || Themes.PRESET_THEMES[0];
-      const chips = themeChipColors(t);
-      box.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div><div class="theme-swatch-label">${escapeHtml(t.name)}</div>`;
-      box.style.background = t.bg;
-      box.style.borderColor = t.main;
-      box.style.color = t.text;
-      box.classList.toggle('picking', pickingThemeFor === key);
-      box.classList.toggle('selected', id === appliedThemeId());
+      const t = themeById(slotThemeId(key));
+      const isNow = (key === 'dark') === sysDark;
+      paintThemed(box, t);
+      box.innerHTML = `
+        <span class="slot-head"><span class="slot-ic">${key === 'light' ? ICONS.sun : ICONS.moon}</span><span>${key === 'light' ? 'Light' : 'Dark'} mode</span>${isNow ? '<span class="slot-now">Showing now</span>' : ''}</span>
+        <span class="slot-body"><span class="tc-chips">${themeChipsHtml(t)}</span><span class="slot-name">${escapeHtml(t.name)}</span></span>`;
+      box.classList.toggle('active-now', isNow);
+      box.classList.toggle('filtering', themeTypeFilter === key);
+      box.setAttribute('aria-pressed', String(themeTypeFilter === key));
+      box.title = `Browse ${key} themes to use in ${key} mode`;
+      box.onclick = () => {
+        themeTypeFilter = themeTypeFilter === key ? 'all' : key;
+        renderThemeGrids();
+        syncSettingsUI();
+        const grid = $('#theme-grid-all');
+        if (grid) grid.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      };
     });
   }
 
-  function startThemePick(key) {
-    pickingThemeFor = pickingThemeFor === key ? null : key;
-    renderAutoThemeBoxes();
-    syncSettingsUI();
+  function syncThemeModeUI() {
+    const auto = DB.settingsOf(STATE).themeId === 'auto';
+    $$('#theme-mode button').forEach(b => {
+      const on = (b.dataset.val === 'auto') === auto;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    $$('#theme-type-filter button').forEach(b => {
+      const on = b.dataset.val === themeTypeFilter;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    const extras = $('#auto-theme-extras');
+    if (extras) extras.classList.toggle('hidden', !auto);
+    const hint = $('#theme-mode-hint');
+    if (!hint) return;
+    const sysDark = prefersDarkMode();
+    if (!auto) hint.textContent = 'One theme, whatever your system is set to. Switch to Follow system to use a different theme in light and dark mode.';
+    else if (themeTypeFilter === 'all') hint.textContent = `Click a theme below to use it in its own mode — light themes fill Light mode, dark themes fill Dark mode. Your system is in ${sysDark ? 'dark' : 'light'} mode right now.`;
+    else hint.textContent = `Showing ${themeTypeFilter} themes — click one to use it in ${themeTypeFilter} mode.${(themeTypeFilter === 'dark') === sysDark ? '' : ` You'll see it when your system is in ${themeTypeFilter} mode.`}`;
   }
-  function cancelThemePick() {
-    pickingThemeFor = null;
+
+  /* Marks, on the grid: the theme in use (strong ring + "In use"), and in
+     Follow-system mode the theme assigned to the other mode (dashed ring). */
+  function syncThemeCardStates() {
+    const auto = DB.settingsOf(STATE).themeId === 'auto';
+    const applied = appliedThemeId();
+    const lightId = slotThemeId('light'), darkId = slotThemeId('dark');
+    $$('#theme-grid-all .theme-swatch-card').forEach(card => {
+      const id = card.dataset.themeId;
+      const isApplied = id === applied;
+      const modes = auto ? [id === lightId ? 'light' : null, id === darkId ? 'dark' : null].filter(Boolean) : [];
+      card.classList.toggle('selected', isApplied);
+      card.classList.toggle('slot-pick', !isApplied && modes.length > 0);
+      card.setAttribute('aria-pressed', String(isApplied));
+      const badge = card.querySelector('.tsc-badge');
+      if (!badge) return;
+      if (isApplied) badge.innerHTML = `${ICONS.check}In use`;
+      else if (modes.length) badge.innerHTML = modes.map(m => `${m === 'light' ? ICONS.sun : ICONS.moon}${m === 'light' ? 'Light' : 'Dark'}`).join(' ');
+      else badge.innerHTML = '';
+      badge.hidden = !badge.innerHTML;
+    });
+  }
+
+  function syncThemeUI() {
+    renderThemeCurrent();
     renderAutoThemeBoxes();
-    syncSettingsUI();
+    syncThemeModeUI();
+    syncThemeCardStates();
+    syncBuilderButtons();
+  }
+
+  async function applyThemeChoice(t) {
+    commitThemePreview();
+    const s = DB.settingsOf(STATE);
+    if (s.themeId === 'auto') {
+      const key = t.type === 'light' ? 'light' : 'dark';
+      await DB.updateSettings(key === 'light' ? { lightThemeId: t.id } : { darkThemeId: t.id });
+      await reload();
+      syncSettingsUI();
+      toast(`${key === 'light' ? 'Light' : 'Dark'} mode now uses ${t.name}${(key === 'dark') === prefersDarkMode() ? '' : ` — you'll see it when your system is in ${key} mode`}`);
+    } else {
+      await DB.updateSettings({ themeId: t.id });
+      await reload();
+      syncSettingsUI();
+    }
   }
 
   function renderThemeGrid(selector, list) {
@@ -451,9 +572,9 @@
     list.forEach(t => {
       const card = el('div', 'theme-swatch-card');
       card.dataset.themeId = t.id;
-      card.style.background = t.bg;
-      card.style.borderColor = t.main;
-      card.style.color = t.text;
+      card.tabIndex = 0;
+      card.setAttribute('role', 'button');
+      paintThemed(card, t);
       const chips = themeChipColors(t);
       /* Custom themes carry their own two buttons next to the name, so you can
          open the builder or drop one straight from the grid. */
@@ -461,25 +582,11 @@
           <button type="button" data-act="edit" title="Edit ${escapeHtml(t.name)}" aria-label="Edit ${escapeHtml(t.name)}">${ICONS.edit}</button>
           <button type="button" data-act="del" title="Delete ${escapeHtml(t.name)}" aria-label="Delete ${escapeHtml(t.name)}">${ICONS.trash}</button>
         </span>` : '';
-      card.innerHTML = `<div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div>
+      card.innerHTML = `<span class="tsc-badge" hidden></span><div class="theme-swatch-chips">${chips.map(c => `<span class="tsc" style="background:${c}"></span>`).join('')}</div>
         <div class="theme-swatch-foot"><div class="theme-swatch-label">${escapeHtml(t.name)}</div>${tools}</div>`;
-      card.onclick = async () => {
-        commitThemePreview();
-        const s = DB.settingsOf(STATE);
-        if (pickingThemeFor) {
-          const key = pickingThemeFor;
-          await DB.updateSettings(key === 'light' ? { lightThemeId: t.id } : { darkThemeId: t.id });
-          pickingThemeFor = null;
-          STATE = await DB.getState();
-          renderAutoThemeBoxes();
-          if (s.themeId === 'auto' && prefersDarkMode() === (key === 'dark')) await reload();
-          syncSettingsUI();
-          toast(`${key === 'light' ? 'Light' : 'Dark'} theme set to ${t.name}`);
-        } else {
-          await DB.updateSettings({ themeId: t.id });
-          await reload();
-          syncSettingsUI();
-        }
+      card.onclick = () => applyThemeChoice(t);
+      card.onkeydown = (e) => {
+        if (e.target === card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); applyThemeChoice(t); }
       };
       card.querySelectorAll('.theme-card-tools button').forEach(btn => {
         btn.onclick = (e) => {
@@ -512,16 +619,7 @@
   function syncSettingsUI() {
     syncSettingsWorkspacePicker();
     const s = DB.settingsOf(STATE);
-    const autoOn = s.themeId === 'auto';
-    const applied = appliedThemeId();
-    $$('.theme-swatch-card').forEach(c => c.classList.toggle('selected', c.dataset.themeId === applied));
-    $('#setting-auto-theme').checked = autoOn;
-    const extras = $('#auto-theme-extras');
-    if (extras) extras.classList.toggle('hidden', !autoOn);
-    renderAutoThemeBoxes();
-    syncBuilderButtons();
-    const grid = $('#theme-grid-all');
-    if (grid) grid.classList.toggle('pick-active', !!pickingThemeFor);
+    syncThemeUI();
     $$('#density-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === s.density));
     $$('#radius-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === (s.radius || 'default')));
     $('#setting-borders').checked = s.borders !== false;
@@ -604,7 +702,6 @@
   function afterWorkspaceSettingsChange() {
     if (themeBuilder) closeThemeBuilder();
     endThemePreview();
-    pickingThemeFor = null;
     applySettings();
     renderThemeGrids();
     syncSettingsUI();

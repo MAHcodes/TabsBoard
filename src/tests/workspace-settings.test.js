@@ -29,7 +29,11 @@ const ok = (name) => console.log(`${++n} ${name} ok`);
   assert.ok(s.workspaces[A].settings && s.workspaces[A].settings.themeId === 'auto');
   assert.deepStrictEqual(Object.keys(s.meta.globalSettings).sort(), ['customThemes', 'trashBadgeSeen', 'trashRetentionDays']);
   assert.strictEqual(DB.settingsOf(s).dashboard.columns, 4);
-  ok('fresh install layout');
+  // default themes: Iceberg Light / Dark, following the system
+  assert.strictEqual(DB.settingsOf(s).themeId, 'auto');
+  assert.strictEqual(DB.settingsOf(s).lightThemeId, 'iceberg_light');
+  assert.strictEqual(DB.settingsOf(s).darkThemeId, 'iceberg_dark');
+  ok('fresh install layout + Iceberg defaults');
 
   // ---- 2. isolation between workspaces
   await DB.updateSettings({ themeId: 'nord', density: 'dense', dashboard: { columns: 6 }, sidebarCollapsed: true });
@@ -136,6 +140,7 @@ const ok = (name) => console.log(`${++n} ${name} ok`);
   await DB.resetWorkspaceSettings(C);
   s = await DB.getState();
   assert.strictEqual(DB.settingsOf(s, C).density, 'comfortable');
+  assert.strictEqual(DB.settingsOf(s, C).darkThemeId, 'iceberg_dark', 'reset restores the default themes');
   assert.strictEqual(DB.settingsOf(s, C).trashRetentionDays, 30, 'shared settings survive a reset');
   assert.strictEqual(DB.settingsOf(s, A).density, 'dense', 'other workspaces untouched');
   await DB.replaceWorkspaceSettings(C, before);                      // the Undo path
@@ -151,7 +156,7 @@ const ok = (name) => console.log(`${++n} ${name} ok`);
   s = await DB.getState();
   assert.deepStrictEqual(touched.slice().sort(), ['Personal', 'Work']);
   assert.ok(!/^custom-/.test(DB.settingsOf(s, A).themeId));
-  assert.strictEqual(DB.settingsOf(s, B).lightThemeId, 'serika');
+  assert.strictEqual(DB.settingsOf(s, B).lightThemeId, DB.DEFAULT_LIGHT_THEME_ID);
   assert.strictEqual(DB.settingsOf(s).customThemes.length, 0);
   ok('deleting a shared theme fixes all workspaces');
 

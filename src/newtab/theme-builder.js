@@ -218,7 +218,7 @@
       .filter(w => { const ws = DB.settingsOf(STATE, w.id); return ws.themeId === themeId || ws.lightThemeId === themeId || ws.darkThemeId === themeId; })
       .sort((a, b) => a.order - b.order);
     const note = users.length
-      ? ` It is in use in ${users.map(w => `“${w.name}”`).join(', ')}, which fall${users.length === 1 ? 's' : ''} back to Serika.`
+      ? ` It is in use in ${users.map(w => `“${w.name}”`).join(', ')}, which fall${users.length === 1 ? 's' : ''} back to the default Iceberg theme.`
       : '';
     if (!(await uiConfirm(`Delete the custom theme “${t.name}”?${note} This can't be undone.`, { title: 'Delete custom theme', okLabel: 'Delete', danger: true }))) return;
     if (themeBuilder && themeBuilder.id === themeId) { closeThemeBuilder(); endThemePreview(); }

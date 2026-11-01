@@ -847,7 +847,6 @@
       }
       if (e.key === 'Escape') {
         closePalette();
-        cancelThemePick();
         hideOverlay('#modal-overlay');
         closeSettings();
         hideOverlay('#trash-overlay');

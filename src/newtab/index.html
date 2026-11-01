@@ -211,35 +211,36 @@
           <div class="settings-group">
             <div class="settings-group-head">
               <h3>Themes</h3>
-              <p>Pick a color scheme for this workspace — themes preview live as you browse the grid. Your own themes are shared: any workspace can use them.</p>
+              <p>The colors for this workspace. Click a theme to use it. Your own themes are shared: any workspace can use them.</p>
+            </div>
+            <div class="theme-current" id="theme-current" aria-live="polite"></div>
+            <div class="settings-row">
+              <label>Theme mode</label>
+              <div class="segmented" id="theme-mode" role="group" aria-label="Theme mode">
+                <button type="button" data-val="auto"><span class="seg-ic" data-icon="monitor"></span>Follow system</button>
+                <button type="button" data-val="fixed"><span class="seg-ic" data-icon="palette"></span>Single theme</button>
+              </div>
+              <div id="auto-theme-extras">
+                <div class="auto-slots" id="auto-theme-boxes">
+                  <button type="button" class="auto-slot" data-key="light"></button>
+                  <button type="button" class="auto-slot" data-key="dark"></button>
+                </div>
+              </div>
+              <div class="hint-text" id="theme-mode-hint"></div>
             </div>
             <div class="theme-search-wrap">
               <div class="theme-search-box">
                 <input id="theme-search-input" class="theme-search" type="text" placeholder="Filter themes…" autocomplete="off" />
                 <button type="button" id="theme-search-clear" class="theme-search-clear hidden" title="Clear filter" aria-label="Clear filter"></button>
               </div>
-            </div>
-            <div class="settings-row">
-              <div class="switch-row">
-                <span class="switch-text"><span class="switch-title">Auto theme (follow system)</span><span class="switch-desc">Use the light theme in light mode and the dark theme in dark mode.</span></span>
-                <label class="switch"><input type="checkbox" id="setting-auto-theme"><span class="switch-track"><span class="switch-thumb"></span></span></label>
-              </div>
-              <div id="auto-theme-extras">
-                <div class="auto-theme-boxes" id="auto-theme-boxes">
-                  <div class="auto-theme-col">
-                    <label>Light theme</label>
-                    <button type="button" class="auto-theme-box theme-swatch-card" data-key="light"></button>
-                  </div>
-                  <div class="auto-theme-col">
-                    <label>Dark theme</label>
-                    <button type="button" class="auto-theme-box theme-swatch-card" data-key="dark"></button>
-                  </div>
-                </div>
-                <div class="hint-text">Pick a Light or Dark theme above, then choose one from the presets below. If it's the mode your system is using right now, it applies immediately.</div>
+              <div class="segmented theme-type-filter" id="theme-type-filter" role="group" aria-label="Show themes">
+                <button type="button" data-val="all">All</button>
+                <button type="button" data-val="light"><span class="seg-ic" data-icon="sun"></span>Light</button>
+                <button type="button" data-val="dark"><span class="seg-ic" data-icon="moon"></span>Dark</button>
               </div>
             </div>
             <div class="settings-row">
-              <label>Presets</label>
+              <label>Presets <span class="theme-grid-meta" id="theme-grid-meta"></span></label>
               <div id="theme-grid-all" class="theme-grid"></div>
             </div>
             <div class="settings-group-head">

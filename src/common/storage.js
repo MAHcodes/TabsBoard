@@ -213,6 +213,11 @@ async function moveWidgetTo(id, row, col) {
 
 const GLOBAL_SETTING_KEYS = ['customThemes', 'trashRetentionDays', 'trashBadgeSeen'];
 
+/* The themes a fresh workspace uses (themeId 'auto' = follow the OS between these two).
+   Keep in step with Themes.DEFAULT_LIGHT_ID / DEFAULT_DARK_ID in themes.js. */
+const DEFAULT_LIGHT_THEME_ID = 'iceberg_light';
+const DEFAULT_DARK_THEME_ID = 'iceberg_dark';
+
 function defaultGlobalSettings() {
   return {
     customThemes: [],          // user-built themes (Themes builder); any workspace can pick any of them
@@ -236,8 +241,8 @@ function defaultWorkspaceSettings() {
     borders: true,              // show 1px outlines around cards, buttons, and inputs
     popupBlur: true,            // blur the page behind modals, the palette, and settings
     openBookmarksInNewTab: false, // false = open bookmarks in the current tab, true = open in a new tab
-    lightThemeId: 'serika',    // used when themeId is 'auto' and the OS is in light mode
-    darkThemeId: 'serika_dark', // used when themeId is 'auto' and the OS is in dark mode
+    lightThemeId: DEFAULT_LIGHT_THEME_ID, // used when themeId is 'auto' and the OS is in light mode
+    darkThemeId: DEFAULT_DARK_THEME_ID,   // used when themeId is 'auto' and the OS is in dark mode
     clockFormat: '24',         // '12' | '24' — default for new Clock widgets
     weatherUnits: 'c',         // 'c' | 'f' — default for new Weather widgets
     pomodoroFocus: 25,         // default focus minutes for new Pomodoro widgets
@@ -1392,9 +1397,9 @@ async function deleteCustomTheme(themeId) {
       if (!ws || !isPlainObject(ws.settings)) continue;
       const st = ws.settings;
       let hit = false;
-      if (st.themeId === themeId) { st.themeId = (typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'serika_dark' : 'serika'; hit = true; }
-      if (st.lightThemeId === themeId) { st.lightThemeId = 'serika'; hit = true; }
-      if (st.darkThemeId === themeId) { st.darkThemeId = 'serika_dark'; hit = true; }
+      if (st.themeId === themeId) { st.themeId = (typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches) ? DEFAULT_DARK_THEME_ID : DEFAULT_LIGHT_THEME_ID; hit = true; }
+      if (st.lightThemeId === themeId) { st.lightThemeId = DEFAULT_LIGHT_THEME_ID; hit = true; }
+      if (st.darkThemeId === themeId) { st.darkThemeId = DEFAULT_DARK_THEME_ID; hit = true; }
       if (hit) touched.push(ws.name);
     }
     return touched;
@@ -1810,7 +1815,7 @@ const TabsDB = {
   restoreTrashItem, purgeTrashItem, emptyTrash, purgeExpiredTrash,
   createSession, deleteSession, renameSession, updateSessionTabs, duplicateSession, convertSessionToCollection,
   updateSettings, settingsOf, globalSettingsOf, copyWorkspaceSettings, resetWorkspaceSettings, replaceWorkspaceSettings, deleteCustomTheme,
-  defaultWorkspaceSettings, GLOBAL_SETTING_KEYS,
+  defaultWorkspaceSettings, GLOBAL_SETTING_KEYS, DEFAULT_LIGHT_THEME_ID, DEFAULT_DARK_THEME_ID,
   createWidget, updateWidget, deleteWidget, reorderWidgets,
   installPlugin, setPluginGrants, removePlugin,
   createBoard, renameBoard, deleteBoard, setActiveBoard,

@@ -241,6 +241,10 @@
      setting), so they travel with export/import and can fill any of the three
      theme slots (current, light, dark). Ids are prefixed so a custom id can
      never collide with a preset id. */
+  /* What a fresh workspace uses, and what anything unresolvable (a deleted custom
+     theme, a bad id from a backup) falls back to. Keep in step with storage.js. */
+  const DEFAULT_LIGHT_ID = 'iceberg_light';
+  const DEFAULT_DARK_ID = 'iceberg_dark';
   const CUSTOM_PREFIX = 'custom-';
   const MAX_CUSTOM_THEMES = 20;
   const HEX_RE = /^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
@@ -284,7 +288,7 @@
      custom theme: real custom id, sane name/type, every slot a valid color. */
   function normalizeCustom(t, index) {
     if (!t || typeof t !== 'object') return null;
-    const base = PRESET_THEMES[0];
+    const base = PRESET_THEMES.find(p => p.id === DEFAULT_DARK_ID) || PRESET_THEMES[0];
     const out = {
       id: isCustomId(t.id) ? t.id : newCustomId(),
       name: String(t.name == null ? '' : t.name).trim().slice(0, 40) || ('My theme ' + ((index || 0) + 1)),
@@ -309,14 +313,21 @@
     return allThemes(customList).find(x => x.id === themeId) || null;
   }
 
+  /* The default theme for a light/dark mode. */
+  function defaultTheme(dark) {
+    const id = dark ? DEFAULT_DARK_ID : DEFAULT_LIGHT_ID;
+    return PRESET_THEMES.find(p => p.id === id) || PRESET_THEMES[0];
+  }
+
   function resolveTheme(themeId, lightThemeId, darkThemeId, customList) {
     let t;
     if (themeId === 'auto') {
       const prefersDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
-      const chosen = prefersDark ? (darkThemeId || 'serika_dark') : (lightThemeId || 'serika');
-      t = findTheme(chosen, customList) || PRESET_THEMES[0];
+      const chosen = prefersDark ? (darkThemeId || DEFAULT_DARK_ID) : (lightThemeId || DEFAULT_LIGHT_ID);
+      t = findTheme(chosen, customList) || defaultTheme(prefersDark);
     } else {
-      t = findTheme(themeId, customList) || PRESET_THEMES[0];
+      const prefersDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
+      t = findTheme(themeId, customList) || defaultTheme(prefersDark);
     }
     return {
       id: t.id, name: t.name, type: t.type, custom: !!t.custom,
@@ -328,7 +339,7 @@
 
   const Themes = {
     PRESET_THEMES, COLLECTION_COLORS, COLOR_SLOTS, ALL_SLOT_KEYS,
-    CUSTOM_PREFIX, MAX_CUSTOM_THEMES,
+    CUSTOM_PREFIX, MAX_CUSTOM_THEMES, DEFAULT_LIGHT_ID, DEFAULT_DARK_ID, defaultTheme,
     resolveTheme, allThemes, findTheme, customThemes, normalizeCustom,
     newCustomId, isCustomId, isHex, normalizeHex, withDerivedColors
   };
