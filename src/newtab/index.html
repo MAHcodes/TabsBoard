@@ -73,8 +73,15 @@
           <button id="bulk-delete-btn" class="mini-btn danger">Delete</button>
           <button id="bulk-clear-btn" class="mini-btn" title="Cancel selection (Esc)" aria-keyshortcuts="Escape">Cancel</button>
         </div>
+        <div class="toolbar-end">
+          <button id="canvas-tidy-btn" class="mini-btn hidden" title="Re-pack every widget on the snap grid">Auto-arrange</button>
+          <div class="segmented seg-compact" id="board-view-toggle" role="group" aria-label="Board view"></div>
+        </div>
       </div>
-      <div id="board" class="board"></div>
+      <div class="collections-split">
+        <nav id="pane-list" class="pane-list" aria-label="Collections list"></nav>
+        <div id="board" class="board"></div>
+      </div>
     </div>
 
     <!-- Sessions view -->
@@ -90,6 +97,7 @@
 
   </main>
 </div>
+
 
 <!-- Command palette -->
 <div id="palette-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Command palette">
@@ -128,8 +136,8 @@
         <nav class="settings-tabs" id="settings-tabs">
           <button class="settings-tab active" data-tab="appearance"><span class="stab-ic" data-icon="palette"></span><span class="stab-label">Appearance</span></button>
           <button class="settings-tab" data-tab="themes"><span class="stab-ic" data-icon="grid"></span><span class="stab-label">Themes</span></button>
-          <button class="settings-tab" data-tab="layout"><span class="stab-ic" data-icon="columns"></span><span class="stab-label">Layout</span></button>
-          <button class="settings-tab" data-tab="sidebar"><span class="stab-ic" data-icon="layers"></span><span class="stab-label">Sidebar</span></button>
+          <button class="settings-tab" data-tab="board"><span class="stab-ic" data-icon="columns"></span><span class="stab-label">Board</span></button>
+          <button class="settings-tab" data-tab="navigation"><span class="stab-ic" data-icon="panelLeftClose"></span><span class="stab-label">Navigation</span></button>
           <button class="settings-tab" data-tab="widgets"><span class="stab-ic" data-icon="widget"></span><span class="stab-label">Widgets</span></button>
           <button class="settings-tab" data-tab="behavior"><span class="stab-ic" data-icon="settings"></span><span class="stab-label">Behavior</span></button>
           <button class="settings-tab" data-tab="notifications"><span class="stab-ic" data-icon="warn"></span><span class="stab-label">Notifications</span></button>
@@ -268,13 +276,18 @@
           </div>
         </div>
 
-        <div class="settings-panel" id="panel-layout">
+        <div class="settings-panel" id="panel-board">
           <div class="settings-group">
             <div class="settings-group-head">
-              <h3>Board</h3>
-              <p>Grid density and how widgets arrange themselves.</p>
+              <h3>Board view</h3>
+              <p>How the widgets and collections on a board are arranged. You can also switch from the toolbar above the board.</p>
             </div>
             <div class="settings-row">
+              <label>View</label>
+              <div class="segmented" id="boardview-toggle"></div>
+              <div class="hint-text" id="boardview-hint"></div>
+            </div>
+            <div class="settings-row" id="row-board-cols">
               <label>Board width</label>
               <div class="segmented" id="boardcols-toggle">
                 <button data-val="3">3 cols</button>
@@ -282,10 +295,16 @@
                 <button data-val="5">5 cols</button>
                 <button data-val="6">6 cols</button>
               </div>
-              <div class="hint-text">Widgets snap to the grid — resize by dragging a widget's edge, drag onto another to swap, or drop onto empty space to move it. Gap cells stay empty.</div>
+              <div class="hint-text">How many columns widgets snap to. Resize a widget by its edge, or drag it onto another to swap.</div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-head">
+              <h3>Collections</h3>
+              <p>How bookmarks look inside a collection.</p>
             </div>
             <div class="settings-row">
-              <label>Bookmarks inside a collection</label>
+              <label>Bookmark style</label>
               <div class="segmented" id="viewmode-toggle">
                 <button data-val="grid"><span class="seg-ic" data-icon="grid"></span>Tiles</button>
                 <button data-val="list"><span class="seg-ic" data-icon="list"></span>Rows</button>
@@ -293,10 +312,13 @@
               <div class="hint-text">Tiles show a card grid; rows show a compact vertical list.</div>
             </div>
           </div>
+        </div>
+
+        <div class="settings-panel" id="panel-navigation">
           <div class="settings-group">
             <div class="settings-group-head">
-              <h3>Topbar</h3>
-              <p>What the header shows.</p>
+              <h3>Header</h3>
+              <p>What the top bar shows.</p>
             </div>
             <div class="settings-row">
               <div class="switch-row">
@@ -313,9 +335,6 @@
               </div>
             </div>
           </div>
-        </div>
-
-        <div class="settings-panel" id="panel-sidebar">
           <div class="settings-group">
             <div class="settings-group-head">
               <h3>Sidebar</h3>
@@ -846,6 +865,7 @@
 <script src="widgets.js"></script>
 <script src="plugins.js"></script>
 <script src="bookmarks.js"></script>
+<script src="board-views.js"></script>
 <script src="palette.js"></script>
 <script src="theme-builder.js"></script>
 <script src="settings.js"></script>

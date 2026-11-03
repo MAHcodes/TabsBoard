@@ -9,6 +9,7 @@
   const S = 'fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
 
   const ICONS = {
+    move: `<svg viewBox="0 0 24 24" ${S}><path d="M12 2v20" /><path d="m15 19-3 3-3-3" /><path d="m19 9 3 3-3 3" /><path d="M2 12h20" /><path d="m5 9-3 3 3 3" /><path d="m9 5 3-3 3 3" /></svg>`,
     search: `<svg viewBox="0 0 24 24" ${S}><path d="m21 21-4.34-4.34" /> <circle cx="11" cy="11" r="8" /></svg>`,
     grid: `<svg viewBox="0 0 24 24" ${S}><rect width="7" height="7" x="3" y="3" rx="1" /> <rect width="7" height="7" x="14" y="3" rx="1" /> <rect width="7" height="7" x="14" y="14" rx="1" /> <rect width="7" height="7" x="3" y="14" rx="1" /></svg>`,
     list: `<svg viewBox="0 0 24 24" ${S}><path d="M3 5h.01" /> <path d="M3 12h.01" /> <path d="M3 19h.01" /> <path d="M8 5h13" /> <path d="M8 12h13" /> <path d="M8 19h13" /></svg>`,

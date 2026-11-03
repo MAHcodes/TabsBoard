@@ -2,7 +2,9 @@
    add-widget flow. Composes with the other newtab modules via the shared
    global scope (see index.html). */
   /* ============ BOOKMARKS ============ */
-  function openBookmarkUrl(bm) { sendMsg('OPEN_URL', { url: bm.url }); }
+  function openBookmarkUrl(bm) {
+    sendMsg('OPEN_URL', { url: bm.url });
+  }
 
   /* Virtual bookmarks: live browser data (Most visited, History) rendered
      through the same bookmark-item/tile look and open/copy behavior as a
@@ -197,19 +199,18 @@
   function openBookmarkMenu(bm, rect, titleEl) {
     const menu = el('div', 'dropdown-menu');
     menu.innerHTML = `
-      <div class="ws-item" data-act="tint"><span class="mi-ic">${ICONS.palette}</span>Background color…</div>
+      ${SELECTED.size > 1 && SELECTED.has(bm.id) ? `<div class="ws-item" data-act="openselected"><span class="mi-ic">${ICONS.openAll}</span>Open ${SELECTED.size} selected</div>` : ''}
+      <div class="ws-item" data-act="newwin"><span class="mi-ic">${ICONS.externalWindow}</span>Open in new window</div>
+      <div class="ws-item" data-act="copy"><span class="mi-ic">${ICONS.copy}</span>Copy link</div>
       <hr>
       <div class="ws-item" data-act="rename"><span class="mi-ic">${ICONS.edit}</span>Rename</div>
       <div class="ws-item" data-act="editdetails"><span class="mi-ic">${ICONS.edit}</span>Edit details…</div>
+      <div class="ws-item" data-act="tint"><span class="mi-ic">${ICONS.palette}</span>Background color…</div>
+      <hr>
       <div class="ws-item" data-act="pin"><span class="mi-ic">${ICONS.pin}</span>${bm.pinned ? 'Unpin' : 'Pin to top'}</div>
-      <hr>
-      <div class="ws-item" data-act="copy"><span class="mi-ic">${ICONS.copy}</span>Copy link</div>
-      <div class="ws-item" data-act="newwin"><span class="mi-ic">${ICONS.externalWindow}</span>Open in new window</div>
       <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate</div>
+      <div class="ws-item" data-act="select"><span class="mi-ic">${SELECTED.has(bm.id) ? ICONS.check : ICONS.checkSquare}</span>${SELECTED.has(bm.id) ? 'Deselect bookmark' : 'Select bookmark'}${SELECTED.size > 1 ? ` (${SELECTED.size} selected)` : ''}</div>
       <div class="ws-item" data-act="refetch"><span class="mi-ic">${ICONS.refresh}</span>${SELECTED.size > 1 && SELECTED.has(bm.id) ? `Refetch page info (${SELECTED.size})` : 'Refetch page info'}</div>
-      <hr>
-      ${SELECTED.size > 1 && SELECTED.has(bm.id) ? `<div class="ws-item" data-act="openselected"><span class="mi-ic">${ICONS.openAll}</span>Open ${SELECTED.size} selected</div>` : ''}
-      <div class="ws-item" data-act="select"><span class="mi-ic">${SELECTED.has(bm.id) ? ICONS.check : ICONS.checkSquare}</span>${SELECTED.has(bm.id) ? 'Deselect Bookmark' : 'Select Bookmark'}${SELECTED.size > 1 ? ` (${SELECTED.size} selected)` : ''}</div>
       <hr>
       <div class="ws-item" data-act="delete" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete</div>`;
     const close = showDropdown(menu, rect, 210);
@@ -331,23 +332,24 @@
 
     menu.innerHTML = `
       <div class="ws-item" data-act="add"><span class="mi-ic">${ICONS.plus}</span>New bookmark here</div>
-      <div class="ws-item" data-act="edit"><span class="mi-ic">${ICONS.edit}</span>Rename</div>
-      ${w ? tintMenuItemHtml() : ''}
-      ${col.syncSource ? `<div class="ws-item" data-act="sync"><span class="mi-ic">${ICONS.refresh}</span>Sync from browser now</div>` : ''}
+      <div class="ws-item" data-act="select"><span class="mi-ic">${ICONS.checkSquare}</span>Select bookmarks</div>
       <hr>
       <div class="ws-item" data-act="openall"><span class="mi-ic">${ICONS.openAll}</span>Open all bookmarks</div>
       <div class="ws-item" data-act="openallwin"><span class="mi-ic">${ICONS.externalWindow}</span>Open all in new window</div>
       <div class="ws-item" data-act="copylinks"><span class="mi-ic">${ICONS.copy}</span>Copy all links</div>
       <div class="ws-item" data-act="copymd"><span class="mi-ic">${ICONS.clipboard}</span>Copy as Markdown list</div>
       <hr>
+      <div class="ws-item" data-act="edit"><span class="mi-ic">${ICONS.edit}</span>Rename</div>
+      ${w ? tintMenuItemHtml() : ''}
+      ${col.syncSource ? `<div class="ws-item" data-act="sync"><span class="mi-ic">${ICONS.refresh}</span>Sync from browser now</div>` : ''}
+      <hr>
       <div class="ws-item" data-act="sort"><span class="mi-ic">${ICONS.sort}</span>Sort: ${sortModeLabel(col.sortMode)}</div>
+      ${viewMenuItemsHtml(col)}
+      ${w ? `${widthMenuItemsHtml(w)}${heightMenuItemsHtml(w)}` : ''}
+      <hr>
       <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate collection</div>
       <div class="ws-item" data-act="movews"><span class="mi-ic">${ICONS.folderInput}</span>Move to workspace…</div>
       <div class="ws-item" data-act="merge"><span class="mi-ic">${ICONS.layers}</span>Merge into…</div>
-      <div class="ws-item" data-act="select"><span class="mi-ic">${ICONS.checkSquare}</span>Select bookmarks</div>
-      <hr>
-      ${viewMenuItemsHtml(col)}
-      ${w ? `<hr>${widthMenuItemsHtml(w)}${heightMenuItemsHtml(w)}` : ''}
       <hr>
       <div class="ws-item" data-act="delete" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete collection</div>`;
     const close = showDropdown(menu, rect, 230);
@@ -540,7 +542,13 @@
     const cols = collectionsForActiveWS();
     const options = cols.map(c => `<option value="${c.id}" ${((existing ? existing.collectionId : defaultCollectionId) === c.id) ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
     const body = `
-      <h2>${existing ? 'Edit bookmark' : 'Add bookmark'}</h2>
+      <div class="entity-head">
+        <span class="entity-fav">${existing ? favImg(existing.url, existing.favicon, 'bm-favicon') : ICONS.link}</span>
+        <div class="entity-heading">
+          <h2 title="${existing ? escapeHtml(existing.title) : ''}">${existing ? escapeHtml(existing.title) : 'Add bookmark'}</h2>
+          <div class="entity-sub">${existing ? escapeHtml(hostnameOf(existing.url)) : 'Save a link to one of your collections'}</div>
+        </div>
+      </div>
       <div class="field"><label>URL</label><input type="url" id="mb-url" placeholder="https://example.com" value="${existing ? escapeHtml(existing.url) : ''}"></div>
       <div class="field"><label>Title</label><input type="text" id="mb-title" value="${existing ? escapeHtml(existing.title) : ''}"></div>
       <div class="field"><label>Collection</label><select id="mb-collection">${options}</select></div>

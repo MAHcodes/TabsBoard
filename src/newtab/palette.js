@@ -239,6 +239,8 @@
   });
   const PALETTE_ON_OFF = [{ label: 'On', value: true }, { label: 'Off', value: false }];
   const PALETTE_SETTINGS = [
+    { id: 'boardMode', label: 'Board view', keywords: 'grid canvas free-form freeform split list detail mail layout drag snap', get: s => s.boardMode || 'grid', set: v => ({ boardMode: v }), options: [
+      { label: 'Grid', value: 'grid' }, { label: 'Free-form canvas', value: 'canvas' }, { label: 'Split view', value: 'split' } ] },
     { id: 'density', label: 'Density', get: s => s.density, set: v => ({ density: v }), options: [
       { label: 'Spacious', value: 'spacious' }, { label: 'Comfortable', value: 'comfortable' },
       { label: 'Compact', value: 'compact' }, { label: 'Dense', value: 'dense' } ] },
@@ -250,7 +252,7 @@
       { label: 'On', value: true }, { label: 'Off', value: false } ] },
     { id: 'popupBlur', label: 'Blur behind popups', get: s => s.popupBlur !== false, set: v => ({ popupBlur: v }), options: [
       { label: 'On', value: true }, { label: 'Off', value: false } ] },
-    { id: 'viewMode', label: 'Bookmark view', get: s => s.viewMode, set: v => ({ viewMode: v }), options: [
+    { id: 'viewMode', label: 'Bookmark style', get: s => s.viewMode, set: v => ({ viewMode: v }), options: [
       { label: 'Tiles', value: 'grid' }, { label: 'Rows', value: 'list' } ] },
     { id: 'columns', label: 'Board width', get: s => (s.dashboard && s.dashboard.columns) || 4, set: v => ({ dashboard: { columns: v } }), options: [
       { label: '3 columns', value: 3 }, { label: '4 columns', value: 4 }, { label: '5 columns', value: 5 }, { label: '6 columns', value: 6 } ] },
@@ -345,10 +347,10 @@
   /* The Settings folder: groups → settings → options. */
   const PALETTE_SETTING_GROUPS = [
     { name: 'Appearance', icon: 'palette', keys: ['density', 'radius', 'borders', 'floatingBars', 'animations', 'popupBlur', 'fontSize'] },
-    { name: 'Layout', icon: 'columns', keys: ['viewMode', 'columns', 'showTopbarSearch', 'showShortcutsButton', 'showTrashButton'] },
-    { name: 'Sidebar', icon: 'panelLeftClose', keys: ['sidebarCollapsed', 'sidebarCompact', 'showTabAudio', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'recentlyClosedLimit'] },
-    { name: 'Behavior', icon: 'target', keys: ['confirmDelete', 'openBookmarksInNewTab', 'faviconSource', 'searchEngine', 'confirmRestoreSession'] },
+    { name: 'Board', icon: 'columns', keys: ['boardMode', 'columns', 'viewMode'] },
+    { name: 'Navigation', icon: 'panelLeftClose', keys: ['showTopbarSearch', 'showShortcutsButton', 'showTrashButton', 'sidebarCollapsed', 'sidebarCompact', 'showTabAudio', 'groupPinned', 'dimInactive', 'inactiveGrayscale', 'inactiveOpacity', 'recentlyClosedLimit'] },
     { name: 'Widgets', icon: 'widget', keys: ['clockFormat', 'weatherUnits', 'pomodoroFocus', 'pomodoroBreak', 'countdownDays', 'rssRefreshInterval', 'historyShowTimes', 'historyCount', 'topSitesCount'] },
+    { name: 'Behavior', icon: 'target', keys: ['openBookmarksInNewTab', 'searchEngine', 'faviconSource', 'confirmDelete', 'confirmRestoreSession'] },
     { name: 'Notifications', icon: 'warn', keys: ['toastLevel', 'toastPosition', 'toastSize', 'toastDuration', 'toastMax', 'toastProgress', 'toastIcons', 'toastPauseOnHover', 'toastGroupDuplicates', 'browserEnabled', 'browserSelectionSaved', 'browserTimeout', 'browserSilent', 'pomodoroEnabled', 'pomodoroOnFocusEnd', 'pomodoroOnBreakEnd', 'pomodoroSound'] },
     { name: 'Data', icon: 'archive', keys: ['trashRetentionDays'] }
   ];
@@ -475,6 +477,7 @@
       act('View', 'grid', 'Toggle grid / list view', toggleViewMode, { keywords: 'tiles rows layout' }),
       act('View', 'search', 'Search the web…', searchTheWeb)
     );
+    if (canvasActive(s)) items.push(act('View', 'wand', 'Auto-arrange canvas widgets', canvasAutoArrange, { keywords: 'tidy snap grid pack layout' }));
     return items;
   }
 

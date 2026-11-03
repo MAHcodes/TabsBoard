@@ -490,7 +490,7 @@
     // through some of its bookmarks shows just those bookmarks.
     const q = filterQueryFor.collections.trim();
     bmFilter = new Map();
-    const widgets = widgetsForActiveWS().filter(w => {
+    const allWidgets = widgetsForActiveWS().filter(w => {
       if (!q) return true;
       if (w.type !== 'collection') return false; // widgets other than collections have nothing to match
       const col = STATE.collections[w.collectionId];
@@ -501,6 +501,8 @@
       bmFilter.set(col.id, new Set(hits));
       return true;
     });
+    // Split view shows just the selected widget; the other views show them all.
+    const widgets = boardViewVisibleWidgets(allWidgets);
 
     // Reconcile: reuse cards whose rendered data hasn't changed instead of
     // wiping the board and rebuilding every bookmark from scratch. This keeps
@@ -544,6 +546,7 @@
       board.insertBefore(node, ref);
     });
 
+    boardViewAfterRender(allWidgets);
     restoreFocusState(focus);
     syncLiveCards();
     syncCpuCards();
@@ -581,7 +584,8 @@
       return 'col:' + w.id + ':' + h + ':' + bookmarksForCollection(col.id).length + (only ? ':f' + only.size : '');
     }
     if (w.type === 'plugin') return pluginRenderSig(w); // ignores w.data so saving never reloads the iframe
-    return JSON.stringify(w);
+    // Canvas rectangles change on every drag; they're applied as CSS variables, so they must not force a rebuild.
+    return JSON.stringify(w, (k, v) => (k === 'cx' || k === 'cy' || k === 'cw' || k === 'ch' || k === 'cz') ? undefined : v);
   }
 
   /* Before a board rebuild, remember exactly which widget widget stood on and
@@ -902,7 +906,8 @@
       btn.onclick = async (e) => {
         e.stopPropagation();
         close();
-        await DB.updateWidget(w.id, { span: parseInt(btn.dataset.width, 10) });
+        const n = parseInt(btn.dataset.width, 10);
+        await DB.updateWidget(w.id, Object.assign({ span: n }, canvasSpanPatch(n, w.rowSpan || 1)));
         await reload();
       };
     });
@@ -922,7 +927,8 @@
       btn.onclick = async (e) => {
         e.stopPropagation();
         close();
-        await DB.updateWidget(w.id, { rowSpan: parseInt(btn.dataset.height, 10) });
+        const n = parseInt(btn.dataset.height, 10);
+        await DB.updateWidget(w.id, Object.assign({ rowSpan: n }, canvasSpanPatch(w.span || 1, n)));
         await reload();
       };
     });

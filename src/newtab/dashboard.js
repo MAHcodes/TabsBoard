@@ -494,6 +494,7 @@
     if (!colId) return;
     const wid = Object.values(STATE.widgets).filter(w => w.type === 'collection' && w.collectionId === colId)[0];
     if (!wid) return;
+    splitSelectWidget(wid.id);
     switchNav('collections');
     requestAnimationFrame(() => {
       const card = document.querySelector(`.widget[data-widget-id="${wid.id}"]`);
@@ -624,6 +625,7 @@
     ['radius-sharp', 'radius-rounded', 'radius-extra', 'radius-none'].forEach(c => document.documentElement.classList.toggle(c, s.radius === c.slice(7)));
     document.documentElement.classList.toggle('no-borders', s.borders === false);
     document.documentElement.classList.toggle('floating-bars', !!s.floatingBars);
+    applyBoardView(s);
     document.documentElement.classList.toggle('no-anim', s.animations === false);
     document.documentElement.classList.toggle('no-popup-blur', s.popupBlur === false);
     r.setProperty('--fb-zoom', String(((typeof s.interfaceFontSize === 'number' ? s.interfaceFontSize : 100)) / 100));
@@ -946,6 +948,7 @@
     // without timers.
 
     wireSettingsPanel();
+    wireBoardViews();
   }
 
   async function quickAddCurrentTab() {

@@ -240,6 +240,7 @@ function defaultWorkspaceSettings() {
     animations: true,
     borders: true,              // show 1px outlines around cards, buttons, and inputs
     floatingBars: false,        // lift the top bar and sidebar off the edges as separate floating panels, with a gap around them
+    boardMode: 'grid',         // how the board is shown: grid (snap to columns) | canvas (free-form, snap-to-grid) | split (collections list + one collection)
     popupBlur: true,            // blur the page behind modals, the palette, and settings
     openBookmarksInNewTab: false, // false = open bookmarks in the current tab, true = open in a new tab
     lightThemeId: DEFAULT_LIGHT_THEME_ID, // used when themeId is 'auto' and the OS is in light mode
@@ -339,6 +340,7 @@ const SETTING_ENUMS = {
   radius: ['sharp', 'default', 'rounded', 'extra', 'none'],
   searchEngine: ['google', 'duckduckgo', 'bing'],
   viewMode: ['grid', 'list'],
+  boardMode: ['grid', 'canvas', 'split'],
   faviconSource: ['google', 'duckduckgo', 'none'],
   clockFormat: ['12', '24'],
   weatherUnits: ['c', 'f']
@@ -386,6 +388,7 @@ function sanitizeWorkspaceSettings(raw) {
   const out = {};
   if (!isPlainObject(raw)) return out;
   const defs = defaultWorkspaceSettings();
+  if (raw.layout === 'explorer' && !('boardMode' in raw)) raw = { ...raw, boardMode: 'split' };   // short-lived 'layout' setting
   for (const [key, def] of Object.entries(defs)) {
     if (!(key in raw)) continue;
     const value = raw[key];
@@ -1000,6 +1003,19 @@ async function updateBookmark(id, patch) {
   return setState((d) => {
     if (d.bookmarks[id]) Object.assign(d.bookmarks[id], patch);
     return d.bookmarks[id];
+  });
+}
+
+/* Free-form canvas: store {id: {cx, cy, cw, ch, cz}} rectangles for many widgets in ONE write. */
+async function setWidgetRects(rects) {
+  return setState((d) => {
+    for (const [id, r] of Object.entries(rects || {})) {
+      const w = d.widgets[id];
+      if (!w || !r) continue;
+      for (const k of ['cx', 'cy', 'cw', 'ch', 'cz']) {
+        if (typeof r[k] === 'number' && isFinite(r[k])) w[k] = Math.round(r[k]);
+      }
+    }
   });
 }
 
@@ -1817,7 +1833,7 @@ const TabsDB = {
   createSession, deleteSession, renameSession, updateSessionTabs, duplicateSession, convertSessionToCollection,
   updateSettings, settingsOf, globalSettingsOf, copyWorkspaceSettings, resetWorkspaceSettings, replaceWorkspaceSettings, deleteCustomTheme,
   defaultWorkspaceSettings, GLOBAL_SETTING_KEYS, DEFAULT_LIGHT_THEME_ID, DEFAULT_DARK_THEME_ID,
-  createWidget, updateWidget, deleteWidget, reorderWidgets,
+  createWidget, updateWidget, deleteWidget, reorderWidgets, setWidgetRects,
   installPlugin, setPluginGrants, removePlugin,
   createBoard, renameBoard, deleteBoard, setActiveBoard,
   swapWidgetPositions, moveWidgetTo,

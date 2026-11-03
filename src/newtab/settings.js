@@ -625,6 +625,7 @@
     $$('#radius-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === (s.radius || 'default')));
     $('#setting-borders').checked = s.borders !== false;
     $('#setting-floating-bars').checked = !!s.floatingBars;
+    syncBoardViewUI(s);
     $('#setting-animations').checked = s.animations !== false;
     $('#setting-popup-blur').checked = s.popupBlur !== false;
 
