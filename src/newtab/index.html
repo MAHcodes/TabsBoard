@@ -280,11 +280,16 @@
           <div class="settings-group">
             <div class="settings-group-head">
               <h3>Board view</h3>
-              <p>How the widgets and collections on a board are arranged. You can also switch from the toolbar above the board.</p>
+              <p>Every board can have its own view. Pick one here or with the switcher above the board.</p>
             </div>
             <div class="settings-row">
-              <label>View</label>
+              <label>Default view</label>
               <div class="segmented" id="boardview-toggle"></div>
+              <div class="hint-text">Used by every board that doesn't pick its own.</div>
+            </div>
+            <div class="settings-row">
+              <label>This board <span class="settings-sub" id="boardview-this-name"></span></label>
+              <div class="segmented" id="boardview-this-toggle"></div>
               <div class="hint-text" id="boardview-hint"></div>
             </div>
             <div class="settings-row" id="row-board-cols">

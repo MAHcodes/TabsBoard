@@ -640,9 +640,13 @@ html.density-compact .sidebar-heading .icon-btn.small svg { width: 17px; height:
 .widget[data-span="2"] { grid-column: span 2; }
 .widget[data-span="3"] { grid-column: span 3; }
 .widget[data-span="4"] { grid-column: span 4; }
+.widget[data-span="5"] { grid-column: span 5; }
+.widget[data-span="6"] { grid-column: span 6; }
 .widget[data-rowspan="2"] { grid-row: span 2; }
 .widget[data-rowspan="3"] { grid-row: span 3; }
 .widget[data-rowspan="4"] { grid-row: span 4; }
+.widget[data-rowspan="5"] { grid-row: span 5; }
+.widget[data-rowspan="6"] { grid-row: span 6; }
 .widget.pinned { border-color: var(--main-color); }
 .widget.drag-over { outline: 2px dashed var(--main-color); outline-offset: -2px; }
 .widget.flash { animation: widget-flash 1.6s ease; }
@@ -1682,3 +1686,18 @@ html.board-split .widget-ghost { display: none !important; }
 .entity-heading { flex: 1; min-width: 0; }
 .entity-heading h2 { margin: 0; font-size: 17px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .entity-sub { margin-top: 1px; font-size: 12px; color: var(--sub-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-sub { margin-left: 6px; font-weight: 600; color: var(--sub-color); }
+.settings-sub:not(:empty)::before { content: "· "; }
+
+/* ---------- Widget size picker (⋯ menu): square grid, hover to preview, click to set width × height ---------- */
+.dropdown-menu .size-label { display: flex; align-items: baseline; justify-content: space-between; }
+.size-readout { font-size: 11px; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; color: var(--main-color); opacity: 1; }
+.size-grid { display: grid; grid-template-columns: repeat(var(--n), 22px); gap: 3px; padding: 4px 10px 10px; justify-content: start; }
+.size-grid button {
+  width: 22px; height: 22px; padding: 0; cursor: pointer;
+  background: var(--bg-color); border: var(--border-w) solid var(--border-color); border-radius: var(--r-tiny);
+  transition: background-color .08s ease, border-color .08s ease;
+}
+.size-grid button.cur { background: color-mix(in srgb, var(--main-color) 38%, var(--bg-color)); border-color: color-mix(in srgb, var(--main-color) 60%, var(--border-color)); }
+.size-grid button.hot { background: var(--main-color); border-color: var(--main-color); }
+.size-grid button:focus-visible { outline: 2px solid var(--text-color); outline-offset: 1px; }

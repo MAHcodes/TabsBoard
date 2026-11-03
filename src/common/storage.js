@@ -1176,12 +1176,25 @@ async function deleteBoard(id) {
     const target = siblings.sort((a, b) => a.order - b.order)[0];
     const widgetsHere = Object.values(d.widgets).filter(w => w.boardId === id);
     let targetOrder = Object.values(d.widgets).filter(w => w.boardId === target.id).length;
-    widgetsHere.forEach(w => { w.boardId = target.id; w.order = targetOrder++; });
+    // Canvas positions belong to the board they were laid out on; dropping them lets the
+    // new board pack these widgets into free space instead of stacking them on top of its own.
+    widgetsHere.forEach(w => { w.boardId = target.id; w.order = targetOrder++; delete w.cx; delete w.cy; delete w.cw; delete w.ch; delete w.cz; });
     delete d.boards[id];
     if (d.workspaces[board.workspaceId] && d.workspaces[board.workspaceId].activeBoardId === id) {
       d.workspaces[board.workspaceId].activeBoardId = target.id;
     }
     return { ok: true, movedTo: target.name, movedCount: widgetsHere.length };
+  });
+}
+
+/* Per-board view. `mode` is 'grid' | 'canvas' | 'split'; null clears the override so the board
+   follows the workspace's default view again. */
+const BOARD_MODES = ['grid', 'canvas', 'split'];
+async function setBoardMode(boardId, mode) {
+  return setState((d) => {
+    const b = d.boards[boardId];
+    if (!b) return;
+    if (BOARD_MODES.includes(mode)) b.boardMode = mode; else delete b.boardMode;
   });
 }
 
@@ -1835,7 +1848,7 @@ const TabsDB = {
   defaultWorkspaceSettings, GLOBAL_SETTING_KEYS, DEFAULT_LIGHT_THEME_ID, DEFAULT_DARK_THEME_ID,
   createWidget, updateWidget, deleteWidget, reorderWidgets, setWidgetRects,
   installPlugin, setPluginGrants, removePlugin,
-  createBoard, renameBoard, deleteBoard, setActiveBoard,
+  createBoard, renameBoard, setBoardMode, deleteBoard, setActiveBoard,
   swapWidgetPositions, moveWidgetTo,
   occupiedCellsOfBoard, firstEmptyCell, assignWidgetPosition,
   exportJSON, importJSON, inspectBackup, bookmarksHTMLExport,

@@ -345,7 +345,7 @@
       <hr>
       <div class="ws-item" data-act="sort"><span class="mi-ic">${ICONS.sort}</span>Sort: ${sortModeLabel(col.sortMode)}</div>
       ${viewMenuItemsHtml(col)}
-      ${w ? `${widthMenuItemsHtml(w)}${heightMenuItemsHtml(w)}` : ''}
+      ${w ? sizeMenuItemsHtml(w) : ''}
       <hr>
       <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate collection</div>
       <div class="ws-item" data-act="movews"><span class="mi-ic">${ICONS.folderInput}</span>Move to workspace…</div>
@@ -353,8 +353,7 @@
       <hr>
       <div class="ws-item" data-act="delete" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete collection</div>`;
     const close = showDropdown(menu, rect, 230);
-    if (w) wireWidthMenuItems(menu, w, close);
-    if (w) wireHeightMenuItems(menu, w, close);
+    if (w) wireSizeMenuItems(menu, w, close);
     if (w) wireTintMenuItem(menu, w, close);
     wireViewMenuItems(menu, col, close);
     menu.querySelector('[data-act=add]').onclick = () => { close(); openBookmarkModal(null, col.id); };

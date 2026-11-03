@@ -1,6 +1,7 @@
 /* TabsBoard — board views.
-   One setting, `boardMode`, decides how the active board is shown (the toolbar switcher,
-   Settings → Board and the command palette all drive it):
+   How the active board is shown. Each board can pick its own view (`board.boardMode`, set from
+   the toolbar switcher, Settings → Board or the command palette); a board without one follows the
+   workspace default (`settings.boardMode`).
 
      grid    widgets snap to the board's columns (the default)
      canvas  free-form: drag and resize widgets anywhere, snapped to a 20px grid
@@ -19,15 +20,23 @@
   const BOARD_VIEW_IDS = BOARD_VIEWS.map(v => v.id);
   const boardViewOf = (s) => (s && BOARD_VIEW_IDS.includes(s.boardMode)) ? s.boardMode : 'grid';
 
-  function canvasActive(s) { return boardViewOf(s) === 'canvas'; }
-  function splitActive() { return boardViewOf(DB.settingsOf(STATE)) === 'split'; }
+  /* The workspace default, and the view the active board actually uses (its own choice if it has one). */
+  const defaultBoardView = () => boardViewOf(DB.settingsOf(STATE));
+  function boardOwnView() {
+    const b = STATE.boards[activeBoardId()];
+    return b && BOARD_VIEW_IDS.includes(b.boardMode) ? b.boardMode : null;
+  }
+  const activeBoardView = () => boardOwnView() || defaultBoardView();
 
-  /* Called from applySettings(): classes only, no DOM rebuilding. */
-  function applyBoardView(s) {
-    const view = boardViewOf(s);
+  const canvasActive = () => activeBoardView() === 'canvas';
+  const splitActive = () => activeBoardView() === 'split';
+
+  /* Classes only, no DOM rebuilding. Runs on every render pass, since switching boards can switch views. */
+  function applyBoardView() {
+    const view = activeBoardView();
     const root = document.documentElement;
     BOARD_VIEW_IDS.forEach(id => root.classList.toggle('board-' + id, id === view));
-    syncBoardViewUI(s);
+    syncBoardViewUI(DB.settingsOf(STATE));
   }
 
   /* ============ SPLIT VIEW ============ */
@@ -162,15 +171,6 @@
     for (let y = 0; ; y += CANVAS_GRID) {
       for (let x = 0; x + w <= boardW + 1; x += CANVAS_GRID) if (free(x, y)) return { x, y };
     }
-  }
-
-  function canvasSpanPatch(span, rowSpan) {
-    if (!canvasActive(DB.settingsOf(STATE))) return {};
-    const board = $('#board');
-    const boardW = board ? board.clientWidth : 0;
-    if (!boardW) return {};
-    const size = canvasDefaultSize({ span, rowSpan }, boardW);
-    return { cw: size.w, ch: size.h };
   }
 
   function applyCanvasRect(card, r) {
@@ -335,10 +335,9 @@
 
   /* ============ AFTER EVERY BOARD PASS ============ */
   function boardViewAfterRender(allWidgets) {
-    const s = DB.settingsOf(STATE);
     const board = $('#board');
     if (!board) return;
-    const canvas = canvasActive(s);
+    const canvas = canvasActive();
     board.classList.toggle('canvas', canvas);
     const tidy = $('#canvas-tidy-btn');
     if (tidy) tidy.classList.toggle('hidden', !canvas);
@@ -357,34 +356,56 @@
   }
 
   /* ============ SWITCHERS (toolbar + Settings → Board) ============ */
-  function syncBoardViewUI(s) {
-    const view = boardViewOf(s);
-    $$('#board-view-toggle button, #boardview-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === view));
+  const viewLabel = (id) => (BOARD_VIEWS.find(v => v.id === id) || {}).label || id;
+
+  function syncBoardViewUI() {
+    const view = activeBoardView(), own = boardOwnView(), def = defaultBoardView();
+    $$('#board-view-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === view));
+    $$('#boardview-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === def));
+    $$('#boardview-this-toggle button').forEach(b => b.classList.toggle('active', b.dataset.val === (own || 'default')));
+    const board = STATE.boards[activeBoardId()];
+    const name = $('#boardview-this-name');
+    if (name) name.textContent = board ? board.name : '';
     const hint = $('#boardview-hint');
-    if (hint) { const v = BOARD_VIEWS.find(x => x.id === view); hint.textContent = v ? v.desc : ''; }
+    if (hint) {
+      const v = BOARD_VIEWS.find(x => x.id === view);
+      hint.textContent = (own ? '' : `Following the default (${viewLabel(def)}). `) + (v ? v.desc : '');
+    }
     const cols = $('#row-board-cols');
     if (cols) cols.classList.toggle('hidden', view !== 'grid');
     const tidy = $('#canvas-tidy-btn');
     if (tidy) tidy.classList.toggle('hidden', view !== 'canvas');
   }
 
+  /* Pick a view for the active board; null hands the choice back to the workspace default. */
   async function setBoardView(view) {
-    if (!BOARD_VIEW_IDS.includes(view) || boardViewOf(DB.settingsOf(STATE)) === view) return;
+    const id = activeBoardId();
+    if (!id || boardOwnView() === (view || null)) return;
+    await DB.setBoardMode(id, view);
+    await reload();
+    if (typeof syncSettingsUI === 'function') syncSettingsUI();
+  }
+
+  async function setDefaultBoardView(view) {
+    if (!BOARD_VIEW_IDS.includes(view) || defaultBoardView() === view) return;
     await DB.updateSettings({ boardMode: view });
     await reload();
     if (typeof syncSettingsUI === 'function') syncSettingsUI();
   }
 
   function wireBoardViewSettings() {
-    // Same three buttons in two places, so both are filled from one catalog.
-    $$('#board-view-toggle, #boardview-toggle').forEach(box => {
-      box.innerHTML = BOARD_VIEWS.map(v => `<button type="button" data-val="${v.id}" title="${escapeHtml(v.label)} view"><span class="seg-ic">${ICONS[v.icon] || ''}</span><span class="seg-label">${escapeHtml(v.label)}</span></button>`).join('');
-      box.addEventListener('click', (e) => {
-        const b = e.target.closest('button[data-val]');
-        if (b) setBoardView(b.dataset.val);
-      });
-    });
-    syncBoardViewUI(DB.settingsOf(STATE));
+    const fill = (sel, extra, handler) => {
+      const box = $(sel);
+      if (!box) return;
+      const btn = (id, label, icon, title) => `<button type="button" data-val="${id}" title="${escapeHtml(title)}">${icon ? `<span class="seg-ic">${icon}</span>` : ''}<span class="seg-label">${escapeHtml(label)}</span></button>`;
+      box.innerHTML = (extra ? btn('default', 'Default', '', 'Follow the workspace default') : '') +
+        BOARD_VIEWS.map(v => btn(v.id, v.label, ICONS[v.icon] || '', sel === '#board-view-toggle' ? `${v.label} view for this board` : `${v.label} view`)).join('');
+      box.addEventListener('click', (e) => { const b = e.target.closest('button[data-val]'); if (b) handler(b.dataset.val); });
+    };
+    fill('#board-view-toggle', false, (v) => setBoardView(v));
+    fill('#boardview-this-toggle', true, (v) => setBoardView(v === 'default' ? null : v));
+    fill('#boardview-toggle', false, setDefaultBoardView);
+    syncBoardViewUI();
   }
 
   /* ============ WIRING ============ */

@@ -528,6 +528,7 @@
     renderWorkspaceBar();
     renderSidebar();
     updateTrashBadge();
+    applyBoardView();   // a different board may use a different view
     if (currentNav === 'collections') renderBoard();
     else renderSessionsPage();
   }
@@ -625,7 +626,7 @@
     ['radius-sharp', 'radius-rounded', 'radius-extra', 'radius-none'].forEach(c => document.documentElement.classList.toggle(c, s.radius === c.slice(7)));
     document.documentElement.classList.toggle('no-borders', s.borders === false);
     document.documentElement.classList.toggle('floating-bars', !!s.floatingBars);
-    applyBoardView(s);
+    applyBoardView();
     document.documentElement.classList.toggle('no-anim', s.animations === false);
     document.documentElement.classList.toggle('no-popup-blur', s.popupBlur === false);
     r.setProperty('--fb-zoom', String(((typeof s.interfaceFontSize === 'number' ? s.interfaceFontSize : 100)) / 100));

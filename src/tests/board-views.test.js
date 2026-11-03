@@ -32,6 +32,27 @@ const DB = require('../common/storage.js');
   const migrated = DB.sanitizeWorkspaceSettings ? DB.sanitizeWorkspaceSettings({ layout: 'explorer' }) : null;
   if (migrated) assert.strictEqual(migrated.boardMode, 'split');
 
+  // per-board view: an override wins, clearing it falls back to the workspace default
+  const b1 = Object.values(s.boards)[0];
+  const b2 = await DB.createBoard(ws, 'Second');
+  await DB.setBoardMode(b1.id, 'canvas');
+  s = await DB.getState();
+  assert.strictEqual(s.boards[b1.id].boardMode, 'canvas'); assert.ok(!('boardMode' in s.boards[b2.id]));
+  await DB.setBoardMode(b1.id, 'nonsense');                       // invalid values clear the override
+  s = await DB.getState(); assert.ok(!('boardMode' in s.boards[b1.id]));
+  await DB.setBoardMode(b1.id, 'split');
+  // canvas positions don't follow widgets into another board
+  const cw = await DB.createWidget(ws, 'notes');
+  await DB.setWidgetRects({ [cw.id]: { cx: 20, cy: 20, cw: 200, ch: 120 } });
+  s = await DB.getState();
+  await DB.setActiveBoard(ws, b1.id);
+  const cw2 = await DB.createWidget(ws, 'todo');
+  await DB.setWidgetRects({ [cw2.id]: { cx: 40, cy: 40, cw: 200, ch: 120 } });
+  await DB.deleteBoard(b1.id);
+  s = await DB.getState();
+  assert.ok(!('cx' in s.widgets[cw2.id]) && s.widgets[cw2.id].boardId === b2.id, 'moved widgets are re-packed');
+  assert.strictEqual(s.widgets[cw.id].cx, 20, 'widgets already on the surviving board keep their position');
+
   // bookmarks no longer carry an activity log
   const colId = Object.values(s.collections)[0].id;
   const bm = await DB.createBookmark(colId, ws, { title: 'A', url: 'https://a.test' });

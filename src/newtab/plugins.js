@@ -311,14 +311,13 @@
     const pluginItems = plugin
       ? `<div class="ws-item" data-act="reload"><span class="mi-ic">${ICONS.refresh}</span>Reload widget</div><div class="ws-item" data-act="perms"><span class="mi-ic">${ICONS.edit}</span>Permissions…</div><hr>`
       : '';
-    menu.innerHTML = `${pluginItems}${tintMenuItemHtml()}<hr>${widthMenuItemsHtml(w)}${heightMenuItemsHtml(w)}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete widget</div>`;
+    menu.innerHTML = `${pluginItems}${tintMenuItemHtml()}<hr>${sizeMenuItemsHtml(w)}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete widget</div>`;
     const close = showDropdown(menu, rect, 200);
     const reloadBtn = menu.querySelector('[data-act=reload]');
     if (reloadBtn) reloadBtn.onclick = () => { close(); reloadPluginWidget(w.id); };
     const permsBtn = menu.querySelector('[data-act=perms]');
     if (permsBtn) permsBtn.onclick = () => { close(); openPluginConsentModal({ manifest: plugin, existing: plugin, mode: 'review' }); };
-    wireWidthMenuItems(menu, w, close);
-    wireHeightMenuItems(menu, w, close);
+    wireSizeMenuItems(menu, w, close);
     wireTintMenuItem(menu, w, close);
     menu.querySelector('[data-act=remove]').onclick = async () => {
       close();

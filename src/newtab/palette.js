@@ -239,7 +239,7 @@
   });
   const PALETTE_ON_OFF = [{ label: 'On', value: true }, { label: 'Off', value: false }];
   const PALETTE_SETTINGS = [
-    { id: 'boardMode', label: 'Board view', keywords: 'grid canvas free-form freeform split list detail mail layout drag snap', get: s => s.boardMode || 'grid', set: v => ({ boardMode: v }), options: [
+    { id: 'boardMode', label: 'Default board view', keywords: 'grid canvas free-form freeform split list detail mail layout drag snap', get: s => s.boardMode || 'grid', set: v => ({ boardMode: v }), options: [
       { label: 'Grid', value: 'grid' }, { label: 'Free-form canvas', value: 'canvas' }, { label: 'Split view', value: 'split' } ] },
     { id: 'density', label: 'Density', get: s => s.density, set: v => ({ density: v }), options: [
       { label: 'Spacious', value: 'spacious' }, { label: 'Comfortable', value: 'comfortable' },
@@ -477,7 +477,11 @@
       act('View', 'grid', 'Toggle grid / list view', toggleViewMode, { keywords: 'tiles rows layout' }),
       act('View', 'search', 'Search the web…', searchTheWeb)
     );
-    if (canvasActive(s)) items.push(act('View', 'wand', 'Auto-arrange canvas widgets', canvasAutoArrange, { keywords: 'tidy snap grid pack layout' }));
+    // The view of the board you're on; the "Board view" setting is the default for boards that don't choose.
+    const here = activeBoardView();
+    BOARD_VIEWS.filter(v => v.id !== here).forEach(v => items.push(act('View', v.icon, `Board view: ${v.label} (this board)`, () => setBoardView(v.id), { keywords: 'switch change layout grid canvas split list' })));
+    if (boardOwnView()) items.push(act('View', 'refresh', `Board view: use default (${viewLabel(defaultBoardView())})`, () => setBoardView(null), { keywords: 'reset board view follow default' }));
+    if (canvasActive()) items.push(act('View', 'wand', 'Auto-arrange canvas widgets', canvasAutoArrange, { keywords: 'tidy snap grid pack layout' }));
     return items;
   }
 

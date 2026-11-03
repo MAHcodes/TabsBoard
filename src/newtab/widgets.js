@@ -859,14 +859,14 @@
           const deltaX = ev.clientX - startX;
           const candidateWidth = startWidthPx + deltaX;
           let span = Math.round((candidateWidth + metrics.gap) / (metrics.colWidth + metrics.gap));
-          span = Math.max(1, Math.min(4, metrics.cols, span));
+          span = Math.max(1, Math.min(6, metrics.cols, span));
           if (span !== liveSpan) { liveSpan = span; applyLiveSize(); }
         }
         if (axes.y) {
           const deltaY = ev.clientY - startY;
           const cardHeight = rowSpanPx(startRow, startRowPx, metrics.gap) + deltaY;
           let row = Math.round((cardHeight + metrics.gap) / (startRowPx + metrics.gap));
-          row = Math.max(1, Math.min(4, row));
+          row = Math.max(1, Math.min(Math.max(4, metrics.cols), row));
           if (row !== liveRow) { liveRow = row; applyLiveSize(); }
         }
       };
@@ -891,46 +891,57 @@
     handleC.addEventListener('mousedown', (e) => startResize(e, { x: true, y: true }));
   }
 
-  /* Shared "Width" menu section (moved off the header into the ⋯ menu so
-     the header itself stays uncluttered) — used by both the collection
-     menu and the generic notes/todo/clock widget menu. */
-  function widthMenuItemsHtml(w) {
-    const current = w.span || 1;
-    const buttons = [1, 2, 3, 4].map(n =>
-      `<button data-width="${n}" class="${n === current ? 'active' : ''}">${n}</button>`
-    ).join('');
-    return `<div class="ws-item-label">Width</div><div class="width-row">${buttons}</div>`;
+  /* Shared "Size" menu section, used by every widget's ⋯ / right-click menu. A square grid of
+     cells (as many columns and rows as the Board width setting): hover highlights from the
+     top-left corner to the cell under the pointer, like the table picker in Excel or Word, and
+     one click sets width and height together. Only offered in the Grid view — Canvas resizes freely. */
+  function sizePickerDims() {
+    return Math.max(3, Math.min(6, (DB.settingsOf(STATE).dashboard && DB.settingsOf(STATE).dashboard.columns) || 4));
   }
-  function wireWidthMenuItems(menu, w, close) {
-    $$('[data-width]', menu).forEach(btn => {
-      btn.onclick = async (e) => {
-        e.stopPropagation();
-        close();
-        const n = parseInt(btn.dataset.width, 10);
-        await DB.updateWidget(w.id, Object.assign({ span: n }, canvasSpanPatch(n, w.rowSpan || 1)));
-        await reload();
-      };
+  function sizeMenuItemsHtml(w) {
+    if (activeBoardView() !== 'grid') return '';
+    const n = sizePickerDims();
+    const curC = Math.min(n, Math.max(1, w.span || 1)), curR = Math.min(n, Math.max(1, w.rowSpan || 1));
+    let cells = '';
+    for (let r = 1; r <= n; r++) for (let c = 1; c <= n; c++) {
+      cells += `<button type="button" data-c="${c}" data-r="${r}" class="${c <= curC && r <= curR ? 'cur' : ''}" tabindex="${c === curC && r === curR ? 0 : -1}" aria-label="${c} wide, ${r} high"></button>`;
+    }
+    return `<div class="ws-item-label size-label">Size<span class="size-readout" data-size-readout>${curC} × ${curR}</span></div>
+      <div class="size-grid" role="group" aria-label="Widget size, columns by rows" style="--n:${n}" data-cur-c="${curC}" data-cur-r="${curR}">${cells}</div>`;
+  }
+  function wireSizeMenuItems(menu, w, close) {
+    const grid = menu.querySelector('.size-grid');
+    if (!grid) return;
+    const readout = menu.querySelector('[data-size-readout]');
+    const n = parseInt(getComputedStyle(grid).getPropertyValue('--n'), 10) || sizePickerDims();
+    const cells = Array.from(grid.querySelectorAll('button'));
+    const curC = parseInt(grid.dataset.curC, 10), curR = parseInt(grid.dataset.curR, 10);
+    const show = (hc, hr) => {
+      cells.forEach(b => b.classList.toggle('hot', hc > 0 && +b.dataset.c <= hc && +b.dataset.r <= hr));
+      readout.textContent = hc > 0 ? `${hc} × ${hr}` : `${curC} × ${curR}`;
+    };
+    grid.addEventListener('mouseover', (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.c, +b.dataset.r); });
+    grid.addEventListener('mouseleave', () => { if (!grid.contains(document.activeElement)) show(0, 0); });
+    grid.addEventListener('focusin', (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.c, +b.dataset.r); });
+    grid.addEventListener('focusout', (e) => { if (!grid.contains(e.relatedTarget)) show(0, 0); });
+    // Arrow keys walk the grid, like the cells were a table.
+    grid.addEventListener('keydown', (e) => {
+      const b = e.target.closest('button');
+      const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (!b || !d) return;
+      e.preventDefault(); e.stopPropagation();
+      const c = Math.max(1, Math.min(n, +b.dataset.c + d[0])), r = Math.max(1, Math.min(n, +b.dataset.r + d[1]));
+      const next = cells.find(x => +x.dataset.c === c && +x.dataset.r === r);
+      cells.forEach(x => { x.tabIndex = x === next ? 0 : -1; });
+      next.focus();
     });
-  }
-
-  /* Shared "Height" menu section — same idea as the width picker but for
-     row span (how many grid rows a widget occupies vertically). */
-  function heightMenuItemsHtml(w) {
-    const current = w.rowSpan || 1;
-    const buttons = [1, 2, 3, 4].map(n =>
-      `<button data-height="${n}" class="${n === current ? 'active' : ''}">${n}</button>`
-    ).join('');
-    return `<div class="ws-item-label">Height</div><div class="width-row">${buttons}</div>`;
-  }
-  function wireHeightMenuItems(menu, w, close) {
-    $$('[data-height]', menu).forEach(btn => {
-      btn.onclick = async (e) => {
-        e.stopPropagation();
-        close();
-        const n = parseInt(btn.dataset.height, 10);
-        await DB.updateWidget(w.id, Object.assign({ rowSpan: n }, canvasSpanPatch(w.span || 1, n)));
-        await reload();
-      };
+    grid.addEventListener('click', async (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      e.stopPropagation();
+      close();
+      await DB.updateWidget(w.id, { span: +b.dataset.c, rowSpan: +b.dataset.r });
+      await reload();
     });
   }
 
@@ -2338,7 +2349,7 @@
     } else if (w.type === 'downloads' || w.type === 'history') {
       extra = `<div class="ws-item" data-act="refreshlist"><span class="mi-ic">${ICONS.refresh}</span>Refresh list</div><hr>`;
     }
-    menu.innerHTML = `${extra.replace(/<hr>\s*$/, '')}${tintMenuItemHtml()}<hr>${widthMenuItemsHtml(w)}${heightMenuItemsHtml(w)}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash}</span>${removeLabel}</div>`;
+    menu.innerHTML = `${extra.replace(/<hr>\s*$/, '')}${tintMenuItemHtml()}<hr>${sizeMenuItemsHtml(w)}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash}</span>${removeLabel}</div>`;
     const close = showDropdown(menu, rect, 200);
     const fmtBtn = menu.querySelector('[data-act=fmt]');
     if (fmtBtn) fmtBtn.onclick = async () => { close(); await DB.updateWidget(w.id, { format: (w.format || '24') === '24' ? '12' : '24' }); await reload(); };
@@ -2363,8 +2374,7 @@
     if (refreshRssBtn) refreshRssBtn.onclick = async () => { close(); await refreshRssWidget(w); };
     const refreshListBtn = menu.querySelector('[data-act=refreshlist]');
     if (refreshListBtn) refreshListBtn.onclick = async () => { close(); await reload(); };
-    wireWidthMenuItems(menu, w, close);
-    wireHeightMenuItems(menu, w, close);
+    wireSizeMenuItems(menu, w, close);
     wireTintMenuItem(menu, w, close);
     menu.querySelector('[data-act=remove]').onclick = async () => {
       close();

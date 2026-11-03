@@ -36,8 +36,36 @@ with run('dark', path=PAGE) as (pg, errs):
     pg.click('#board-view-toggle [data-val=grid]'); settle(pg)
     assert not vis(pg, '#canvas-tidy-btn') and not pg.evaluate("document.querySelector('#board').classList.contains('canvas')")
 
-    # Settings -> Board mirrors the switcher, and hides the column picker when it doesn't apply
+    # per-board: a second board keeps its own view, and the first one remembers canvas
+    pg.click('#board-view-toggle [data-val=canvas]'); settle(pg, 700)
+    assert pg.evaluate("document.querySelector('#board').classList.contains('canvas')")
+    pg.evaluate("DB.createBoard(STATE.meta.activeWorkspaceId,'Second').then(reload)"); settle(pg, 700)
+    assert active(pg, '#board-view-toggle') == 'grid' and not vis(pg, '#canvas-tidy-btn'), 'new board follows the default'
+    assert not pg.evaluate("document.querySelector('#board').classList.contains('canvas')")
+    pg.click('#board-view-toggle [data-val=split]'); settle(pg, 600)
+    assert vis(pg, '#pane-list')
+    boards = pg.evaluate("Object.values(STATE.boards).sort((a,b)=>a.order-b.order).map(b=>[b.name,b.boardMode||null])")
+    assert boards == [['Board 1', 'canvas'], ['Second', 'split']], boards
+    pg.evaluate("jumpToBoard(Object.values(STATE.boards).find(b=>b.name==='Board 1').id)"); settle(pg, 800)
+    assert active(pg, '#board-view-toggle') == 'canvas' and vis(pg, '#canvas-tidy-btn') and not vis(pg, '#pane-list')
+    # Settings -> Board: "This board" can hand the choice back to the default
     pg.keyboard.press('s'); settle(pg, 300)
+    pg.click('.settings-tab[data-tab=board]'); settle(pg, 200)
+    assert active(pg, '#boardview-this-toggle') == 'canvas' and 'Board 1' in pg.inner_text('#boardview-this-name')
+    assert active(pg, '#boardview-toggle') == 'grid'
+    pg.click('#boardview-this-toggle [data-val=default]'); settle(pg, 600)
+    assert active(pg, '#board-view-toggle') == 'grid' and 'Following the default' in pg.inner_text('#boardview-hint')
+    pg.click('#boardview-toggle [data-val=canvas]'); settle(pg, 600)                 # change the default: this board follows
+    assert active(pg, '#board-view-toggle') == 'canvas'
+    pg.click('#boardview-toggle [data-val=grid]'); settle(pg, 400)
+    pg.keyboard.press('Escape'); settle(pg, 300)
+    # palette offers the other views for this board
+    pg.keyboard.press('Control+k'); pg.keyboard.type('this board'); settle(pg, 400)
+    assert 'Canvas (this board)' in pg.inner_text('#palette-results') or 'Split view' in pg.inner_text('#palette-results') or 'Split (this board)' in pg.inner_text('#palette-results')
+    pg.keyboard.press('Escape'); pg.keyboard.press('Escape'); settle(pg, 300)
+
+    # Settings -> Board mirrors the switcher, and hides the column picker when it doesn't apply
+    pg.evaluate('openSettings()'); settle(pg, 300)
     pg.click('.settings-tab[data-tab=board]'); settle(pg, 200)
     assert active(pg, '#boardview-toggle') == 'grid' and vis(pg, '#row-board-cols')
     pg.click('#boardview-toggle [data-val=canvas]'); settle(pg, 500)
