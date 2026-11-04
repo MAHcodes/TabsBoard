@@ -53,6 +53,24 @@ const DB = require('../common/storage.js');
   assert.ok(!('cx' in s.widgets[cw2.id]) && s.widgets[cw2.id].boardId === b2.id, 'moved widgets are re-packed');
   assert.strictEqual(s.widgets[cw.id].cx, 20, 'widgets already on the surviving board keep their position');
 
+  // moving a widget to another board of the same workspace
+  const mv = await DB.createWidget(ws, 'notes');
+  await DB.setWidgetRects({ [mv.id]: { cx: 20, cy: 20, cw: 200, ch: 120 } });
+  s = await DB.getState();
+  const from = s.widgets[mv.id].boardId;
+  const other = Object.values(s.boards).find(b => b.id !== from && b.workspaceId === ws);
+  if (other) {
+    const before = Object.values(s.widgets).filter(x => x.boardId === other.id).length;
+    const res = await DB.moveWidgetToBoard(mv.id, other.id);
+    assert.ok(res.ok && res.boardName === other.name);
+    s = await DB.getState();
+    assert.strictEqual(s.widgets[mv.id].boardId, other.id);
+    assert.strictEqual(s.widgets[mv.id].order, before, 'joins the end of the target board');
+    assert.ok(!('cx' in s.widgets[mv.id]), 'canvas position is dropped');
+    assert.strictEqual((await DB.moveWidgetToBoard(mv.id, other.id)).ok, false, 'same board is a no-op');
+  }
+  assert.strictEqual((await DB.moveWidgetToBoard(mv.id, 'nope')).ok, false);
+
   // bookmarks no longer carry an activity log
   const colId = Object.values(s.collections)[0].id;
   const bm = await DB.createBookmark(colId, ws, { title: 'A', url: 'https://a.test' });

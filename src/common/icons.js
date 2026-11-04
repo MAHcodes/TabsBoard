@@ -9,6 +9,8 @@
   const S = 'fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
 
   const ICONS = {
+    maximize: `<svg viewBox="0 0 24 24" ${S}><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></svg>`,
+    eye: `<svg viewBox="0 0 24 24" ${S}><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0" /><circle cx="12" cy="12" r="3" /></svg>`,
     move: `<svg viewBox="0 0 24 24" ${S}><path d="M12 2v20" /><path d="m15 19-3 3-3-3" /><path d="m19 9 3 3-3 3" /><path d="M2 12h20" /><path d="m5 9-3 3 3 3" /><path d="m9 5 3-3 3 3" /></svg>`,
     search: `<svg viewBox="0 0 24 24" ${S}><path d="m21 21-4.34-4.34" /> <circle cx="11" cy="11" r="8" /></svg>`,
     grid: `<svg viewBox="0 0 24 24" ${S}><rect width="7" height="7" x="3" y="3" rx="1" /> <rect width="7" height="7" x="14" y="3" rx="1" /> <rect width="7" height="7" x="14" y="14" rx="1" /> <rect width="7" height="7" x="3" y="14" rx="1" /></svg>`,

@@ -570,6 +570,7 @@
           h = ((h << 5) - h + s.charCodeAt(i)) | 0;
         }
       };
+      mix(w.tintColor); mix(w.tintColor && tintBaseColor());   // the card's own background, and the theme colour it is mixed into
       mix(col.name); mix(col.color); mix(col.pinned); mix(col.sortMode);
       mix(col.viewMode); mix(col.description); mix(col.syncSource); mix(DB.settingsOf(STATE).faviconSource);
       const only = bmFilter.get(col.id);
@@ -585,7 +586,7 @@
     }
     if (w.type === 'plugin') return pluginRenderSig(w); // ignores w.data so saving never reloads the iframe
     // Canvas rectangles change on every drag; they're applied as CSS variables, so they must not force a rebuild.
-    return JSON.stringify(w, (k, v) => (k === 'cx' || k === 'cy' || k === 'cw' || k === 'ch' || k === 'cz') ? undefined : v);
+    return JSON.stringify(w, (k, v) => (k === 'cx' || k === 'cy' || k === 'cw' || k === 'ch' || k === 'cz') ? undefined : v) + (w.tintColor ? '|' + tintBaseColor() : '');
   }
 
   /* Before a board rebuild, remember exactly which widget widget stood on and
@@ -727,14 +728,18 @@
     return el('div');
   }
 
+  /* The theme colour a widget's tint is mixed into. */
+  function tintBaseColor() {
+    return getComputedStyle(document.documentElement).getPropertyValue('--sub-alt-color').trim() || '#ffffff';
+  }
+
   function widgetShell(w, typeIcon, titleHtml, headerExtrasHtml) {
     const card = el('div', 'widget');
     card.dataset.widgetId = w.id;
     card.dataset.span = String(w.span || 1);
     card.dataset.rowspan = String(w.rowSpan || 1);
     if (w.tintColor && CU) {
-      const base = getComputedStyle(document.documentElement).getPropertyValue('--sub-alt-color').trim() || '#ffffff';
-      card.style.background = CU.mix(base, w.tintColor, 0.16);
+      card.style.background = CU.mix(tintBaseColor(), w.tintColor, 0.16);
     }
     // Board widgets auto-flow (CSS packs them top-left with no empty gaps);
     // data-span/data-rowspan drive their size. No explicit grid cells.
@@ -891,79 +896,209 @@
     handleC.addEventListener('mousedown', (e) => startResize(e, { x: true, y: true }));
   }
 
-  /* Shared "Size" menu section, used by every widget's ⋯ / right-click menu. A square grid of
-     cells (as many columns and rows as the Board width setting): hover highlights from the
-     top-left corner to the cell under the pointer, like the table picker in Excel or Word, and
-     one click sets width and height together. Only offered in the Grid view — Canvas resizes freely. */
-  function sizePickerDims() {
-    return Math.max(3, Math.min(6, (DB.settingsOf(STATE).dashboard && DB.settingsOf(STATE).dashboard.columns) || 4));
+  /* ---- Hover flyouts -------------------------------------------------------------------------
+     A row such as "Size ›" or "View ›" opens its own small panel beside the menu. It opens on hover
+     (after a short delay, so sweeping past doesn't flicker), on click, or with Enter / → on the
+     focused row, and closes when the pointer leaves both the row and the panel, when another item
+     is hovered, or with ← / Esc. The panel is a child of the menu, so it goes away with it.
+     `build(flyout, closeAll)` fills and wires the panel; closeAll closes the whole menu. */
+  function flyoutRowHtml(key, iconHtml, label, valueText) {
+    return `<div class="ws-item ws-sub" data-sub="${key}" role="menuitem" aria-haspopup="true" aria-expanded="false" tabindex="0"><span class="mi-ic">${iconHtml}</span>${label}${valueText ? `<span class="ws-sub-value">${escapeHtml(valueText)}</span>` : ''}<span class="mi-right">${ICONS.chevronRight}</span></div>`;
   }
-  function sizeMenuItemsHtml(w) {
-    if (activeBoardView() !== 'grid') return '';
-    const n = sizePickerDims();
-    const curC = Math.min(n, Math.max(1, w.span || 1)), curR = Math.min(n, Math.max(1, w.rowSpan || 1));
-    let cells = '';
-    for (let r = 1; r <= n; r++) for (let c = 1; c <= n; c++) {
-      cells += `<button type="button" data-c="${c}" data-r="${r}" class="${c <= curC && r <= curR ? 'cur' : ''}" tabindex="${c === curC && r === curR ? 0 : -1}" aria-label="${c} wide, ${r} high"></button>`;
-    }
-    return `<div class="ws-item-label size-label">Size<span class="size-readout" data-size-readout>${curC} × ${curR}</span></div>
-      <div class="size-grid" role="group" aria-label="Widget size, columns by rows" style="--n:${n}" data-cur-c="${curC}" data-cur-r="${curR}">${cells}</div>`;
-  }
-  function wireSizeMenuItems(menu, w, close) {
-    const grid = menu.querySelector('.size-grid');
-    if (!grid) return;
-    const readout = menu.querySelector('[data-size-readout]');
-    const n = parseInt(getComputedStyle(grid).getPropertyValue('--n'), 10) || sizePickerDims();
-    const cells = Array.from(grid.querySelectorAll('button'));
-    const curC = parseInt(grid.dataset.curC, 10), curR = parseInt(grid.dataset.curR, 10);
-    const show = (hc, hr) => {
-      cells.forEach(b => b.classList.toggle('hot', hc > 0 && +b.dataset.c <= hc && +b.dataset.r <= hr));
-      readout.textContent = hc > 0 ? `${hc} × ${hr}` : `${curC} × ${curR}`;
+  function attachFlyout(menu, row, build) {
+    let fly = null, openTimer = null, closeTimer = null;
+    const closeFly = () => {
+      clearTimeout(openTimer); clearTimeout(closeTimer);
+      if (fly) { fly.remove(); fly = null; }
+      row.classList.remove('open'); row.setAttribute('aria-expanded', 'false');
     };
-    grid.addEventListener('mouseover', (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.c, +b.dataset.r); });
-    grid.addEventListener('mouseleave', () => { if (!grid.contains(document.activeElement)) show(0, 0); });
-    grid.addEventListener('focusin', (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.c, +b.dataset.r); });
-    grid.addEventListener('focusout', (e) => { if (!grid.contains(e.relatedTarget)) show(0, 0); });
-    // Arrow keys walk the grid, like the cells were a table.
-    grid.addEventListener('keydown', (e) => {
-      const b = e.target.closest('button');
-      const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-      if (!b || !d) return;
-      e.preventDefault(); e.stopPropagation();
-      const c = Math.max(1, Math.min(n, +b.dataset.c + d[0])), r = Math.max(1, Math.min(n, +b.dataset.r + d[1]));
-      const next = cells.find(x => +x.dataset.c === c && +x.dataset.r === r);
-      cells.forEach(x => { x.tabIndex = x === next ? 0 : -1; });
-      next.focus();
+    const scheduleClose = () => { clearTimeout(openTimer); clearTimeout(closeTimer); closeTimer = setTimeout(closeFly, 220); };
+    const open = (focusFirst) => {
+      clearTimeout(closeTimer);
+      if (fly) { if (focusFirst) focusInside(); return; }
+      menu.querySelectorAll('.ws-flyout').forEach(f => f.__close && f.__close());   // one flyout at a time
+      fly = el('div', 'dropdown-menu ws-flyout');
+      fly.__close = closeFly;
+      fly.setAttribute('role', 'menu');
+      build(fly, () => menu.__closeAll ? menu.__closeAll() : closeFly());
+      fly.style.visibility = 'hidden';
+      menu.appendChild(fly);
+      // Beside the menu on the right; flip to the left when there isn't room. Aligned with the row, kept on screen.
+      const m = menu.getBoundingClientRect(), r = row.getBoundingClientRect(), f = fly.getBoundingClientRect();
+      let left = m.right + 4;
+      if (left + f.width > window.innerWidth - 8) left = Math.max(8, m.left - f.width - 4);
+      const top = Math.max(8, Math.min(r.top - 7, window.innerHeight - f.height - 8));
+      fly.style.left = left + 'px'; fly.style.top = top + 'px'; fly.style.visibility = 'visible';
+      row.classList.add('open'); row.setAttribute('aria-expanded', 'true');
+      fly.addEventListener('click', (e) => e.stopPropagation());   // blank areas of the panel must not close the menu
+      fly.addEventListener('mouseenter', () => clearTimeout(closeTimer));
+      fly.addEventListener('mouseleave', scheduleClose);
+      fly.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeFly(); row.focus(); }
+      });
+      if (focusFirst) focusInside();
+    };
+    const focusInside = () => { const t = fly && (fly.querySelector('[tabindex="0"]') || fly.querySelector('.ws-item, button')); if (t) t.focus(); };
+    row.addEventListener('mouseenter', () => { clearTimeout(closeTimer); clearTimeout(openTimer); openTimer = setTimeout(() => open(false), 90); });
+    row.addEventListener('mouseleave', scheduleClose);
+    row.addEventListener('click', (e) => { e.stopPropagation(); clearTimeout(openTimer); open(false); });   // never toggles shut: a click after hover-open must not hide it
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); open(true); }
     });
-    grid.addEventListener('click', async (e) => {
-      const b = e.target.closest('button');
-      if (!b) return;
-      e.stopPropagation();
-      close();
-      await DB.updateWidget(w.id, { span: +b.dataset.c, rowSpan: +b.dataset.r });
-      await reload();
+    // Hovering any other plain item in the menu puts the flyout away.
+    menu.addEventListener('mouseover', (e) => {
+      const it = e.target.closest('.ws-item');
+      if (it && it !== row && !it.closest('.ws-flyout')) scheduleClose();
     });
   }
 
+  /* ---- Size ---------------------------------------------------------------------------------------
+     "Size ›" opens a square grid (as many columns and rows as the Board width setting): hover
+     highlights from the top-left corner to the cell under the pointer, like the table picker in
+     Excel or Word, and one click sets width and height together. Only offered in the Grid view —
+     Canvas resizes freely. */
+  function sizePickerDims() {
+    return Math.max(3, Math.min(6, (DB.settingsOf(STATE).dashboard && DB.settingsOf(STATE).dashboard.columns) || 4));
+  }
+  const widgetSizeOf = (w) => {
+    const n = sizePickerDims();
+    return { c: Math.min(n, Math.max(1, w.span || 1)), r: Math.min(n, Math.max(1, w.rowSpan || 1)) };
+  };
+  function sizeMenuItemsHtml(w) {
+    if (activeBoardView() !== 'grid') return '';
+    const cur = widgetSizeOf(w);
+    return flyoutRowHtml('size', ICONS.maximize, 'Size', `${cur.c} × ${cur.r}`);
+  }
+  function wireSizeMenuItems(menu, w, close) {
+    const row = menu.querySelector('[data-sub=size]');
+    if (!row) return;
+    menu.__closeAll = close;
+    attachFlyout(menu, row, (fly, closeAll) => {
+      const n = sizePickerDims(), cur = widgetSizeOf(w);
+      let cells = '';
+      for (let r = 1; r <= n; r++) for (let c = 1; c <= n; c++) {
+        cells += `<button type="button" data-c="${c}" data-r="${r}" class="${c <= cur.c && r <= cur.r ? 'cur' : ''}" tabindex="${c === cur.c && r === cur.r ? 0 : -1}" aria-label="${c} wide, ${r} high"></button>`;
+      }
+      fly.innerHTML = `<div class="ws-item-label size-label">Size<span class="size-readout" data-size-readout>${cur.c} × ${cur.r}</span></div>
+        <div class="size-grid" role="group" aria-label="Widget size, columns by rows" style="--n:${n}">${cells}</div>`;
+      const grid = fly.querySelector('.size-grid'), readout = fly.querySelector('[data-size-readout]');
+      const btns = Array.from(grid.querySelectorAll('button'));
+      const show = (hc, hr) => {
+        btns.forEach(b => b.classList.toggle('hot', hc > 0 && +b.dataset.c <= hc && +b.dataset.r <= hr));
+        readout.textContent = hc > 0 ? `${hc} × ${hr}` : `${cur.c} × ${cur.r}`;
+      };
+      grid.addEventListener('mouseover', (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.c, +b.dataset.r); });
+      grid.addEventListener('mouseleave', () => { if (!grid.contains(document.activeElement)) show(0, 0); });
+      grid.addEventListener('focusin', (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.c, +b.dataset.r); });
+      grid.addEventListener('focusout', (e) => { if (!grid.contains(e.relatedTarget)) show(0, 0); });
+      grid.addEventListener('keydown', (e) => {
+        const b = e.target.closest('button');
+        const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+        if (!b || !d) return;
+        const c = +b.dataset.c + d[0], r = +b.dataset.r + d[1];
+        if (c < 1) return;                                      // ← from the first column: the flyout's own handler closes it
+        e.preventDefault(); e.stopPropagation();
+        const next = btns.find(x => +x.dataset.c === Math.min(n, c) && +x.dataset.r === Math.max(1, Math.min(n, r)));
+        btns.forEach(x => { x.tabIndex = x === next ? 0 : -1; });
+        next.focus();
+      });
+      grid.addEventListener('click', async (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        e.stopPropagation();
+        closeAll();
+        await DB.updateWidget(w.id, { span: +b.dataset.c, rowSpan: +b.dataset.r });
+        await reload();
+      });
+    });
+  }
+
+  /* "Move to board…": shown only when the workspace has another board to move to. Opens a second
+     small menu listing the other boards, where the first one was. */
+  function moveBoardMenuItemHtml(w) {
+    return boardsForActiveWS().length > 1
+      ? `<div class="ws-item" data-act="moveboard"><span class="mi-ic">${ICONS.move}</span>Move to board…</div>` : '';
+  }
+  function wireMoveBoardMenuItem(menu, w, close, rect) {
+    const item = menu.querySelector('[data-act=moveboard]');
+    if (!item) return;
+    item.onclick = () => {
+      close();
+      const sub = el('div', 'dropdown-menu');
+      const boards = boardsForActiveWS().filter(b => b.id !== w.boardId);
+      sub.innerHTML = `<div class="ws-item-label">Move to board</div>` +
+        boards.map(b => `<div class="ws-item" data-board="${escapeHtml(b.id)}"><span class="mi-ic">${ICONS.move}</span>${escapeHtml(b.name)}</div>`).join('');
+      const closeSub = showDropdown(sub, rect, 200);
+      $$('[data-board]', sub).forEach(row => {
+        row.onclick = async () => {
+          closeSub();
+          const res = await DB.moveWidgetToBoard(w.id, row.dataset.board);
+          await reload();
+          if (res && res.ok) toast(`Moved to "${res.boardName}"`, 'Show', () => jumpToBoard(row.dataset.board));
+        };
+      });
+    };
+  }
+
+  /* Menu sections joined by one divider each, so an empty section (no size picker in Canvas, no
+     "Move to board" with a single board) never leaves a doubled divider. */
+  const menuSections = (...sections) => sections.map(x => (x || '').replace(/(<hr>\s*)+$/, '')).filter(Boolean).join('<hr>');
+
+  /* A flyout that is just a short list of choices with the current one checked (View, Sort). */
+  function wireChoiceFlyout(menu, key, title, choices, currentId, onPick, close) {
+    const row = menu.querySelector(`[data-sub=${key}]`);
+    if (!row) return;
+    menu.__closeAll = close;
+    attachFlyout(menu, row, (fly, closeAll) => {
+      const item = (c) => `<div class="ws-item${currentId === c.id ? ' active' : ''}" role="menuitemradio" aria-checked="${currentId === c.id}" tabindex="${currentId === c.id ? 0 : -1}" data-choice="${c.id}">${c.icon ? `<span class="mi-ic">${c.icon}</span>` : ''}${c.label}${currentId === c.id ? `<span class="mi-right">${ICONS.check}</span>` : ''}</div>`;
+      fly.innerHTML = `<div class="ws-item-label">${title}</div>${choices.map(item).join('')}`;
+      const items = Array.from(fly.querySelectorAll('[data-choice]'));
+      fly.addEventListener('keydown', (e) => {
+        const i = items.indexOf(document.activeElement);
+        if (i < 0 || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+        e.preventDefault(); e.stopPropagation();
+        const next = items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
+        items.forEach(x => { x.tabIndex = x === next ? 0 : -1; });
+        next.focus();
+      });
+      items.forEach(it => {
+        const pick = async (e) => {
+          e.stopPropagation();
+          closeAll();
+          await onPick(it.dataset.choice);
+        };
+        it.addEventListener('click', pick);
+        it.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(e); } });
+      });
+    });
+  }
+
+  /* "View ›": Tiles or Rows for the bookmarks inside this collection. */
   function viewMenuItemsHtml(col) {
     const current = col.viewMode || DB.settingsOf(STATE).viewMode;
-    // The two layouts get their own glyphs, so the choice reads at a glance
-    // instead of being two words side by side. .mi-ic keeps the sizing and
-    // alignment the rest of this menu already relies on.
-    return `<div class="ws-item-label">View</div><div class="width-row">` +
-      `<button data-view="grid" class="${current === 'grid' ? 'active' : ''}"><span class="mi-ic">${ICONS.grid}</span>Tiles</button>` +
-      `<button data-view="list" class="${current === 'list' ? 'active' : ''}"><span class="mi-ic">${ICONS.list}</span>Rows</button>` +
-      `</div>`;
+    return flyoutRowHtml('view', ICONS.eye, 'View', current === 'list' ? 'Rows' : 'Tiles');
   }
   function wireViewMenuItems(menu, col, close) {
-    $$('[data-view]', menu).forEach(btn => {
-      btn.onclick = async (e) => {
-        e.stopPropagation();
-        close();
-        await DB.setCollectionViewMode(col.id, btn.dataset.view);
+    const current = col.viewMode || DB.settingsOf(STATE).viewMode;
+    wireChoiceFlyout(menu, 'view', 'View', [
+      { id: 'grid', icon: ICONS.grid, label: 'Tiles' }, { id: 'list', icon: ICONS.list, label: 'Rows' }
+    ], current === 'list' ? 'list' : 'grid', async (id) => {
+      await DB.setCollectionViewMode(col.id, id);
+      await reload();
+    }, close);
+  }
+
+  /* "Sort ›": how the bookmarks in this collection are ordered. */
+  function sortMenuItemsHtml(col) {
+    return flyoutRowHtml('sort', ICONS.sort, 'Sort', sortModeLabel(col.sortMode));
+  }
+  function wireSortMenuItems(menu, col, close) {
+    wireChoiceFlyout(menu, 'sort', 'Sort by', ['manual', 'alpha', 'newest', 'oldest'].map(id => ({ id, label: sortModeLabel(id) })),
+      ['alpha', 'newest', 'oldest'].includes(col.sortMode) ? col.sortMode : 'manual', async (id) => {
+        await DB.setCollectionSortMode(col.id, id);
         await reload();
-      };
-    });
+        toast(`Sorted: ${sortModeLabel(id)}`);
+      }, close);
   }
 
   function wireWidgetReorderDropZone(card, w) {
@@ -2349,7 +2484,11 @@
     } else if (w.type === 'downloads' || w.type === 'history') {
       extra = `<div class="ws-item" data-act="refreshlist"><span class="mi-ic">${ICONS.refresh}</span>Refresh list</div><hr>`;
     }
-    menu.innerHTML = `${extra.replace(/<hr>\s*$/, '')}${tintMenuItemHtml()}<hr>${sizeMenuItemsHtml(w)}<hr><div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash}</span>${removeLabel}</div>`;
+    menu.innerHTML = menuSections(
+      `${extra.replace(/<hr>\s*$/, '')}${tintMenuItemHtml()}`,
+      sizeMenuItemsHtml(w),
+      moveBoardMenuItemHtml(w),
+      `<div class="ws-item" data-act="remove" data-danger><span class="mi-ic">${ICONS.trash}</span>${removeLabel}</div>`);
     const close = showDropdown(menu, rect, 200);
     const fmtBtn = menu.querySelector('[data-act=fmt]');
     if (fmtBtn) fmtBtn.onclick = async () => { close(); await DB.updateWidget(w.id, { format: (w.format || '24') === '24' ? '12' : '24' }); await reload(); };
@@ -2375,6 +2514,7 @@
     const refreshListBtn = menu.querySelector('[data-act=refreshlist]');
     if (refreshListBtn) refreshListBtn.onclick = async () => { close(); await reload(); };
     wireSizeMenuItems(menu, w, close);
+    wireMoveBoardMenuItem(menu, w, close, rect);
     wireTintMenuItem(menu, w, close);
     menu.querySelector('[data-act=remove]').onclick = async () => {
       close();

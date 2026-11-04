@@ -388,18 +388,6 @@ svg { width: 100%; height: 100%; }
 .dropdown-menu .ws-item[data-close]:hover { background: color-mix(in srgb, var(--error-color) 15%, var(--bg-color)); color: var(--error-color); }
 .dropdown-menu .ws-item[data-close]:hover .mi-ic { color: var(--error-color); }
 .dropdown-menu .ws-item-label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--sub-color); font-weight: 800; padding: 8px 10px 2px; opacity: .7; }
-.width-row { display: flex; gap: 4px; padding: 2px 10px 8px; }
-.width-row button {
-  flex: 1; height: var(--ctrl-h-sm); border-radius: var(--r-xs); border: none; background: var(--sub-alt-color);
-  color: var(--sub-color); font-size: 12.5px; font-weight: 700;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-}
-.width-row button .mi-ic {
-  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-  width: 16px; height: 16px; color: currentColor;   /* follow the button on hover/active */
-}
-.width-row button:hover { background: var(--main-color); color: var(--bg-color); }
-.width-row button.active { background: var(--main-color); color: var(--bg-color); }
 .dropdown-menu .mi-inline-btn { flex-shrink: 0; width: 24px; height: 24px; border: none; background: none; color: var(--sub-color); border-radius: var(--r-xs); display: flex; align-items: center; justify-content: center; }
 .dropdown-menu .mi-inline-btn svg { width: 13px; height: 13px; }
 .dropdown-menu .mi-inline-btn:hover { background: var(--sub-alt-color); color: var(--text-color); }
@@ -558,7 +546,7 @@ html.density-compact .sidebar-heading .icon-btn.small svg { width: 17px; height:
    snapping — menu rows, list items, icon buttons, tabs, bookmark tiles,
    segmented controls. All motion is gated by the "Animations & transitions"
    setting via html.no-anim. */
-.ws-item, .width-row button, .tab-icons button, .todo-item, .rss-item, .bs-item,
+.ws-item, .tab-icons button, .todo-item, .rss-item, .bs-item,
 .trash-item, .widget-add-btn, .widget-menu-btn, .theme-search-clear, .crumb-seg,
 .segmented button, .palette-item, .top-nav-btn, .workspace-btn, .search-trigger,
 .icon-btn, .mini-btn, .primary-btn, .btn-danger, .bookmark-item, .bookmark-tile {
@@ -1030,14 +1018,27 @@ html.no-popup-blur .overlay { backdrop-filter: none; }
    (e.g. the background-color popup's "No tint" / "Cancel") line up with
    the Save button instead of sitting smaller beside it. */
 .modal-actions .mini-btn { height: var(--ctrl-h); padding: 0 16px; font-size: 13px; }
-.color-picker { display: flex; gap: 8px; flex-wrap: wrap; }
-.color-swatch { width: 27px; height: 27px; border-radius: var(--r-pill); border: 2px solid transparent; }
-.color-swatch.selected { border-color: var(--main-color); }
+.color-picker { display: flex; gap: 10px; flex-wrap: wrap; padding: 4px; }
+.color-swatch {
+  position: relative; width: 28px; height: 28px; border-radius: var(--r-pill); border: 2px solid transparent; cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.color-swatch:hover { transform: scale(1.1); }
+.color-swatch:focus-visible { outline: 2px solid var(--text-color); outline-offset: 3px; }
+/* Selected: a clear two-tone ring (gap in the dialog colour, then the text colour, which reads on
+   any theme), a slight grow, and a check mark on the swatch itself. */
+.color-swatch.selected { transform: scale(1.12); box-shadow: 0 0 0 3px var(--sub-alt-color), 0 0 0 5px var(--text-color); }
+.color-swatch.selected::after {
+  content: ""; position: absolute; inset: 6px; background: #fff;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, .7));
+}
 .color-swatch-none {
   background: var(--bg-color); border-color: var(--border-color);
   background-image: linear-gradient(45deg, transparent 46%, var(--error-color) 48%, var(--error-color) 52%, transparent 54%);
 }
-.color-swatch-none.selected { border-color: var(--main-color); }
+.color-swatch-none.selected::after { background: var(--text-color); filter: none; }
 
 /* ---------- Settings ---------- */
 .modal-heading h2 { margin: 0; }
@@ -1701,3 +1702,15 @@ html.board-split .widget-ghost { display: none !important; }
 .size-grid button.cur { background: color-mix(in srgb, var(--main-color) 38%, var(--bg-color)); border-color: color-mix(in srgb, var(--main-color) 60%, var(--border-color)); }
 .size-grid button.hot { background: var(--main-color); border-color: var(--main-color); }
 .size-grid button:focus-visible { outline: 2px solid var(--text-color); outline-offset: 1px; }
+
+/* ---------- Hover flyouts (Size ›, View ›) ---------- */
+.dropdown-menu .ws-sub { position: relative; }
+.dropdown-menu .ws-sub.open { background: var(--sub-alt-color); color: var(--text-color); }
+.dropdown-menu .ws-sub .mi-right { padding-left: 16px; }
+.ws-sub-value { margin-left: auto; padding-left: 18px; font-size: 12px; color: var(--sub-color); font-variant-numeric: tabular-nums; }
+.ws-sub-value + .mi-right { margin-left: 0; padding-left: 8px; }
+.dropdown-menu .ws-sub:focus-visible, .ws-flyout .ws-item:focus-visible { outline: 2px solid var(--main-color); outline-offset: -2px; }
+.dropdown-menu.ws-flyout { z-index: 61; min-width: 0; overflow: visible; box-shadow: var(--shadow); }
+.ws-flyout .ws-item-label { padding-top: 6px; }
+.ws-flyout .ws-item .mi-right { color: var(--main-color); }
+.ws-flyout .size-grid { padding: 4px 8px 8px; }

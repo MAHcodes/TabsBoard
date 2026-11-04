@@ -1198,6 +1198,21 @@ async function setBoardMode(boardId, mode) {
   });
 }
 
+/* Move a widget (and so the collection it shows) to another board of the same workspace. It joins
+   the end of the target board; canvas positions are dropped so it gets packed into free space. */
+async function moveWidgetToBoard(widgetId, boardId) {
+  return setState((d) => {
+    const w = d.widgets[widgetId], target = d.boards[boardId], from = w && d.boards[w.boardId];
+    if (!w || !target) return { ok: false, reason: 'not-found' };
+    if (w.boardId === boardId) return { ok: false, reason: 'same-board' };
+    if (from && from.workspaceId !== target.workspaceId) return { ok: false, reason: 'other-workspace' };
+    w.order = Object.values(d.widgets).filter(x => x.boardId === boardId).length;
+    w.boardId = boardId;
+    delete w.cx; delete w.cy; delete w.cw; delete w.ch; delete w.cz;
+    return { ok: true, boardName: target.name };
+  });
+}
+
 async function setActiveBoard(workspaceId, boardId) {
   return setState((d) => { if (d.workspaces[workspaceId]) d.workspaces[workspaceId].activeBoardId = boardId; });
 }
@@ -1848,7 +1863,7 @@ const TabsDB = {
   defaultWorkspaceSettings, GLOBAL_SETTING_KEYS, DEFAULT_LIGHT_THEME_ID, DEFAULT_DARK_THEME_ID,
   createWidget, updateWidget, deleteWidget, reorderWidgets, setWidgetRects,
   installPlugin, setPluginGrants, removePlugin,
-  createBoard, renameBoard, setBoardMode, deleteBoard, setActiveBoard,
+  createBoard, renameBoard, setBoardMode, moveWidgetToBoard, deleteBoard, setActiveBoard,
   swapWidgetPositions, moveWidgetTo,
   occupiedCellsOfBoard, firstEmptyCell, assignWidgetPosition,
   exportJSON, importJSON, inspectBackup, bookmarksHTMLExport,

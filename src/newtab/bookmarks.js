@@ -343,17 +343,19 @@
       ${w ? tintMenuItemHtml() : ''}
       ${col.syncSource ? `<div class="ws-item" data-act="sync"><span class="mi-ic">${ICONS.refresh}</span>Sync from browser now</div>` : ''}
       <hr>
-      <div class="ws-item" data-act="sort"><span class="mi-ic">${ICONS.sort}</span>Sort: ${sortModeLabel(col.sortMode)}</div>
+      ${sortMenuItemsHtml(col)}
       ${viewMenuItemsHtml(col)}
       ${w ? sizeMenuItemsHtml(w) : ''}
       <hr>
       <div class="ws-item" data-act="dup"><span class="mi-ic">${ICONS.copyPlus}</span>Duplicate collection</div>
+      ${w ? moveBoardMenuItemHtml(w) : ''}
       <div class="ws-item" data-act="movews"><span class="mi-ic">${ICONS.folderInput}</span>Move to workspace…</div>
       <div class="ws-item" data-act="merge"><span class="mi-ic">${ICONS.layers}</span>Merge into…</div>
       <hr>
       <div class="ws-item" data-act="delete" data-danger><span class="mi-ic">${ICONS.trash}</span>Delete collection</div>`;
     const close = showDropdown(menu, rect, 230);
     if (w) wireSizeMenuItems(menu, w, close);
+    if (w) wireMoveBoardMenuItem(menu, w, close, rect);
     if (w) wireTintMenuItem(menu, w, close);
     wireViewMenuItems(menu, col, close);
     menu.querySelector('[data-act=add]').onclick = () => { close(); openBookmarkModal(null, col.id); };
@@ -383,14 +385,7 @@
       navigator.clipboard.writeText(md).then(() => toast(`Copied "${col.name}" as Markdown`));
     };
     menu.querySelector('[data-act=merge]').onclick = () => { close(); openMergeCollectionPicker(col); };
-    menu.querySelector('[data-act=sort]').onclick = async () => {
-      close();
-      const order = ['manual', 'alpha', 'newest', 'oldest'];
-      const next = order[(order.indexOf(col.sortMode) + 1) % order.length];
-      await DB.setCollectionSortMode(col.id, next);
-      await reload();
-      toast(`Sorted: ${sortModeLabel(next)}`);
-    };
+    wireSortMenuItems(menu, col, close);
     menu.querySelector('[data-act=delete]').onclick = async () => {
       close();
       await DB.softDeleteCollection(col.id);
@@ -589,20 +584,37 @@
   function renderColorPicker(selector, selectedColor, allowNone) {
     const wrap = $(selector);
     wrap.innerHTML = '';
-    if (allowNone) {
-      const none = el('div', 'color-swatch color-swatch-none' + (!selectedColor ? ' selected' : ''));
-      none.title = 'Default (no tint)';
-      none.dataset.color = '';
-      none.onclick = () => { $$('.color-swatch', wrap).forEach(x => x.classList.remove('selected')); none.classList.add('selected'); };
-      wrap.appendChild(none);
-    }
-    Themes.COLLECTION_COLORS.forEach(c => {
-      const sw = el('div', 'color-swatch' + (c === selectedColor ? ' selected' : ''));
-      sw.style.background = c;
-      sw.dataset.color = c;
-      sw.onclick = () => { $$('.color-swatch', wrap).forEach(x => x.classList.remove('selected')); sw.classList.add('selected'); };
+    wrap.setAttribute('role', 'radiogroup');
+    const select = (sw) => {
+      $$('.color-swatch', wrap).forEach(x => { x.classList.toggle('selected', x === sw); x.setAttribute('aria-checked', String(x === sw)); x.tabIndex = x === sw ? 0 : -1; });
+    };
+    const add = (sw, color, label, isSelected) => {
+      sw.dataset.color = color;
+      sw.title = label; sw.setAttribute('aria-label', label); sw.setAttribute('role', 'radio');
+      sw.onclick = () => select(sw);
+      sw.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(sw); return; }
+        const swatches = $$('.color-swatch', wrap);
+        const i = swatches.indexOf(sw);
+        const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+        if (!step) return;
+        e.preventDefault();
+        const next = swatches[(i + step + swatches.length) % swatches.length];
+        select(next); next.focus();
+      };
       wrap.appendChild(sw);
+      if (isSelected) { sw.classList.add('selected'); }
+    };
+    if (allowNone) add(el('div', 'color-swatch color-swatch-none'), '', 'Default (no tint)', !selectedColor);
+    Themes.COLLECTION_COLORS.forEach(c => {
+      const sw = el('div', 'color-swatch');
+      sw.style.background = c;
+      add(sw, c, c, c === selectedColor);
     });
+    // One swatch is always the keyboard entry point and reports its state to screen readers.
+    const cur = wrap.querySelector('.color-swatch.selected') || wrap.querySelector('.color-swatch');
+    select(wrap.querySelector('.color-swatch.selected') ? cur : null);
+    if (!wrap.querySelector('.color-swatch.selected')) cur.tabIndex = 0;
   }
 
   /* ============ SELECTION / BULK ACTIONS ============ */
