@@ -2,8 +2,7 @@
 Run: python3 tests/e2e/board_views.py"""
 import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
-from browser_stub import run
-PAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'newtab', 'index.html'))
+from browser_stub import run, PAGE
 def vis(pg, sel): return pg.evaluate("s=>{const n=document.querySelector(s);if(!n)return false;const b=n.getBoundingClientRect();return getComputedStyle(n).display!=='none'&&b.width>0&&b.height>0}", sel)
 def settle(pg, ms=500): pg.wait_for_timeout(ms)
 def active(pg, sel): return pg.evaluate("s=>{const b=document.querySelector(s+' button.active');return b&&b.dataset.val}", sel)

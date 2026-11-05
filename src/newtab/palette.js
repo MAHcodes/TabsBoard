@@ -3,7 +3,7 @@
    composition — see index.html, loaded after common/). The purely-functional
    matcher/highlighter and the tree flatten/rank/section helpers live in
    common/search.js under SearchUtils (unit-tested in tests/search.test.js). */
-  const { fuzzyMatch, highlightLabel } = SearchUtils;
+  const { highlightLabel } = SearchUtils;
 
   /* ============ MODAL / PALETTE plumbing ============ */
 
@@ -75,7 +75,7 @@
      Native confirm()/prompt()/alert() block the extension's background services
      in Firefox, so every call site drives these styled dialogs instead. They
      reuse the generic #modal-overlay and resolve as promises:
-     uiConfirm -> boolean, uiPrompt -> string | null, uiAlert -> undefined. */
+     uiConfirm -> boolean, uiPrompt -> string | null. */
   function openDialog(opts) {
     return new Promise((resolve) => {
       let settled = false;
@@ -131,7 +131,6 @@
       inputValue
     });
   }
-  function uiAlert(message, opts) { return openDialog(Object.assign({ message, okLabel: 'OK', okOnly: true }, (opts || {}))); }
 
   /* Searchable item picker: filter box + click/arrow-key-selectable list.
      uiSearchablePicker(title, message, items[], opts) -> picked item id | null.

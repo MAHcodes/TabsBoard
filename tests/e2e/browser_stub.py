@@ -1,5 +1,9 @@
-import sys, json
+import os, sys, json
 from playwright.sync_api import sync_playwright
+
+# The page under test, resolved from this file so the suite runs from any checkout or working directory.
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+PAGE = os.path.join(ROOT, 'src', 'newtab', 'index.html')
 STUB = """
 (() => {
   const store = {}; const listeners = [];
@@ -27,7 +31,7 @@ STUB = """
 """
 from contextlib import contextmanager
 @contextmanager
-def run(scheme, w=1280, h=900, path='/home/claude/src/newtab/index.html'):
+def run(scheme, w=1280, h=900, path=PAGE):
     with sync_playwright() as p:
         b = p.chromium.launch()
         ctx = b.new_context(color_scheme=scheme, viewport={'width':w,'height':h})

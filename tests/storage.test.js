@@ -14,7 +14,7 @@ global.chrome = { runtime: {}, storage: {
   },
   onChanged: { addListener(l) { listeners.push(l); } }
 }};
-const DB = require('../common/storage.js');
+const DB = require('../src/common/storage.js');
 
 (async () => {
   // ---- 1. legacy blob migration
@@ -86,6 +86,23 @@ const DB = require('../common/storage.js');
   // ---- 7. onChange fires
   let fired = 0; DB.onChange(() => fired++); await DB.updateSettings({ density: 'compact' }); assert.strictEqual(fired, 1);
   console.log('7 onChange ok');
+
+  // ---- 7b. importing browser bookmarks creates collections + widgets
+  // Regression: this path referenced an undeclared `colOrder` and threw on the first new collection.
+  const imp = await DB.importBrowserBookmarks([
+    { title: 'A', url: 'https://a.test', collection: 'Work' },
+    { title: 'B', url: 'https://b.test', collection: 'Work' },
+    { title: 'C', url: 'https://c.test', collection: 'Home' },
+    { title: 'no url' }
+  ]);
+  assert.strictEqual(imp.collections, 2); assert.strictEqual(imp.bookmarks, 3);
+  const after = await DB.getState();
+  const names = Object.values(after.collections).map(c => c.name).sort();
+  assert.deepStrictEqual(names.filter(n => n === 'Work' || n === 'Home'), ['Home', 'Work']);
+  const work = Object.values(after.collections).find(c => c.name === 'Work');
+  assert.strictEqual(Object.values(after.bookmarks).filter(b => b.collectionId === work.id).length, 2);
+  assert.ok(Object.values(after.widgets).some(w => w.collectionId === work.id), 'each imported collection gets a widget');
+  console.log('7b importBrowserBookmarks ok');
 
   // ---- 8. timing
   await DB.setState(d2 => { for (let i = 0; i < 5000; i++) d2.bookmarks['p' + i] = { id: 'p' + i, collectionId: 'x', title: 'P' + i, url: 'https://p.com/' + i, order: i }; });

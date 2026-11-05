@@ -108,7 +108,6 @@
         ? `color-mix(in srgb, var(--main-color) 20%, var(--sub-alt-color))`
         : `color-mix(in srgb, var(--main-color) 20%, var(--bg-color))`;
     }
-    const fav = bm.favicon || '';
     // Tooltip: tile shows title (+ page description); rows show the URL (+ description).
     const tipBase = isTile ? bm.title : bm.url;
     const tipText = bm.description ? `${tipBase}\n\n${bm.description}` : tipBase;
@@ -668,12 +667,6 @@
     toast(`Opened ${urls.length} bookmark${urls.length === 1 ? '' : 's'}${newWindow ? ' in a new window' : ''}`);
     clearSelection();
   }
-  async function copySelectedLinks() {
-    const urls = selectedBookmarksInOrder().map(b => b.url);
-    if (!urls.length) return;
-    toast((await copyTextToClipboard(urls.join('\n'))) ? `Copied ${urls.length} link${urls.length === 1 ? '' : 's'}` : "Couldn't copy");
-  }
-
   /* Re-reads each page's <title> and icon and updates the bookmarks. Must be
      invoked straight from a click: the first thing it does is ask for site
      access (browsers only allow that prompt during a user gesture). */

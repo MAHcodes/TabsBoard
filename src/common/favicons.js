@@ -53,7 +53,6 @@
     // about:, chrome-extension://other-id/... and blob: from dead pages can't.
     return typeof u === 'string' && (/^https?:\/\//i.test(u) || /^data:image\//i.test(u));
   }
-  function hash(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
 
   /* Generated tile: rounded square in the theme's accent colour with the
      site's first letter in the theme's background colour. A data: URI can't see

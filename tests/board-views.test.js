@@ -12,7 +12,7 @@ global.chrome = { runtime: {}, storage: {
   },
   onChanged: { addListener(l) { listeners.push(l); } }
 }};
-const DB = require('../common/storage.js');
+const DB = require('../src/common/storage.js');
 
 (async () => {
   let s = await DB.getState();

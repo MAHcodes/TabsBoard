@@ -1956,7 +1956,6 @@
       body.innerHTML = `<div class="empty-collection-hint">Set a date from this widget's ⋯ menu</div>`;
     } else {
       const target = new Date(w.targetDate + 'T00:00:00');
-      const now = new Date();
       const msPerDay = 86400000;
       const diffDays = Math.ceil((target.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / msPerDay);
       let big, small;

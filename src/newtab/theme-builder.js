@@ -209,7 +209,7 @@
     toast(`Saved “${name}”`);
   }
 
-  async function deleteCustomTheme(themeId) {
+  async function confirmAndDeleteTheme(themeId) {
     const t = Themes.findTheme(themeId, savedCustomThemes());
     if (!t) return;
     /* Custom themes are one library shared by every workspace, so deleting one

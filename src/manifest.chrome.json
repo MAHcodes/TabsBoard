@@ -9,7 +9,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "unlimitedStorage", "tabs", "alarms", "contextMenus", "sessions", "notifications", "bookmarks", "search", "topSites", "omnibox", "downloads", "downloads.open", "history", "fontSettings", "system.cpu"],
+  "permissions": ["storage", "unlimitedStorage", "tabs", "alarms", "contextMenus", "sessions", "notifications", "bookmarks", "search", "topSites", "downloads", "downloads.open", "history", "fontSettings", "system.cpu"],
   "host_permissions": ["https://*.gstatic.com/*", "https://icons.duckduckgo.com/*", "https://geocoding-api.open-meteo.com/*", "https://api.open-meteo.com/*"],
   "optional_host_permissions": ["<all_urls>"],
   "content_security_policy": {

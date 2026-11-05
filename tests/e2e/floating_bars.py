@@ -1,8 +1,7 @@
 """Real-browser check of the Floating bars setting. Run: python3 tests/e2e/floating_bars.py"""
 import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
-from browser_stub import run
-PAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'newtab', 'index.html'))
+from browser_stub import run, PAGE
 R = """()=>{const r=s=>{const b=document.querySelector(s).getBoundingClientRect();return [Math.round(b.left),Math.round(b.top),Math.round(b.right),Math.round(b.bottom)]};
  return {cls:document.documentElement.className, top:r('.topbar'), side:r('#sidebar'), main:r('#main')}}"""
 with run('dark', path=PAGE) as (pg, errs):

@@ -1,4 +1,4 @@
-const SU = require('../common/search.js');
+const SU = require('../src/common/search.js');
 const assert = require('assert');
 
 // A miniature of the palette tree: Settings > Appearance > Density > options.

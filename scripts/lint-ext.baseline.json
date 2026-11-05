@@ -1,0 +1,8 @@
+{
+  "firefox": {
+    "UNSAFE_VAR_ASSIGNMENT": 92
+  },
+  "chrome": {
+    "UNSAFE_VAR_ASSIGNMENT": 92
+  }
+}

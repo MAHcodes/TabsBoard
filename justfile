@@ -5,19 +5,11 @@ default:
 
 # Build the Chrome (MV3) extension into dist/chrome
 chrome:
-    rm -rf {{dist}}/chrome
-    mkdir -p {{dist}}/chrome
-    cp -r src/. {{dist}}/chrome/
-    rm {{dist}}/chrome/manifest.firefox.json {{dist}}/chrome/manifest.chrome.json {{dist}}/chrome/background/background.html
-    cp src/manifest.chrome.json {{dist}}/chrome/manifest.json
+    node scripts/build.js chrome
 
 # Build the Firefox (MV2) extension into dist/firefox
 firefox:
-    rm -rf {{dist}}/firefox
-    mkdir -p {{dist}}/firefox
-    cp -r src/. {{dist}}/firefox/
-    rm {{dist}}/firefox/manifest.firefox.json {{dist}}/firefox/manifest.chrome.json
-    cp src/manifest.firefox.json {{dist}}/firefox/manifest.json
+    node scripts/build.js firefox
 
 # Pack the Firefox build into a versioned .xpi
 pack-firefox: firefox
@@ -26,6 +18,22 @@ pack-firefox: firefox
 
 # Build both browser targets
 build: chrome firefox
+
+# Everything CI runs except the browser tests: version/SDK sync, lint, unit tests
+check:
+    npm run check
+
+# Browser (Playwright) tests; needs `pip install -r tests/e2e/requirements.txt && playwright install chromium`
+e2e:
+    npm run test:e2e
+
+# Lint the Firefox build with Mozilla's web-ext
+lint-ext:
+    npm run lint:ext
+
+# Fix version / SDK-copy drift (see scripts/sync.js)
+sync:
+    npm run sync
 
 # Remove generated builds and the packed .xpi
 clean:

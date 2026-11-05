@@ -149,7 +149,7 @@
 
     $('#theme-builder-new').onclick = () => openThemeBuilder(null);
     $('#theme-builder-edit').onclick = () => openThemeBuilder(appliedThemeId());
-    $('#theme-builder-delete').onclick = () => deleteCustomTheme(appliedThemeId());
+    $('#theme-builder-delete').onclick = () => confirmAndDeleteTheme(appliedThemeId());
 
     $$('#density-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ density: b.dataset.val }); await reload(); syncSettingsUI(); });
     $$('#radius-toggle button').forEach(b => b.onclick = async () => { await DB.updateSettings({ radius: b.dataset.val }); await reload(); syncSettingsUI(); });
@@ -593,7 +593,7 @@
         btn.onclick = (e) => {
           e.stopPropagation();
           if (btn.dataset.act === 'edit') openThemeBuilder(t.id);
-          else deleteCustomTheme(t.id);
+          else confirmAndDeleteTheme(t.id);
         };
       });
       wrap.appendChild(card);

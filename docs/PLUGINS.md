@@ -128,9 +128,9 @@ What is **not** enforced — be honest with users about it
 
 ```sh
 npm i -D dexie fake-indexeddb jsdom
-node src/tests/plugin-protocol.test.js   # protocol, validation, limits, SDK↔dispatcher over a real MessageChannel
-node src/tests/plugins-storage.test.js   # registry, grants, import safety
-node src/tests/plugins-host.test.js      # real plugins.js in jsdom: handshake, lifecycle, XSS, suspension
+node tests/plugin-protocol.test.js   # protocol, validation, limits, SDK↔dispatcher over a real MessageChannel
+node tests/plugins-storage.test.js   # registry, grants, import safety
+node tests/plugins-host.test.js      # real plugins.js in jsdom: handshake, lifecycle, XSS, suspension
 ```
 
 The host test uses jsdom, which has **no real iframe sandbox**; it verifies

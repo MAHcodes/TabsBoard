@@ -1,7 +1,7 @@
 /* Plugin protocol tests (pure node, no deps).  Run: node tests/plugin-protocol.test.js */
 const assert = require('assert');
-const PP = require('../common/plugin-protocol.js');
-const SDK = require('../../sdk/tabsboard-widget-sdk.js');
+const PP = require('../src/common/plugin-protocol.js');
+const SDK = require('../sdk/tabsboard-widget-sdk.js');
 
 const good = { id: 'com.example.hello', name: 'Hello', version: '1.0.0', entry: 'https://example.com/w/index.html', permissions: ['storage'] };
 

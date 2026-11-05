@@ -1,4 +1,4 @@
-import sys, json
+import os, sys, json, tempfile
 from playwright.sync_api import sync_playwright
 css_path = sys.argv[1]
 HTML = """<!doctype html><html><head><link rel=stylesheet href="file://%s"></head><body>
@@ -16,7 +16,7 @@ radii = {'default':None,'sharp':'radius-sharp','rounded':'radius-rounded','extra
 dens  = {'comfortable':'', 'compact':'density-compact','dense':'density-compact density-dense','spacious':'density-spacious'}
 out={}
 with sync_playwright() as p:
-    b=p.chromium.launch(); open("/tmp/h/page.html","w").write(HTML); pg=b.new_page(); pg.goto("file:///tmp/h/page.html"); pg.wait_for_timeout(200)
+    b=p.chromium.launch(); page_path=os.path.join(tempfile.mkdtemp(), "page.html"); open(page_path,"w").write(HTML); pg=b.new_page(); pg.goto("file://"+page_path); pg.wait_for_timeout(200)
     for rn,rc in radii.items():
         for dn,dc in dens.items():
             cls=' '.join(x for x in [rc,dc] if x)

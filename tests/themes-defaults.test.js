@@ -1,7 +1,7 @@
 /* Default / fallback themes. Run: node tests/themes-defaults.test.js */
 const assert = require('assert');
 global.self = global; global.window = global;
-require('../common/themes.js');
+require('../src/common/themes.js');
 const T = global.Themes;
 assert.ok(T, 'Themes global');
 assert.strictEqual(T.DEFAULT_LIGHT_ID, 'iceberg_light');

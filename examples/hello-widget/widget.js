@@ -1,3 +1,4 @@
+/* global TabsBoard */
 (async function () {
   const countEl = document.getElementById('count');
   const bmEl = document.getElementById('bm');

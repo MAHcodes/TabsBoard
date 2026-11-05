@@ -2,8 +2,7 @@
 Run: python3 tests/e2e/widget_menu.py"""
 import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
-from browser_stub import run
-PAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'newtab', 'index.html'))
+from browser_stub import run, PAGE
 def settle(pg, ms=400): pg.wait_for_timeout(ms)
 def menu(pg):
     pg.locator('#board > .widget .widget-header').first.click(button='right', position={'x': 6, 'y': 6}); settle(pg, 250)

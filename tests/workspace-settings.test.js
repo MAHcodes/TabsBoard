@@ -13,7 +13,7 @@ global.chrome = { runtime: {}, storage: {
   },
   onChanged: { addListener(l) { listeners.push(l); } }
 }};
-const DB = require('../common/storage.js');
+const DB = require('../src/common/storage.js');
 
 const THEME = (id, name) => ({ id, name, type: 'dark', custom: true, bg: '#111111', main: '#22aa22', caret: '#22aa22', sub: '#555555', subAlt: '#181818', text: '#eeeeee', error: '#cc3333', errorExtra: '#992222', colorfulError: '#cc3333', colorfulErrorExtra: '#992222' });
 let n = 0;

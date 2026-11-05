@@ -1816,7 +1816,6 @@ async function importBrowserBookmarks(items, wsIdOverride) {
         d.widgets[wid] = { id: wid, workspaceId: wsId, boardId, type: 'collection', collectionId: colId, span: 1, rowSpan: 1, tintColor: null, order: widgetOrder, createdAt: now() };
         assignWidgetPosition(d, wid);
         colIds[it.collection] = colId;
-        colOrder[colId] = 0;
         created.collections++;
       }
       const id = uid();

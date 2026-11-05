@@ -1,3 +1,4 @@
+/* global Dexie */
 /* Upgrade test: an install whose IndexedDB already holds the pre-per-workspace
  * layout (one flat `settings` row in meta) is migrated in place, losslessly and once.
  * Needs: npm i -D dexie fake-indexeddb      Run: node tests/settings-migration.test.js */
@@ -27,7 +28,7 @@ global.chrome = { runtime: {}, storage: {
   await old.bookmarks.put({ id: 'k', collectionId: 'c', workspaceId: 'w2', title: 'T', url: 'https://e.com' }, 'k');
   old.close();
   // Fresh Dexie handle used by the app must not be the one above.
-  const DB = require('../common/storage.js');
+  const DB = require('../src/common/storage.js');
 
   const s = await DB.getState();
   assert.strictEqual(s.meta.settings, undefined, 'flat row gone');

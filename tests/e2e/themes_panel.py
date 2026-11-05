@@ -2,8 +2,7 @@
 Run: python3 tests/e2e/themes_panel.py"""
 import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
-from browser_stub import run
-PAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'newtab', 'index.html'))
+from browser_stub import run, PAGE
 
 def state(pg):
     return pg.evaluate("""()=>({mode:document.querySelector('#theme-mode .active').dataset.val,

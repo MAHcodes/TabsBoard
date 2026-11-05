@@ -12,7 +12,6 @@ if (typeof importScripts === 'function' && typeof TabsDB === 'undefined') {
 }
 const DB = (typeof TabsDB !== 'undefined') ? TabsDB : self.TabsDB;
 
-const CONTEXT_MENU_ROOT = 'tdb-add-to-collection';
 const CONTEXT_MENU_PAGE = 'tdb-add-page';
 const CONTEXT_MENU_LINK = 'tdb-add-link';
 const CONTEXT_MENU_SELECTION = 'tdb-add-selection';
@@ -303,7 +302,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (typeof id !== 'string' || !id.startsWith('tdb-')) return;
 
   const isLink = id.startsWith('tdb-link-');
-  const isPage = id.startsWith('tdb-page-');
   const url = isLink ? info.linkUrl : (info.pageUrl || (tab && tab.url));
   const title = isLink ? (info.linkUrl) : (tab && tab.title) || url;
 

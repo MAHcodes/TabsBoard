@@ -369,7 +369,6 @@
   }
   /* Best icon src for a page right now (cached copy if we have one, else a
      provider URL, else a generated letter tile). Never empty, never broken. */
-  function faviconFor(url, stored) { return Favicons.src(url, stored); }
   /* Ready-made <img> markup with the cache + fallback chain wired in. */
   function favImg(pageUrl, stored, cls) { return Favicons.img(pageUrl, stored, cls); }
 

@@ -12,7 +12,7 @@
 Bookmarks in color-coded collections · a board of widgets you arrange yourself ·
 workspaces, saved sessions, and a tab list that can actually get out of your way.
 
-**v1.1.0** · Chrome (MV3) + Firefox (MV2) · one shared codebase
+**v2.0.0** · Chrome (MV3) + Firefox (MV2) · one shared codebase
 
 </div>
 
@@ -121,36 +121,70 @@ web-ext sign --api-key "$AMO_KEY" --api-secret "$AMO_SECRET" \
 ## 🛠️ Build it yourself
 
 `src/` is the source of truth. `dist/` and the packed `.xpi` are generated and
-gitignored, so run these before either install step.
+gitignored, so build before either install step. You need Node 22+.
 
 ```bash
-# Chrome (MV3)
-rm -rf dist/chrome && mkdir -p dist/chrome
-cp -r src/. dist/chrome/
-rm dist/chrome/manifest.firefox.json dist/chrome/manifest.chrome.json dist/chrome/background/background.html
-cp src/manifest.chrome.json dist/chrome/manifest.json
+npm install            # once: dev tooling only, nothing here ships in the extension
 
-# Firefox (MV2)
-rm -rf dist/firefox && mkdir -p dist/firefox
-cp -r src/. dist/firefox/
-rm dist/firefox/manifest.firefox.json dist/firefox/manifest.chrome.json
-cp src/manifest.firefox.json dist/firefox/manifest.json
-
-# Pack the Firefox build (version comes from the manifest)
-cd dist/firefox && zip -r -X "../../TabsBoard-$(node -p "require('./manifest.json').version")-fx.xpi" . -x '.*'
+node scripts/build.js chrome     # Chrome (MV3)  -> dist/chrome
+node scripts/build.js firefox    # Firefox (MV2) -> dist/firefox
+node scripts/build.js            # both
 ```
 
-Bump the version in **both** manifests, not just one.
+Each build also checks that every file the manifest and the pages point at is
+present, and leaves tests and tooling out of the package. With
+[`just`](https://just.systems) installed, `just chrome`, `just firefox`,
+`just build` and `just pack-firefox` (a versioned `.xpi`) do the same.
+
+## 🧪 Development
+
+```bash
+npm run check      # version/SDK sync + ESLint + cross-file lint + unit tests (what CI runs first)
+npm test           # unit tests only (node:test; storage, search, plugins, themes, migrations)
+npm run lint       # ESLint, plus scripts/lint-bundle.js (see below)
+npm run lint:ext   # build both targets and lint them with Mozilla's web-ext
+npm run test:e2e   # browser tests; needs Playwright (below)
+npm run sync       # fix version / SDK-copy drift
+```
+
+Browser tests drive the real new-tab page in Chromium:
+
+```bash
+pip install -r tests/e2e/requirements.txt && playwright install chromium
+python3 tests/e2e/run_all.py              # all of them
+python3 tests/e2e/run_all.py palette      # just the ones whose file name matches
+```
+
+A few things worth knowing:
+
+- **The newtab scripts share one global scope** (they are plain `<script>`s, loaded in
+  the order listed in `newtab/index.html`), so linting file by file can't tell a typo from a
+  function defined elsewhere. `scripts/lint-bundle.js` concatenates them in load order and
+  lints the result, which finds undefined names, unused top-level code and duplicate
+  declarations, with the real file and line.
+- **Versions.** The Chrome manifest is the single source of truth. Bump it there, then run
+  `npm run sync` to update the Firefox manifest, `package.json` and the version above. CI
+  fails if they drift. `sdk/tabsboard-widget-sdk.js` is likewise the source for the copy in
+  `examples/hello-widget/`; `npm run sync` refreshes it.
+- **`innerHTML` is ratcheted.** `npm run lint:ext` counts web-ext's "unsafe assignment to
+  innerHTML" warnings against `scripts/lint-ext.baseline.json`. The number may go down, not
+  up: build new markup with `escapeHtml` or `textContent`.
 
 ## 🗂️ Layout
 
 ```
 src/
-  manifest.chrome.json    MV3 manifest
+  manifest.chrome.json    MV3 manifest (also the version source of truth)
   manifest.firefox.json   MV2 manifest
   background/             service worker / background page
   common/                 storage, themes, icons, search, color utils
   newtab/                 the dashboard UI
+  popup/                  toolbar popup
+sdk/                      widget SDK for plugin authors
+examples/                 example plugin widget
+docs/                     plugin protocol and widget docs
+tests/                    unit tests (node:test) and tests/e2e (Playwright)
+scripts/                  build, version/SDK sync, lint tooling
 dist/                     generated builds
 ```
 

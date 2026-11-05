@@ -12,8 +12,8 @@ global.chrome = { runtime: {}, storage: {
   },
   onChanged: { addListener(l) { listeners.push(l); } }
 }};
-const DB = require('../common/storage.js');
-const PP = require('../common/plugin-protocol.js');
+const DB = require('../src/common/storage.js');
+const PP = require('../src/common/plugin-protocol.js');
 
 const manifest = PP.validateManifest({
   id: 'com.example.hello', name: 'Hello', version: '1.0.0', entry: 'https://example.com/w.html',

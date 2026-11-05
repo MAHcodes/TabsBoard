@@ -7,8 +7,8 @@ let JSDOM; try { ({ JSDOM } = require('jsdom')); } catch (e) { console.error('In
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const PP = require('../common/plugin-protocol.js');
-const SDK = require('../../sdk/tabsboard-widget-sdk.js');
+const PP = require('../src/common/plugin-protocol.js');
+const SDK = require('../sdk/tabsboard-widget-sdk.js');
 
 const dom = new JSDOM('<!doctype html><html><body><div id="board"></div><div id="plugin-list"></div></body></html>', { runScripts: 'outside-only', url: 'chrome-extension://abc/newtab/index.html' });
 const win = dom.window;
@@ -49,7 +49,7 @@ win.STATE = {
   bookmarks: { b1: { id: 'b1', workspaceId: 'ws1', collectionId: 'c1', title: 'React', url: 'https://react.dev', order: 0 } }
 };
 
-win.eval(fs.readFileSync(path.join(__dirname, '../newtab/plugins.js'), 'utf8'));
+win.eval(fs.readFileSync(path.join(__dirname, '../src/newtab/plugins.js'), 'utf8'));
 win.initPlugins();
 
 /* Simulate what a browser does for a sandboxed frame: the frame's window gets
@@ -140,6 +140,7 @@ function fakeWidgetWindow(frame) {
   let rejected = 0;
   await Promise.all(Array.from({ length: 400 }, () => tb2.call('host.info', {}, 300).catch(() => { rejected++; })));
   await sleep(50);
+  assert.ok(rejected > 0, 'calls beyond the rate limit are rejected, not silently dropped');
   assert.ok(card.querySelector('.plugin-status'), 'suspended widget shows status');
   assert.ok(!card.querySelector('iframe'), 'suspended widget has its iframe removed');
   assert.ok(/too many requests/i.test(card.querySelector('.plugin-status-msg').textContent));

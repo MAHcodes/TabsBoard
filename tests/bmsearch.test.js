@@ -1,4 +1,4 @@
-const BS=require('../common/bmsearch.js');
+const BS=require('../src/common/bmsearch.js');
 const assert=require('assert');
 const D=[
  {id:1,title:'React Hooks Reference',url:'https://react.dev/reference/react/hooks',tags:['frontend','js'],description:'Built-in hooks for state and effects',notes:''},
